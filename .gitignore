@@ -1,0 +1,10 @@
+# Ignore .pyc files
+*.pyc
+
+# Ignore cython-produced files
+*.pyd
+*.o
+*.c
+
+# Ignore profiling reports
+*.profile
