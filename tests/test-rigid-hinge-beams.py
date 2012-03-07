@@ -66,8 +66,8 @@ def test1():
     #tower.calc_external_forces = thrust
     
     # Solve
-    dt = 0.1
-    t = np.arange(0, 5, dt)
+    dt = 0.5
+    t = np.arange(0, 200, dt)
     y = solve_system(system, t)
     
     return t,y

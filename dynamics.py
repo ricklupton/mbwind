@@ -15,6 +15,8 @@ import matplotlib.pylab as plt
 from scipy.integrate import odeint
 from scipy import sparse
 
+import assemble
+
 
 def rotmat_x(theta):
     return array([
@@ -153,10 +155,14 @@ class System(object):
             self.mass[:] = 0.0
 
         # Update kinematics
-        xp = combine_coords(zeros(3), eye(3))
+        rp = zeros(3)
+        Rp = eye(3)
         vp = zeros(NQD)
-        self.first_element.update(xp, vp, dynamics)
+        self.first_element.update(rp, Rp, vp, dynamics)
         
+        if dynamics:
+            assemble.assemble(self.iter_elements(), self.mass, self.rhs)
+
         #if dynamics:
         #    Nq = len(self.state_elements)
         #    self.mass = sparse.coo_matrix( (self._mass_v, (self._mass_i,self._mass_j)),
@@ -213,6 +219,7 @@ class System(object):
         a = LA.solve(M, b)
         self.qdd[~self.iPrescribed] = a
 
+
         
 gravity = 9.81
 
@@ -224,12 +231,28 @@ class Element(object):
     def __init__(self, name):
         self.name = name
         self.children = []
-        self.xp = combine_coords(zeros(3), eye(3))
-        self.xd = np.tile(combine_coords(zeros(3), eye(3)), self._ndistal)
+
+        self.rp = zeros(3)
+        self.Rp = eye(3)
+        self.rd = np.tile(zeros(3), self._ndistal)
+        self.Rd = np.tile(eye  (3), self._ndistal)
         self.xstrain = zeros(self._nstrain)
+
         self.vp = zeros(NQD)
         self.vd = zeros(NQD*self._ndistal)
         self.vstrain = zeros(self._nstrain)
+
+        # Default [constant] parts of transformation matrices:
+        # distal node velocities are equal to proximal, no strain effects
+        self.F_vv = np.tile(eye(NQD), (self._ndistal,1))
+        self.F_ve = zeros((NQD*self._ndistal, self._nstrain))
+        self.F_v2 = zeros( NQD*self._ndistal                )
+        
+        # Default [constant] parts of mass matrices
+        nnodes = NQD * (1 + self._ndistal)
+        self.mass_vv = zeros((nnodes,nnodes))
+        self.mass_ve = zeros((nnodes,self._nstrain))
+        self.mass_ee = zeros((self._nstrain,self._nstrain))
     
     def __str__(self):
         return self.name
@@ -279,103 +302,89 @@ class Element(object):
     def _check_ranges(self):
         pass
 
-    def calc_external_forces(self, xp, xd, xstrain, vp, vd, vstrain):
+    def calc_external_forces(self):
         return zeros(NQD * (1 + self._ndistal))
         
-    def calc_stresses(self, xp, xd, xstrain, vp, vd, vstrain):
+    def calc_stresses(self):
         return zeros(self._nstrain)
     
-    def update(self, xp, vp, matrices=True):
+    def update(self, rp, Rp, vp, matrices=True):
         # proximal values
-        self.xp = xp
+        self.rp = rp
+        self.Rp = Rp
         self.vp = vp
-        #xp = self.system.get_state(self.iprox, 0)
-        #vp = self.system.get_state(self.iprox, 1)
         
         # strain rates and accelerations
         self._check_ranges()
         self.xstrain = self.system.q[self.istrain]
         self.vstrain = self.system.qd[self.istrain]
             
+        # Calculate kinematic transforms
+        self.calc_kinematics()
+
         # find distal node values in terms of proximal node values
-        self.xd = self.distal_pos(self.xp, self.xstrain)
-        self.vd = dot(self.F_vv(self.xp, self.xd, self.xstrain), self.vp     ) + \
-                  dot(self.F_ve(self.xp, self.xd, self.xstrain), self.vstrain)
+        self.rd,self.Rd = self.distal_pos()
+        self.vd = dot(self.F_vv, self.vp     ) + \
+                  dot(self.F_ve, self.vstrain)
         
-        # XXX
-        self._F_v2 = self.F_v2(self.xp, self.xd, self.xstrain, self.vp, self.vd, self.vstrain)
-                
         # Save back to system state vector
-        self.system.q[self.idist] = self.xd
-        self.system.qd[self.idist] = self.vd
+        #self.system.q[self.idist] = self.xd
+        #self.system.qd[self.idist] = self.vd
         
         # Update mass and constraint matrices
         if matrices:
             # Calculate
-            self._calc_mass_matrix(self.xp, self.xd, self.xstrain)
-            self._calc_constraint_matrix(self.xp, self.xd, self.xstrain)
-            self._calc_applied_forces(self.xp, self.xd, self.xstrain, self.vp, self.vd, self.vstrain)
-            self._calc_quadratic_forces(self.xp, self.xd, self.xstrain, self.vp, self.vd, self.vstrain)
+            self._calc_mass_matrix()
+            self._calc_constraint_matrix()
+            self._calc_applied_forces()
+            self._calc_quadratic_forces()
             
             # Add to mass matrix
-            self.system.add_to_matrix(self._imass(), self._imass(), self._mass_matrix         )    
-            self.system.add_to_matrix(self.imult,    self._imass(), self._constraint_matrix   )
-            self.system.add_to_matrix(self._imass(), self.imult,    self._constraint_matrix.T )
+            #self.system.add_to_matrix(self._imass(), self._imass(), self._mass_matrix         )    
+            #self.system.add_to_matrix(self.imult,    self._imass(), self._constraint_matrix   )
+            #self.system.add_to_matrix(self._imass(), self.imult,    self._constraint_matrix.T )
             
             # Add to RHS
-            self.system.add_to_rhs(self._inodes(), self._applied_forces)
-            self.system.add_to_rhs(self.istrain,  -self._applied_stresses)
-            self.system.add_to_rhs(self._imass(),  self._quadratic_forces)
-            self.system.add_to_rhs(self.imult,     self._F_v2)
+            #self.system.add_to_rhs(self._inodes(), self._applied_forces)
+            #self.system.add_to_rhs(self.istrain,  -self._applied_stresses)
+            #self.system.add_to_rhs(self._imass(),  self._quadratic_forces)
+            #self.system.add_to_rhs(self.imult,     self.F_v2)
         
         # Pass onto children for each distal node
         for distnode,child in sorted(self.children):
-            child.update(self.xd, self.vd, matrices)
+            child.update(self.rd, self.Rd, self.vd, matrices)
     
-    def _calc_constraint_matrix(self, xp, xd, xstrain):
+    def _calc_constraint_matrix(self):
         # acceleration constraint 0 = [ -prox->dist, I, -strain->dist ] * [ v_prox, v_dist, v_strain ]
         self._constraint_matrix = np.c_[ 
-            -self.F_vv(xp, xd, xstrain), np.eye(NQD), -self.F_ve(xp, xd, xstrain)
+            -self.F_vv, np.eye(NQD), -self.F_ve        
         ]
 
-    def _calc_mass_matrix(self, xp, xd, xstrain):
-        m_vv = self.mass_matrix_vv(xp, xd, xstrain)
-        m_ve = self.mass_matrix_ve(xp, xd, xstrain)
-        m_ee = self.mass_matrix_ee(xp, xd, xstrain)
+    def _calc_mass_matrix(self):
+        m_vv = self.mass_matrix_vv()
+        m_ve = self.mass_matrix_ve()
+        m_ee = self.mass_matrix_ee()
         self._mass_matrix = np.r_[ np.c_[m_vv,   m_ve],
                                    np.c_[m_ve.T, m_ee] ]
 
-    def mass_matrix_vv(self, xp, xd, xstrain):
-        n = NQD * (1 + self._ndistal)
-        return zeros((n,n))
-    def mass_matrix_ve(self, xp, xd, xstrain):
-        n = NQD * (1 + self._ndistal)
-        return zeros((n,self._nstrain))
-    def mass_matrix_ee(self, xp, xd, xstrain):
-        return zeros((self._nstrain,self._nstrain))
-    
-    def _calc_applied_forces(self, xp, xd, xstrain, vp, vd, vstrain):
+    def _calc_applied_forces(self):
         # include gravity by default
         n = NQD * (1 + self._ndistal)
         gravacc = array([0, 0, -gravity, 0, 0, 0,
                          0, 0, -gravity, 0, 0, 0,])
         self._applied_forces = dot(self._mass_matrix[:n,:n], gravacc)
-        self._applied_forces += self.calc_external_forces(xp, xd, xstrain, vp, vd, vstrain)
-        self._applied_stresses = self.calc_stresses(xp, xd, xstrain, vp, vd, vstrain)
+        self._applied_forces += self.calc_external_forces()
+        self._applied_stresses = self.calc_stresses()
     
-    def _calc_quadratic_forces(self, xp, xd, strain, vp, vd, vstrain):
+    def _calc_quadratic_forces(self):
         self._quadratic_forces = zeros(NQD*(1 + self._ndistal) + self._nstrain)
     
-    def F_vv(self, xp, xd, xstrain):
-        # acceleration transfer func
-        return zeros((NQD*self._ndistal,NQD))    
-    
-    def F_ve(self, xp, xd, xstrain):
-        # strain constraint
-        return zeros((NQD*self._ndistal, self._nstrain))
-    
-    def F_v2(self, xp, xd, xstrain, vp, vd, vstrain):
-        return zeros(NQD*self._ndistal)
+    def calc_kinematics(self):
+        """
+        Update kinematic transforms: F_vv, F_ve and F_v2
+        [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
+        """
+        pass
 
 class Hinge(Element):
     _ndistal = 1
@@ -390,7 +399,7 @@ class Hinge(Element):
         if post_transform is None:
             post_transform = np.eye(3)
         self.post_transform = post_transform
-    
+
     def _check_ranges(self):
         return
         xstrain = self.system.get_state(self.istrain, 0)
@@ -404,41 +413,32 @@ class Hinge(Element):
             self.system.set_state(self.istrain, xstrain, 0)        
 
     
-    def distal_pos(self, xp, xstrain):
-        Rp = rotmatrix(xp)
+    def distal_pos(self):
         vs = skewmat(self.hinge_axis)
-        th = xstrain[0]
+        th = self.xstrain[0]
         Rn = np.eye(3) + vs*np.sin(th) + 2*dot(vs,vs)*np.sin(th/2)**2
         Rc = self.post_transform
-        
-        rd = xp[:3]
-        Rd = dot(Rp, dot(Rn, Rc))
-        return combine_coords(rd, Rd)
-    
-    def F_vv(self, xp, xd, xstrain):
-        # acceleration transfer func
-        return np.eye(NQD)
-    
-    def F_ve(self, xp, xd, xstrain):
-        # strain constraint
-        Rp = rotmatrix(xp)
-        n = dot(Rp, self.hinge_axis) # global hinge axis vector
-        return np.r_[ zeros(3), n ].reshape((-1,1))
-    
-    def F_v2(self, xp, xd, xstrain, vp, vd, vstrain):
-        Rp = rotmatrix(xp)
-        n = dot(Rp, self.hinge_axis) # global hinge axis vector
-        wps = skewmat(vp[3:])
-        thd = vstrain[0]
-        return np.r_[ [0, 0, 0], thd*dot(wps, n) ].T
+        return self.rp, dot(self.Rp, dot(Rn, Rc))
+
+    def calc_kinematics(self):
+        """
+        Update kinematic transforms: F_vv, F_ve and F_v2
+        [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
+        """
+        n = dot(self.Rp, self.hinge_axis) # global hinge axis vector
+        wps = skewmat(self.vp[3:])            # angular velocity matrix
+        thd = self.vstrain[0]             # theta dot
+
+        self.F_ve[3:,:] = n[:,np.newaxis]
+        self.F_v2[3:] = thd*dot(wps, n)
     
     def shape(self):
         # proximal values
-        rd = self.xd[:3] #self.system.get_state(self.iprox, 0)
-        Rd = rotmatrix(self.xd)
         return [
-            array([rd]),
-            rd + np.r_[ [dot(Rd,[1,0,0])], [[0,0,0]], [dot(Rd,[0,1,0])], [[0,0,0]], [dot(Rd,[0,0,1])] ]
+            array([self.rd]),
+            self.rd + np.r_[ [dot(self.Rd,[1,0,0])], [[0,0,0]],
+                             [dot(self.Rd,[0,1,0])], [[0,0,0]],
+                             [dot(self.Rd,[0,0,1])] ]
         ]
     
     shape_plot_options = [
@@ -446,8 +446,8 @@ class Hinge(Element):
         {'c': 'k', 'lw': 0.5}
     ]
 
-    def calc_stresses(self, xp, xd, xstrain, vp, vd, vstrain):
-        return array([self.stiffness * xstrain[0] + self.damping * self.vstrain[0]])
+    def calc_stresses(self):
+        return array([self.stiffness * self.xstrain[0] + self.damping * self.vstrain[0]])
 
 class RigidConnection(Element):
     _ndistal = 1
@@ -462,34 +462,31 @@ class RigidConnection(Element):
             rotation = eye(3)            
         self.offset = offset
         self.rotation = rotation
-        
-    def distal_pos(self, xp, xstrain):
-        Rp = rotmatrix(xp)
-        rd = xp[:3] + dot(Rp, self.offset)
-        Rd = dot(Rp, self.rotation)
-        return combine_coords(rd, Rd)
-    
-    def F_vv(self, xp, xd, xstrain):
-        Rp = rotmatrix(xp)
-        xcs = skewmat(dot(Rp, self.offset))
-        return np.c_[
-            np.r_[ eye(3),      -xcs    ],
-            np.r_[ zeros((3,3)), eye(3) ],
-        ]
-        
-    def F_v2(self, xp, xd, xstrain, vp, vd, vstrain):
-        Rp = rotmatrix(xp)
-        xc = dot(Rp, self.offset)
-        wps = skewmat(vp[3:])
-        return np.r_[ dot(dot(wps,wps), xc), zeros(3) ]
-    
+
+    def distal_pos(self):
+        rd = self.rp + dot(self.Rp, self.offset)
+        Rd = dot(self.Rp, self.rotation)
+        return rd, Rd
+ 
+    def calc_kinematics(self):
+        """
+        Update kinematic transforms: F_vv, F_ve and F_v2
+        [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
+        """
+
+        wps = skewmat(self.vp[3:])
+        xc = dot(self.Rp, self.offset)
+        # Distal velocity rd_d = rd_p - xc \times w_p
+        self.F_vv[0:3,3:6] = -skewmat(xc)
+        # Distal velocity quadratic term w_p \times w_p \times xc
+        self.F_v2[0:3] = dot( dot(wps,wps), xc )
+  
     def shape(self):
-        rp = self.xp[:3]
-        rd = self.xd[:3]
-        Rd = rotmatrix(self.xd)
         return [
-            np.r_[ [rp], [rd] ],
-            rd + np.r_[ [dot(Rd,[1,0,0])], [[0,0,0]], [dot(Rd,[0,1,0])], [[0,0,0]], [dot(Rd,[0,0,1])] ]
+            np.r_[ [self.rp], [self.rd] ],
+            self.rd + np.r_[ [dot(self.Rd,[1,0,0])], [[0,0,0]],
+                             [dot(self.Rd,[0,1,0])], [[0,0,0]],
+                             [dot(self.Rd,[0,0,1])] ]
         ]
     
     shape_plot_options = [
@@ -531,20 +528,20 @@ class EulerBeam(Element):
         l0 = self.length
         # Integrals of interpolating factors
         # with t2 = l0*(xi - p1 + p2)
-        #self._mass_coeffs = array([
-        #    [13*l0*m/35, 11*l0**2*m/210, 9*l0*m/70, 13*l0**2*m/420],
-        #    [0, l0**3*m/105, 13*l0**2*m/420, l0**3*m/140],
-        #    [0, 0, 13*l0*m/35, 11*l0**2*m/210],
-        #    [0, 0, 0, l0**3*m/105]
-        #])
-        
-        # with t2 = l0*(xi - p1 - p2)
         self._mass_coeffs = array([
-            [13*l0*m/35, -l0**2*m/105, 9*l0*m/70, 13*l0**2*m/420],
-            [0, 2*l0**3*m/105, -31*l0**2*m/420, -l0**3*m/84],
+            [13*l0*m/35, 11*l0**2*m/210, 9*l0*m/70, 13*l0**2*m/420],
+            [0, l0**3*m/105, 13*l0**2*m/420, l0**3*m/140],
             [0, 0, 13*l0*m/35, 11*l0**2*m/210],
             [0, 0, 0, l0**3*m/105]
         ])
+        
+        # with t2 = l0*(xi - p1 - p2)
+        #self._mass_coeffs = array([
+        #    [13*l0*m/35, -l0**2*m/105, 9*l0*m/70, 13*l0**2*m/420],
+        #    [0, 2*l0**3*m/105, -31*l0**2*m/420, -l0**3*m/84],
+        #    [0, 0, 13*l0*m/35, 11*l0**2*m/210],
+        #    [0, 0, 0, l0**3*m/105]
+        #])
 
     def _beam_rfuncs(self, s):
         # centreline in local coords in terms of generalised strains
@@ -604,66 +601,56 @@ class EulerBeam(Element):
         E,Ebar = euler_param_mats((q0,q1,q2,q3))
         return 2*dot(E,[qd0,qd1,qd2,qd3])
     
-    def distal_pos(self, xp, xstrain):
-        Rp = rotmatrix(xp)
-        rp = xp[:3] 
-        X  = self._beam_centreline(1.0, xstrain)
-        R  = self._beam_R(1.0, xstrain)
-        rd = rp + dot(Rp,X)
-        Rd = dot(Rp, R)
+    def distal_pos(self):
+        X  = array([self.length,0,0]) + self.xstrain[0:3]
+        R  = self._beam_R(1.0, self.xstrain)
+        rd = self.rp + dot(self.Rp,X)
+        Rd = dot(self.Rp, R)
+        return rd, Rd
+    
+    def calc_kinematics(self):
+        """
+        Update kinematic transforms: F_vv, F_ve and F_v2
+        [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
+        """
+        X  = array([self.length,0,0]) + self.xstrain[0:3] # Distal pos in local coords
+        Xd = self.vstrain[0:3]
+        wps = skewmat(self.vp[3:])
 
-        assert np.allclose(X, [self.length+xstrain[0],xstrain[1],xstrain[2]])
-        q = self._beam_rotation(1.0, xstrain)
-        assert np.allclose(q[1:]*2, xstrain[3:])
-        
-        return combine_coords(rd, Rd)
-    
-    def F_vv(self, xp, xd, xstrain):
-        # acceleration transfer func
-        Rp = rotmatrix(xp)
-        X  = self._beam_centreline(1.0, xstrain) # local vector P->D
-        return np.c_[
-            np.r_[ np.eye(3),      -dot(Rp,dot(skewmat(X),Rp.T)) ],
-            np.r_[ np.zeros((3,3)), np.eye(3)                    ]
-        ]
-    
-    def F_ve(self, xp, xd, xstrain):
-        Rp = rotmatrix(xp)
         Sr = self._beam_rfuncs(1.0)
         Sq = self._beam_qfuncs(1.0)
         
-        q = self._beam_rotation(1.0, xstrain)
-        E,Ebar = euler_param_mats(q)
-        assert np.allclose(q[1:]*2, xstrain[3:])
-
-        return np.r_[ dot(Rp, Sr), dot(Rp, dot(2*E[:,1:], Sq)) ]
-    
-    def F_v2(self, xp, xd, xstrain, vp, vd, vstrain):
-        Rp = rotmatrix(xp)
-        X  = self._beam_centreline(1.0, xstrain) # local vector P->D
-        Xd = self._beam_centreline_vel(1.0, vstrain)
-        wps = skewmat(vp[3:])
-        
-        qd = self._beam_rotation_vel(1.0, xstrain, vstrain)
-        assert np.allclose(qd[1:]*2, vstrain[3:])
+        q  = self._beam_rotation(1.0, self.xstrain)
+        qd = self._beam_rotation_vel(1.0, self.xstrain, self.vstrain)
+        wrel = self._beam_wrel(1.0, self.xstrain, self.vstrain)
+        E, Ebar  = euler_param_mats(q)
         Ed,Edbar = euler_param_mats(qd)
-        wrel = self._beam_wrel(1.0, xstrain, vstrain)
-        return np.r_[
-            2*dot(wps, dot(Rp,Xd)) + dot(dot(wps,wps), dot(Rp,X)),
-            2*dot(Rp, dot(Ed,qd))  + dot(wps, dot(Rp, wrel))
-        ]
-        
+        assert np.allclose(q [1:]*2, self.xstrain[3:])
+        assert np.allclose(qd[1:]*2, self.vstrain[3:])
+
+        # distal vel
+        assert np.allclose(skewmat(dot(self.Rp,X)), dot(self.Rp,dot(skewmat(X),self.Rp.T)))
+        self.F_vv[0:3,3:6] = -dot(self.Rp,dot(skewmat(X),self.Rp.T))
+
+        # Distal vel due to strain
+        self.F_ve[0:3,:] = dot(self.Rp, Sr)
+        # Distal ang vel due to strain
+        # TODO: is this right?
+        self.F_ve[3:6,:] = dot(self.Rp, dot(2*E[:,1:], Sq))
+
+        # Quadratic velocity terms
+        self.F_v2[0:3] = 2*dot(wps,     dot(self.Rp,Xd)) + dot(dot(wps,wps), dot(self.Rp, X   ))
+        self.F_v2[3:6] = 2*dot(self.Rp, dot(Ed,qd     )) + dot(wps,          dot(self.Rp, wrel))
+
     def shape(self, N=20):
         # proximal values
-        rp = self.xp[:3]
-        rd = self.xd[:3]
-        Rp = rotmatrix(self.xp)
-        Rd = rotmatrix(self.xd)
-        shape = [dot(Rp, self._beam_centreline(i/N, self.xstrain)) for i in range(N+1)]
+        shape = [dot(self.Rp, self._beam_centreline(i/N, self.xstrain)) for i in range(N+1)]
         return [
-            rp + array(shape),
-            rd + np.r_[ [dot(Rd,[1,0,0])], [[0,0,0]], [dot(Rd,[0,1,0])], [[0,0,0]], [dot(Rd,[0,0,1])] ],
-            np.r_[ [rp], [rp + dot(Rp,[self.length,0,0])], [rd] ]
+            self.rp + array(shape),
+            self.rd + np.r_[ [dot(self.Rd,[1,0,0])], [[0,0,0]],
+                             [dot(self.Rd,[0,1,0])], [[0,0,0]],
+                             [dot(self.Rd,[0,0,1])] ],
+            np.r_[ [self.rp], [self.rp + dot(self.Rp,[self.length,0,0])], [self.rd] ]
         ]
         
     shape_plot_options = [
@@ -672,16 +659,14 @@ class EulerBeam(Element):
         {'c': 'k', 'lw': 2, 'alpha': 0.3},
     ]
     
-    def _calc_quadratic_forces(self, xp, xd, strain, vp, vd, vstrain):
+    def _calc_quadratic_forces(self):
         # dist prox strain
-        Rp = rotmatrix(xp)
-        Rd = rotmatrix(xd)
-        ep = Rp[:,0] # unit vectors along elastic line
-        ed = Rd[:,0]       
+        ep = self.Rp[:,0] # unit vectors along elastic line
+        ed = self.Rd[:,0]       
         eps = skewmat(ep)
         eds = skewmat(ed)
-        wps = skewmat(vp[3:]) # angular velocity matrices
-        wds = skewmat(vd[3:])
+        wps = skewmat(self.vp[3:]) # angular velocity matrices
+        wds = skewmat(self.vd[3:])
         c = self._mass_coeffs # shorthand
         self._quadratic_forces = np.r_[
             c[0,1]*dot(        dot(wps,wps) ,ep) + c[0,3]*dot(        dot(wds,wds) ,ed),
@@ -691,17 +676,15 @@ class EulerBeam(Element):
             zeros(self._nstrain) # quadratic stresses
         ]
     
-    def mass_matrix_vv(self, xp, xd, xstrain):
-        Rp = rotmatrix(xp)
-        Rd = rotmatrix(xd)
-        nps = skewmat(Rp[:,0]) # unit vectors along elastic line
-        nds = skewmat(Rd[:,0])        
+    def mass_matrix_vv(self):
+        nps = skewmat(self.Rp[:,0]) # unit vectors along elastic line
+        nds = skewmat(self.Rd[:,0])        
         c = self._mass_coeffs # shorthand
         I = eye(3)
         # lumped inertias xx
         Jbar = zeros((3,3)); Jbar[0,0] = self.linear_density * self.Jx
-        Jxxp = dot(Rp, dot(Jbar, Rp.T))
-        Jxxd = dot(Rd, dot(Jbar, Rd.T))
+        Jxxp = dot(self.Rp, dot(Jbar, self.Rp.T))
+        Jxxd = dot(self.Rd, dot(Jbar, self.Rd.T))
         mvv = np.r_[
             np.c_[ c[0,0]*I,   -c[0,1]*nps,                 c[0,2]*I,    -c[0,3]*nds                 ],
             np.c_[ c[0,1]*nps, -c[1,1]*dot(nps,nps) + Jxxp, c[1,2]*nps,  -c[1,3]*dot(nps,nds)        ],
@@ -710,12 +693,12 @@ class EulerBeam(Element):
         ]
         return mvv
         
-    def calc_external_forces(self, xp, xd, xstrain, vp, vd, vstrain):
-        f = zeros(12)
-        #f[7] = 10
-        return f
+    #def calc_external_forces(self):
+    #    f = zeros(12)
+    #    #f[7] = 10
+    #    return f
         
-    def calc_stresses(self, xp, xd, xstrain, vp, vd, vstrain):
+    def calc_stresses(self):
         EA = self.EA
         GIx,EIy,EIz = self.GIx, self.EIy, self.EIz
         l = self.length
@@ -727,7 +710,7 @@ class EulerBeam(Element):
             [0,  0,           6*EIy/l**2,  0,     4*EIy/l,    0         ],
             [0, -6*EIz/l**2,  0,           0,     0,          4*EIz/l   ],
         ])
-        return dot(stiffness, xstrain) + dot(self.damping, dot(stiffness, vstrain))
+        return dot(stiffness, self.xstrain) + dot(self.damping, dot(stiffness, self.vstrain))
         
 ################################################
 

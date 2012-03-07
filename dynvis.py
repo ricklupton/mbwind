@@ -63,5 +63,5 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None):
         return [line for line in ellines for el,ellines in lines] + [time_text]
     
     ani = animation.FuncAnimation(fig, animate, np.arange(1, yy.shape[0]),
-        interval=tt[1]-tt[0]*1000*2, blit=False, init_func=init, repeat=False)
+        interval=tt[1]-tt[0]*1000*1, blit=False, init_func=init, repeat=False)
     return ani
