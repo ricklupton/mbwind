@@ -15,6 +15,9 @@ import matplotlib.pylab as plt
 from scipy.integrate import odeint
 from scipy import sparse
 
+import pyximport
+pyximport.install(setup_args={'include_dirs':[np.get_include()]})
+
 import assemble
 
 
@@ -361,11 +364,9 @@ class Element(object):
         ]
 
     def _calc_mass_matrix(self):
-        m_vv = self.mass_matrix_vv()
-        m_ve = self.mass_matrix_ve()
-        m_ee = self.mass_matrix_ee()
-        self._mass_matrix = np.r_[ np.c_[m_vv,   m_ve],
-                                   np.c_[m_ve.T, m_ee] ]
+        self.calc_mass()
+        self._mass_matrix = np.r_[ np.c_[self.mass_vv,   self.mass_ve],
+                                   np.c_[self.mass_ve.T, self.mass_ee] ]
 
     def _calc_applied_forces(self):
         # include gravity by default
@@ -383,6 +384,12 @@ class Element(object):
         """
         Update kinematic transforms: F_vv, F_ve and F_v2
         [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
+        """
+        pass
+
+    def calc_mass(self):
+        """
+        Update mass matrices
         """
         pass
 
@@ -676,7 +683,7 @@ class EulerBeam(Element):
             zeros(self._nstrain) # quadratic stresses
         ]
     
-    def mass_matrix_vv(self):
+    def calc_mass(self):
         nps = skewmat(self.Rp[:,0]) # unit vectors along elastic line
         nds = skewmat(self.Rd[:,0])        
         c = self._mass_coeffs # shorthand
@@ -685,13 +692,12 @@ class EulerBeam(Element):
         Jbar = zeros((3,3)); Jbar[0,0] = self.linear_density * self.Jx
         Jxxp = dot(self.Rp, dot(Jbar, self.Rp.T))
         Jxxd = dot(self.Rd, dot(Jbar, self.Rd.T))
-        mvv = np.r_[
+        self.mass_vv = np.r_[
             np.c_[ c[0,0]*I,   -c[0,1]*nps,                 c[0,2]*I,    -c[0,3]*nds                 ],
             np.c_[ c[0,1]*nps, -c[1,1]*dot(nps,nps) + Jxxp, c[1,2]*nps,  -c[1,3]*dot(nps,nds)        ],
             np.c_[ c[0,2]*I,   -c[1,2]*nps,                 c[2,2]*I,    -c[2,3]*nds                 ],
             np.c_[ c[0,3]*nds, -c[1,3]*dot(nds,nps),        c[2,3]*nds,  -c[3,3]*dot(nds,nds) + Jxxd ],
         ]
-        return mvv
         
     #def calc_external_forces(self):
     #    f = zeros(12)
