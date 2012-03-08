@@ -12,7 +12,7 @@ import numpy as np
 from numpy import array, zeros, eye, dot, pi, r_, c_
 import numpy.linalg as LA
 import matplotlib.pylab as plt
-from scipy.integrate import odeint
+from scipy.integrate import ode, odeint
 from scipy import sparse
 
 import pyximport
@@ -69,6 +69,13 @@ def euler_param_mats(q):
         [-q[3],  q[2], -q[1],  q[0]],
     ])
     return E, Ebar
+
+def euler_param_E(q):
+    return array([
+        [-q[1],  q[0], -q[3],  q[2]],
+        [-q[2],  q[3],  q[0], -q[1]],
+        [-q[3], -q[2],  q[1],  q[0]],
+    ])
  
 # number of generalised position coordinates: 3 spatial plus 9 rotation matrix entries
 NQ = 12
@@ -211,6 +218,7 @@ class System(object):
 
         prescribed_acc_forces = dot(self.mass, self.qdd)        
         if np.any(np.nonzero(prescribed_acc_forces)):
+            assert False
             print '* Prescribed acc forces:', np.nonzero(prescribed_acc_forces)
     
         # remove prescribed acceleration entries from mass matrix and RHS    
@@ -258,6 +266,12 @@ class Element(object):
         self.mass_vv = zeros((nnodes,nnodes))
         self.mass_ve = zeros((nnodes,self._nstrain))
         self.mass_ee = zeros((self._nstrain,self._nstrain))
+        self.quad_forces = zeros(NQD*(1 + self._ndistal))
+        self.quad_stress = zeros(self._nstrain)
+
+        # External forces and stresses
+        self.applied_forces = zeros(NQD * (1 + self._ndistal))
+        self.applied_stress = zeros(self._nstrain)
     
     def __str__(self):
         return self.name
@@ -307,11 +321,8 @@ class Element(object):
     def _check_ranges(self):
         pass
 
-    def calc_external_forces(self):
-        return zeros(NQD * (1 + self._ndistal))
-        
-    def calc_stresses(self):
-        return zeros(self._nstrain)
+    def calc_external_loading(self):
+        self._set_gravity_force() 
     
     def update(self, rp, Rp, vp, matrices=True):
         # proximal values
@@ -340,8 +351,7 @@ class Element(object):
         if matrices:
             # Calculate
             self.calc_mass()
-            self._calc_applied_forces()
-            self._calc_quadratic_forces()
+            self.calc_external_loading()
             
             # Add to mass matrix
             #self.system.add_to_matrix(self._imass(), self._imass(), self._mass_matrix         )    
@@ -358,16 +368,11 @@ class Element(object):
         for distnode,child in sorted(self.children):
             child.update(self.rd, self.Rd, self.vd, matrices)
     
-    def _calc_applied_forces(self):
+    def _set_gravity_force(self):
         # include gravity by default
         gravacc = array([0, 0, -gravity, 0, 0, 0,
                          0, 0, -gravity, 0, 0, 0,])
-        self._applied_forces = dot(self.mass_vv, gravacc)
-        self._applied_forces += self.calc_external_forces()
-        self._applied_stresses = self.calc_stresses()
-    
-    def _calc_quadratic_forces(self):
-        self._quadratic_forces = zeros(NQD*(1 + self._ndistal) + self._nstrain)
+        self.applied_forces = dot(self.mass_vv, gravacc)
     
     def calc_kinematics(self):
         """
@@ -378,7 +383,7 @@ class Element(object):
 
     def calc_mass(self):
         """
-        Update mass matrices
+        Update mass matrices and quadratic force vector
         """
         pass
 
@@ -442,8 +447,8 @@ class Hinge(Element):
         {'c': 'k', 'lw': 0.5}
     ]
 
-    def calc_stresses(self):
-        return array([self.stiffness * self.xstrain[0] + self.damping * self.vstrain[0]])
+    def calc_external_loading(self):
+        self.applied_stress[0] = self.stiffness*self.xstrain[0] + self.damping*self.vstrain[0]
 
 class RigidConnection(Element):
     _ndistal = 1
@@ -553,6 +558,23 @@ class EulerBeam(Element):
         self.mass_vv[VD,VP] = c[0,2]*I
         self.mass_vv[VD,VD] = c[2,2]*I
 
+        # Shape functions at distal node
+        self.Sr_d = self._beam_rfuncs(1.0)
+        self.Sq_d = self._beam_qfuncs(1.0)
+
+        # Stiffness matrix
+        EA = self.EA
+        GIx,EIy,EIz = self.GIx, self.EIy, self.EIz
+        l = self.length
+        self.stiffness = array([
+            [EA, 0,           0,           0,     0,          0         ],
+            [0,  12*EIz/l**3, 0,           0,     0,         -6*EIz/l**2],
+            [0,  0,           12*EIy/l**3, 0,     6*EIy/l**2, 0,        ],
+            [0,  0,           0,           GIx/l, 0,          0         ],
+            [0,  0,           6*EIy/l**2,  0,     4*EIy/l,    0         ],
+            [0, -6*EIz/l**2,  0,           0,     0,          4*EIz/l   ],
+        ])
+
     def _beam_rfuncs(self, s):
         # centreline in local coords in terms of generalised strains
         l = self.length
@@ -589,6 +611,7 @@ class EulerBeam(Element):
         if np.amax(np.abs([q1,q2,q3])) > 1:
             raise Exception('Euler parameters excced 1')
         q0 = np.sqrt(1.0 - q1**2 - q2**2 - q3**2)
+        assert not np.isnan(q0)
         return array([q0,q1,q2,q3])
 
     def _beam_rotation_vel(self, s, xstrain, vstrain):
@@ -606,6 +629,7 @@ class EulerBeam(Element):
         return dot(E,Ebar.T)
     
     def _beam_wrel(self, s, xstrain, vstrain):
+        q0, q1, q2, q3  = self._beam_rotation(s, xstrain)
         q0, q1, q2, q3  = self._beam_rotation(s, xstrain)
         qd0,qd1,qd2,qd3 = self._beam_rotation_vel(s, xstrain, vstrain)
         E,Ebar = euler_param_mats((q0,q1,q2,q3))
@@ -627,30 +651,29 @@ class EulerBeam(Element):
         Xd = self.vstrain[0:3]
         wps = skewmat(self.vp[3:])
 
-        Sr = self._beam_rfuncs(1.0)
-        Sq = self._beam_qfuncs(1.0)
-        
         q  = self._beam_rotation(1.0, self.xstrain)
         qd = self._beam_rotation_vel(1.0, self.xstrain, self.vstrain)
-        wrel = self._beam_wrel(1.0, self.xstrain, self.vstrain)
-        E, Ebar  = euler_param_mats(q)
-        Ed,Edbar = euler_param_mats(qd)
+        E  = euler_param_E(q)
+        Ed = euler_param_E(qd)
+        wrel = 2*dot(E,qd) 
         assert np.allclose(q [1:]*2, self.xstrain[3:])
         assert np.allclose(qd[1:]*2, self.vstrain[3:])
 
         # distal vel
-        assert np.allclose(skewmat(dot(self.Rp,X)), dot(self.Rp,dot(skewmat(X),self.Rp.T)))
-        self.F_vp[0:3,3:6] = -dot(self.Rp,dot(skewmat(X),self.Rp.T))
+        self.F_vp[VP,WP] = -dot(self.Rp,dot(skewmat(X),self.Rp.T))
 
         # Distal vel due to strain
-        self.F_ve[0:3,:] = dot(self.Rp, Sr)
+        self.F_ve[VP,:] = dot(self.Rp, self.Sr_d)
         # Distal ang vel due to strain
         # TODO: is this right?
-        self.F_ve[3:6,:] = dot(self.Rp, dot(2*E[:,1:], Sq))
+        self.F_ve[WP,:] = dot(self.Rp, dot(2*E[:,1:], self.Sq_d))
+
+        assert not np.any(np.isnan(self.F_vp))
+        assert not np.any(np.isnan(self.F_ve))
 
         # Quadratic velocity terms
-        self.F_v2[0:3] = 2*dot(wps,     dot(self.Rp,Xd)) + dot(dot(wps,wps), dot(self.Rp, X   ))
-        self.F_v2[3:6] = 2*dot(self.Rp, dot(Ed,qd     )) + dot(wps,          dot(self.Rp, wrel))
+        self.F_v2[VP] = 2*dot(wps,     dot(self.Rp,Xd)) + dot(dot(wps,wps), dot(self.Rp, X   ))
+        self.F_v2[WP] = 2*dot(self.Rp, dot(Ed,qd     )) + dot(wps,          dot(self.Rp, wrel))
 
     def shape(self, N=20):
         # proximal values
@@ -669,34 +692,25 @@ class EulerBeam(Element):
         {'c': 'k', 'lw': 2, 'alpha': 0.3},
     ]
     
-    def _calc_quadratic_forces(self):
-        # dist prox strain
-        ep = self.Rp[:,0] # unit vectors along elastic line
-        ed = self.Rd[:,0]       
-        eps = skewmat(ep)
-        eds = skewmat(ed)
-        wps = skewmat(self.vp[3:]) # angular velocity matrices
-        wds = skewmat(self.vd[3:])
-        c = self._mass_coeffs # shorthand
-        self._quadratic_forces = np.r_[
-            c[0,1]*dot(        dot(wps,wps) ,ep) + c[0,3]*dot(        dot(wds,wds) ,ed),
-            c[1,1]*dot(dot(eps,dot(wps,wps)),ep) + c[1,3]*dot(dot(eps,dot(wds,wds)),ed),
-            c[1,2]*dot(        dot(wps,wps) ,ep) + c[2,3]*dot(        dot(wds,wds) ,ed),
-            c[1,3]*dot(dot(eds,dot(wps,wps)),ep) + c[3,3]*dot(dot(eds,dot(wds,wds)),ed),
-            zeros(self._nstrain) # quadratic stresses
-        ]
-    
     def calc_mass(self):
+        np = self.Rp[:,0] # unit vectors along elastic line
+        nd = self.Rd[:,0]       
         nps = skewmat(self.Rp[:,0]) # unit vectors along elastic line
         nds = skewmat(self.Rd[:,0])        
+        wps = skewmat(self.vp[WP]) # angular velocity matrices
+        wds = skewmat(self.vd[WP])
+
         # lumped inertias xx
         Jbar = zeros((3,3)); Jbar[0,0] = self.linear_density * self.Jx
         Jxxp = dot(self.Rp, dot(Jbar, self.Rp.T))
         Jxxd = dot(self.Rd, dot(Jbar, self.Rd.T))
 
-        c = self._mass_coeffs # shorthand
+        # shorthand
+        c = self._mass_coeffs 
         m = self.mass_vv
+        gv = self.quad_forces
         
+        ## MASS MATRIX ##
         #[VP,VP] constant
         m[VP,WP] = -c[0,1]*nps
         #[VP,VD] constant
@@ -716,25 +730,18 @@ class EulerBeam(Element):
         m[WD,WP] =  m[WP,WD].T
         m[WD,VD] =  m[VD,WD].T
         m[WD,WD] = -c[3,3]*dot(nds,nds) + Jxxd
+
+        ## QUADRATIC FORCES ## (remaining terms)
+        gv[VP] = c[0,1]*dot(        dot(wps,wps) ,np) + c[0,3]*dot(        dot(wds,wds) ,nd)
+        gv[WP] = c[1,1]*dot(dot(nps,dot(wps,wps)),np) + c[1,3]*dot(dot(nps,dot(wds,wds)),nd)
+        gv[VD] = c[1,2]*dot(        dot(wps,wps) ,np) + c[2,3]*dot(        dot(wds,wds) ,nd)
+        gv[WD] = c[1,3]*dot(dot(nds,dot(wps,wps)),np) + c[3,3]*dot(dot(nds,dot(wds,wds)),nd)
+        # quadratic stresses are all zero
         
-    #def calc_external_forces(self):
-    #    f = zeros(12)
-    #    #f[7] = 10
-    #    return f
-        
-    def calc_stresses(self):
-        EA = self.EA
-        GIx,EIy,EIz = self.GIx, self.EIy, self.EIz
-        l = self.length
-        stiffness = array([
-            [EA, 0,           0,           0,     0,          0         ],
-            [0,  12*EIz/l**3, 0,           0,     0,         -6*EIz/l**2],
-            [0,  0,           12*EIy/l**3, 0,     6*EIy/l**2, 0,        ],
-            [0,  0,           0,           GIx/l, 0,          0         ],
-            [0,  0,           6*EIy/l**2,  0,     4*EIy/l,    0         ],
-            [0, -6*EIz/l**2,  0,           0,     0,          4*EIz/l   ],
-        ])
-        return dot(stiffness, self.xstrain) + dot(self.damping, dot(stiffness, self.vstrain))
+    def calc_external_loading(self):
+        self._set_gravity_force() 
+        self.applied_stress[:] = dot(self.stiffness, self.xstrain) + \
+                                 dot(self.damping, dot(self.stiffness, self.vstrain))
         
 ################################################
 
@@ -766,7 +773,8 @@ def rk4(derivs, y0, t):
     return yout
 
 def solve_system(system, t):
-    def func(y, ti):
+    def func(ti, y):
+    #def func(y, ti):
         # update system state with states and state rates
         # y constains [strains, d(strains)/dt]
         system.q[system.iDOF]  = y[:len(y)/2]
@@ -786,7 +794,17 @@ def solve_system(system, t):
     sys.stdout.flush()
     tstart = time.clock()
 
-    y = odeint(func, y0, t)
+    r = ode(func)
+    r.set_initial_value(y0, 0.0)
+    t1 = t[-1]
+    dt = t[1] - t[0]
+    y = []
+    while r.successful() and r.t <= t1:
+        y.append(r.y)
+        r.integrate(r.t + dt)
+        if int(r.t+dt) != int(r.t): print r.t
+    y = array(y)
+    #y = odeint(func, y0, t)
     #y = rk4(func, y0, t)
 
     print 'done'

@@ -6,12 +6,9 @@ def assemble(elements, np.ndarray[double, ndim=2] mass, np.ndarray[double, ndim=
     """Copy matrices from elements to system"""
     cdef int i, I, j, J
     cdef np.ndarray[double, ndim=2] el_mvv, el_mve, el_mee, el_Fvp, el_Fvd, el_Fve
-    cdef np.ndarray[double, ndim=1] el_g, el_f, el_s, el_F2
+    cdef np.ndarray[double, ndim=1] el_g, el_f, el_F2
 
     for el in elements:
-        el_g = el._quadratic_forces
-        el_f = el._applied_forces
-        el_s = el._applied_stresses
         
         # Nodal terms
         inode = el._inodes()
@@ -19,6 +16,8 @@ def assemble(elements, np.ndarray[double, ndim=2] mass, np.ndarray[double, ndim=
         el_mvv = el.mass_vv
         el_mve = el.mass_ve
         el_mee = el.mass_ee
+        el_f = el.applied_forces
+        el_g = el.quad_forces
         for I,i in enumerate(inode):
             rhs[i] += el_g[I] + el_f[I]
             
@@ -32,8 +31,10 @@ def assemble(elements, np.ndarray[double, ndim=2] mass, np.ndarray[double, ndim=
                 mass[j,i] += el_mve[I,J]
         
         # Strain-strain
+        el_f = el.applied_stress
+        el_g = el.quad_stress
         for I,i in enumerate(istrain):
-            rhs[i] += el_g[I] - el_s[I]
+            rhs[i] += el_g[I] - el_f[I]
             for J,j in enumerate(istrain):
                 mass[i,j] += el_mee[I,J]
             
