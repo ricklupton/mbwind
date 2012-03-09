@@ -69,7 +69,7 @@ def test1():
     
     # Solve
     dt = 0.05
-    t = np.arange(0, 20, dt)
+    t = np.arange(0, 4, dt)
     y = solve_system(system, t)
     
     return t,y
