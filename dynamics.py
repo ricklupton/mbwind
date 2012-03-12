@@ -69,6 +69,16 @@ def euler_param_mats(q):
     ])
     return E, Ebar
 
+def qrot3(q):
+    q1,q2,q3 = q
+    q0 = np.sqrt(1.0 - q1**2 - q2**2 - q3**2)
+    assert not np.isnan(q0)
+    return array([
+        [1 - 2*(q2**2 + q3**2), 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2)    ],
+        [2*(q1*q2 + q0*q3),     1 - 2*(q1**2 + q3**2), 2*(q2*q3 - q0*q1)    ],
+        [2*(q1*q3 - q0*q2),     2*(q2*q3 + q0*q1),     1 - 2*(q1**2 + q2**2)],
+    ])
+
 def euler_param_E(q):
     return array([
         [-q[1],  q[0], -q[3],  q[2]],
@@ -90,6 +100,7 @@ class System(object):
         self.state_elements = []
         self.state_types = []
         self.states_by_type = defaultdict(list)
+        self.time = 0.0
 
         # Prescribe ground node to be fixed by default
         self.prescribed_accels = {i: 0.0 for i in range(6)}
@@ -154,7 +165,10 @@ class System(object):
         self.states_by_type[type].extend(indices)
         return indices
 
-    def update(self, dynamics=True):
+    def update(self, time=None, dynamics=True):
+        if time is not None:
+            self.time = time
+
         # Reset mass and constraint matrices if updating
         if dynamics:
             self.rhs[:]  = 0.0
@@ -554,6 +568,12 @@ class RigidConnection(Element):
         {'c': 'k', 'lw': 0.5}
     ]
 
+class ElementLoading(object):
+    '''
+    Define the loading applied to an element, e.g. wind drag loading on a beam
+    '''
+    def
+
 # Slices to refer to parts of matrices
 VP = slice(0,3)
 WP = slice(3,6)
@@ -565,7 +585,7 @@ class EulerBeam(Element):
     _nstrain = 6
     _nconstraints = NQD
 
-    def __init__(self, name, length, density, EA, EIy, EIz, GIx=0.0, Jx=0.0):
+    def __init__(self, name, length, density, EA, EIy, EIz, GIx=0.0, Jx=0.0, wind=None):
         '''
         Euler beam element.
 
@@ -587,6 +607,7 @@ class EulerBeam(Element):
         self.EIy = EIy
         self.EIz = EIz
         self.Jx = Jx
+        self.wind = wind
         self._initial_calcs()
 
     def _initial_calcs(self):
@@ -683,20 +704,12 @@ class EulerBeam(Element):
 
     def _beam_R(self, s, xstrain):
         # rotation matrix of cross-section in proximal frame
-        q = self._beam_rotation(s, xstrain)
-        E,Ebar = euler_param_mats(q)
-        return dot(E,Ebar.T)
-
-    def _beam_wrel(self, s, xstrain, vstrain):
-        q0, q1, q2, q3  = self._beam_rotation(s, xstrain)
-        q0, q1, q2, q3  = self._beam_rotation(s, xstrain)
-        qd0,qd1,qd2,qd3 = self._beam_rotation_vel(s, xstrain, vstrain)
-        E,Ebar = euler_param_mats((q0,q1,q2,q3))
-        return 2*dot(E,[qd0,qd1,qd2,qd3])
+        B = self._beam_qfuncs(s)
+        return qrot3(dot(B, xstrain))
 
     def distal_pos(self):
         X  = array([self.length,0,0]) + self.xstrain[0:3]
-        R  = self._beam_R(1.0, self.xstrain)
+        R  = qrot3(0.5*self.xstrain[3:6])
         rd = self.rp + dot(self.Rp,X)
         Rd = dot(self.Rp, R)
         return rd, Rd
@@ -798,11 +811,35 @@ class EulerBeam(Element):
         # quadratic stresses are all zero
 
     def calc_external_loading(self):
+        # Gravity loads
         self._set_gravity_force()
+
+        # Constitutive loading
         self.applied_stress[:] = dot(self.stiffness, self.xstrain) + \
                                  dot(self.damping, dot(self.stiffness, self.vstrain))
 
-################################################
+        # Wind loading
+        if self.wind:
+            Cd = 2
+            diameter = 2.0
+            # loop through stations
+            Nst = 5
+            seclength = self.length / Nst
+            for xi in np.linspace(0,1,num=Nst):
+                # XXX This would depend on position for non-uniform wind
+                windvel = self.wind.get_wind_speed(self.system.time)
+                local_R = self._beam_R(xi, self.xstrain)
+                Xskew = skewmat(self._beam_centreline(xi, self.xstrain))
+                SX = self._beam_rfuncs(xi)
+                local_windvel = dot(dot(self.Rp,local_R).T, windvel)
+                local_dragforce = 0.5*1.225*Cd*diameter*(local_windvel)**2 * seclength
+                # generalised forces
+                Qrp = dot(dot(self.Rp,local_R), local_dragforce)
+                Qwp = dot(self.Rp, dot(Xskew, dot(local_R, local_dragforce)))
+                Qstrain = dot(SX.T, dot(local_R, local_dragforce))
+                self.applied_forces[VP] += Qrp
+                self.applied_forces[WP] += Qwp
+                self.applied_stress[:]  += Qstrain
 
 def rk4(derivs, y0, t):
     try:
@@ -838,7 +875,7 @@ def solve_system(system, t):
         # y constains [strains, d(strains)/dt]
         system.q[system.iDOF]  = y[:len(y)/2]
         system.qd[system.iDOF] = y[len(y)/2:]
-        system.update()
+        system.update(ti)
 
         # solve system
         system.solve()
@@ -849,7 +886,7 @@ def solve_system(system, t):
 
     y0 = np.r_[ system.q[system.iDOF], system.qd[system.iDOF] ]
 
-    print 'Running simulation...',
+    print 'Running simulation:',
     sys.stdout.flush()
     tstart = time.clock()
 
@@ -858,10 +895,13 @@ def solve_system(system, t):
     t1 = t[-1]
     dt = t[1] - t[0]
     y = []
-    while r.successful() and r.t <= t1:
+    tprint = 1.0
+    while r.successful() and r.t <= t1+dt/2:
         y.append(r.y)
         r.integrate(r.t + dt)
-        if int(r.t+dt) != int(r.t): print r.t
+        if r.t > tprint:
+            sys.stdout.write('.')
+            tprint += 1.0
     y = array(y)
     #y = odeint(func, y0, t)
     #y = rk4(func, y0, t)
