@@ -572,7 +572,7 @@ class ElementLoading(object):
     '''
     Define the loading applied to an element, e.g. wind drag loading on a beam
     '''
-    def
+    pass
 
 # Slices to refer to parts of matrices
 VP = slice(0,3)
@@ -894,15 +894,14 @@ def solve_system(system, t):
     r.set_initial_value(y0, 0.0)
     t1 = t[-1]
     dt = t[1] - t[0]
-    y = []
+    y = np.nan * zeros((len(t), len(y0)))
     tprint = 1.0
     while r.successful() and r.t <= t1+dt/2:
-        y.append(r.y)
+        y[int(r.t/dt),:] = r.y
         r.integrate(r.t + dt)
         if r.t > tprint:
-            sys.stdout.write('.')
+            sys.stdout.write('.'); sys.stdout.flush()
             tprint += 1.0
-    y = array(y)
     #y = odeint(func, y0, t)
     #y = rk4(func, y0, t)
 

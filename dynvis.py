@@ -23,7 +23,7 @@ def show(system, tt, yy, tvals):
         if not len(i) > 0: break
         system.q [system.iDOF] = yy[i[0],:N]
         system.qd[system.iDOF] = yy[i[0],N:]
-        system.update(False)
+        system.update(t, False)
         system.first_element.plot_chain(ax)
 
 def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None):
@@ -53,7 +53,7 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None):
     def animate(i):
         system.q [system.iDOF] = yy[i,:N]
         system.qd[system.iDOF] = yy[i,N:]
-        system.update(False)
+        system.update(tt[i], False)
 
         for el,ellines in lines:
             linedata = el.shape()

@@ -7,7 +7,7 @@ Created on Thu Mar 01 15:01:15 2012
 
 from __future__ import division
 import numpy as np
-from numpy import pi, zeros
+from numpy import pi, zeros, diag
 from dynamics import (FreeJoint, Hinge, rotmat_x, rotmat_y,
     EulerBeam, RigidConnection, System, solve_system, NQD)
 import matplotlib.pylab as plt
@@ -26,8 +26,7 @@ Rhb1 = rotmat_x(0 * 2*pi/3)
 Rhb2 = rotmat_x(1 * 2*pi/3)
 Rhb3 = rotmat_x(2 * 2*pi/3)
 
-fstiff = zeros((6,6))
-fstiff[2,2] = 1000000
+fstiff = 1e6 * diag([1, 1, 5, 1000, 1000, 100])
 foundation = FreeJoint('foundation', fstiff, post_transform=rotmat_y(-pi/2))
 tower = EulerBeam('tower', tower_height, 3000, 100e6, 300e6, 300e6, 200e6)
 nacelle = RigidConnection('nacelle', [0,0,overhang], rotmat_y(100*pi/180))
@@ -71,7 +70,7 @@ def test1():
 
     # Solve
     dt = 0.05
-    t = np.arange(0, 10, dt)
+    t = np.arange(0, 40, dt)
     y = solve_system(system, t)
 
     return t,y
