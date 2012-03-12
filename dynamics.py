@@ -9,11 +9,10 @@ from __future__ import division
 import time, sys
 from collections import defaultdict
 import numpy as np
-from numpy import array, zeros, eye, dot, pi, r_, c_
+from numpy import array, zeros, eye, dot, pi, cos, sin
 import numpy.linalg as LA
-import matplotlib.pylab as plt
-from scipy.integrate import ode, odeint
-from scipy import sparse
+#import matplotlib.pylab as plt
+from scipy.integrate import ode
 
 import pyximport
 pyximport.install(setup_args={'include_dirs':[np.get_include()]})
@@ -76,10 +75,10 @@ def euler_param_E(q):
         [-q[2],  q[3],  q[0], -q[1]],
         [-q[3], -q[2],  q[1],  q[0]],
     ])
- 
+
 # number of generalised position coordinates: 3 spatial plus 9 rotation matrix entries
 NQ = 12
-# number of generalised velocity coordinates: 3 spatial plus 3 angular velocity 
+# number of generalised velocity coordinates: 3 spatial plus 3 angular velocity
 NQD = 6
 
 class System(object):
@@ -91,38 +90,38 @@ class System(object):
         self.state_elements = []
         self.state_types = []
         self.states_by_type = defaultdict(list)
-        
+
         # Prescribe ground node to be fixed by default
         self.prescribed_accels = {i: 0.0 for i in range(6)}
-        
-        self.iDOF = array([], dtype=bool)        
-        
+
+        self.iDOF = array([], dtype=bool)
+
         if first_element is not None:
             self.init(first_element)
-            
+
     def print_states(self):
         for el,type_ in zip(self.state_elements, self.state_types):
             print '{:<20}{:<20}'.format(el, type_)
-    
+
     def iter_elements(self):
         yield self.first_element
         for el in self.first_element.iter_leaves():
             yield el
-    
+
     def init(self, first_element):
         self.first_element = first_element
-        
+
         # Reset state book-keeping
         self.state_elements = []
         self.state_types = []
-        
+
         # Set up first node
         ground_ind = self.request_new_states(NQD, None, 'ground')
-        
+
         # Set up first element to use first node as its proximal node, and set up
         # all its children (who will call request_new_states)
         self.first_element.setup_chain(self, ground_ind)
-    
+
         # Now number of states is known, can size matrices and vectors
         Nq = len(self.state_elements)
         self.q    = zeros(Nq)
@@ -134,18 +133,18 @@ class System(object):
         self.iDOF = zeros(Nq, dtype=bool)
         self.iPrescribed = zeros(Nq, dtype=bool)
         self._update_indices()
-        
+
     def _update_indices(self):
         self.iDOF[:] = False
         self.iPrescribed[:] = False
-        
+
         # degrees of freedom are all strains...
         self.iDOF[self.states_by_type['strain']] = True
-        
+
         # prescribed strains
         ipres = list(self.prescribed_accels.keys())
         self.iPrescribed[ipres] = True
-    
+
     def request_new_states(self, num, elem, type):
         print 'element %s requesting %d new "%s" states' % (elem, num, type)
         n0 = len(self.state_elements)
@@ -154,7 +153,7 @@ class System(object):
         indices = range(n0, len(self.state_elements))
         self.states_by_type[type].extend(indices)
         return indices
-    
+
     def update(self, dynamics=True):
         # Reset mass and constraint matrices if updating
         if dynamics:
@@ -169,7 +168,7 @@ class System(object):
         Rp = eye(3)
         vp = zeros(NQD)
         self.first_element.update(rp, Rp, vp, dynamics)
-        
+
         if dynamics:
             assemble.assemble(self.iter_elements(), self.mass, self.rhs)
 
@@ -177,7 +176,7 @@ class System(object):
         #    Nq = len(self.state_elements)
         #    self.mass = sparse.coo_matrix( (self._mass_v, (self._mass_i,self._mass_j)),
         #                                   shape=(Nq,Nq) ).tocsr()
-        
+
     def add_to_matrix(self, xind, yind, vals):
         #self._mass_i.extend(xind)
         #self._mass_j.extend(yind)
@@ -187,7 +186,7 @@ class System(object):
 
     def add_to_rhs(self, ind, vals):
         self.rhs[ind] += vals
-        
+
     def prescribe(self, ind, val):
         """
         Prescribe the accelerations listed in ind to equal val.
@@ -198,7 +197,7 @@ class System(object):
                 raise Exception('Only ground node and strains can be prescribed')
             self.prescribed_accels[i] = val
         self._update_indices()
-    
+
     def free(self, ind):
         """
         Remove a prescription
@@ -206,39 +205,39 @@ class System(object):
         for i in (np.iterable(ind) and ind or [ind]):
             del self.prescribed_accels[i]
         self._update_indices()
-        
+
     def solve(self):
         '''
         Solve for free accelerations, taking account of any prescribed accelerations
         '''
-        
+
         self.qdd[:] = 0.0
         for i,a in self.prescribed_accels.items():
             self.qdd[i] = a
 
-        prescribed_acc_forces = dot(self.mass, self.qdd)        
+        prescribed_acc_forces = dot(self.mass, self.qdd)
         if np.any(np.nonzero(prescribed_acc_forces)):
             assert False
             print '* Prescribed acc forces:', np.nonzero(prescribed_acc_forces)
-    
-        # remove prescribed acceleration entries from mass matrix and RHS    
+
+        # remove prescribed acceleration entries from mass matrix and RHS
         # add the forces corresponding to prescribed accelerations back in
         M = self.mass[~self.iPrescribed,:][:,~self.iPrescribed]
         b = (self.rhs - prescribed_acc_forces)[~self.iPrescribed]
-    
+
         # solve system for accelerations
         a = LA.solve(M, b)
         self.qdd[~self.iPrescribed] = a
 
 
-        
+
 gravity = 9.81
 
 class Element(object):
     _ndistal = 0
     _nstrain = 0
     _nconstraints = 0
-        
+
     def __init__(self, name):
         self.name = name
         self.children = []
@@ -255,12 +254,12 @@ class Element(object):
 
         # Default [constant] parts of transformation matrices:
         # distal node velocities are equal to proximal, no strain effects
-        # acceleration constraint -Fv2 = [ prox->dist, -I, strain->dist ] * [ v_prox, v_dist, v_strain ]
+        # acceleration constraint -Fv2 = [ prox->dist, -I, strain->dist ] * [ a_prox, a_dist, a_strain ]
         self.F_vp = np.tile(eye(NQD), (self._ndistal,1))
         self.F_vd = -eye(NQD)
         self.F_ve = zeros((NQD*self._ndistal, self._nstrain))
         self.F_v2 = zeros( NQD*self._ndistal                )
-        
+
         # Default [constant] parts of mass matrices
         nnodes = NQD * (1 + self._ndistal)
         self.mass_vv = zeros((nnodes,nnodes))
@@ -272,69 +271,69 @@ class Element(object):
         # External forces and stresses
         self.applied_forces = zeros(NQD * (1 + self._ndistal))
         self.applied_stress = zeros(self._nstrain)
-    
+
     def __str__(self):
         return self.name
     def __repr__(self):
         return '<%s "%s">' % (self.__class__.__name__, self.name)
-        
+
     def add_leaf(self, elem, distnode=0):
         self.children.append((distnode,elem))
-    
+
     def iter_leaves(self):
         for distnode,child in self.children:
             yield child
             for descendent in child.iter_leaves():
                 yield descendent
-    
+
     def plot_chain(self, ax):
         for linedata,opts in zip(self.shape(), self.shape_plot_options):
             ax.plot(linedata[:,0], linedata[:,1], linedata[:,2], **opts)
         for distnode,child in sorted(self.children):
             child.plot_chain(ax)
-    
+
     def setup_chain(self, sys, prox_indices):
         assert len(prox_indices) == NQD # number of nodal coordinates
         self.system = sys
         self.iprox = prox_indices
-        
+
         # Request new states for constraint multipliers
         self.imult = sys.request_new_states(self._nconstraints, self, 'constraint')
 
         # Request new states for internal strains
-        self.istrain = sys.request_new_states(self._nstrain, self, 'strain')                
-        
+        self.istrain = sys.request_new_states(self._nstrain, self, 'strain')
+
         # Request new states for distal node coordinates
         idist = []
         for i in range(self._ndistal):
-            idist.append(sys.request_new_states(NQD, self, 'node'))        
+            idist.append(sys.request_new_states(NQD, self, 'node'))
         # Just keep a flat list of distal nodal indices
         self.idist = [i for sublist in idist for i in sublist]
-        
+
         # Pass onto children for each distal node
         for distnode,child in sorted(self.children):
             child.setup_chain(sys, idist[distnode])
 
     def _inodes(self): return self.iprox + self.idist
     def _imass(self):  return self._inodes() + self.istrain
-    
+
     def _check_ranges(self):
         pass
 
     def calc_external_loading(self):
-        self._set_gravity_force() 
-    
+        self._set_gravity_force()
+
     def update(self, rp, Rp, vp, matrices=True):
         # proximal values
         self.rp = rp
         self.Rp = Rp
         self.vp = vp
-        
+
         # strain rates and accelerations
         self._check_ranges()
         self.xstrain = self.system.q[self.istrain]
         self.vstrain = self.system.qd[self.istrain]
-            
+
         # Calculate kinematic transforms
         self.calc_kinematics()
 
@@ -342,38 +341,38 @@ class Element(object):
         self.rd,self.Rd = self.distal_pos()
         self.vd = dot(self.F_vp, self.vp     ) + \
                   dot(self.F_ve, self.vstrain)
-        
+
         # Save back to system state vector
         #self.system.q[self.idist] = self.xd
         #self.system.qd[self.idist] = self.vd
-        
+
         # Update mass and constraint matrices
         if matrices:
             # Calculate
             self.calc_mass()
             self.calc_external_loading()
-            
+
             # Add to mass matrix
-            #self.system.add_to_matrix(self._imass(), self._imass(), self._mass_matrix         )    
+            #self.system.add_to_matrix(self._imass(), self._imass(), self._mass_matrix         )
             #self.system.add_to_matrix(self.imult,    self._imass(), self._constraint_matrix   )
             #self.system.add_to_matrix(self._imass(), self.imult,    self._constraint_matrix.T )
-            
+
             # Add to RHS
             #self.system.add_to_rhs(self._inodes(), self._applied_forces)
             #self.system.add_to_rhs(self.istrain,  -self._applied_stresses)
             #self.system.add_to_rhs(self._imass(),  self._quadratic_forces)
             #self.system.add_to_rhs(self.imult,     self.F_v2)
-        
+
         # Pass onto children for each distal node
         for distnode,child in sorted(self.children):
             child.update(self.rd, self.Rd, self.vd, matrices)
-    
+
     def _set_gravity_force(self):
         # include gravity by default
         gravacc = array([0, 0, -gravity, 0, 0, 0,
                          0, 0, -gravity, 0, 0, 0,])
         self.applied_forces = dot(self.mass_vv, gravacc)
-    
+
     def calc_kinematics(self):
         """
         Update kinematic transforms: F_vp, F_ve and F_v2
@@ -391,7 +390,7 @@ class Hinge(Element):
     _ndistal = 1
     _nstrain = 1
     _nconstraints = NQD
-    
+
     def __init__(self, name, hinge_axis, post_transform=None):
         Element.__init__(self, name)
         self.hinge_axis = hinge_axis # proximal node coords
@@ -411,9 +410,9 @@ class Hinge(Element):
         if xstrain[0] < 2*pi:
             print 'Wrapping upwards'
             xstrain[0] += 2*pi
-            self.system.set_state(self.istrain, xstrain, 0)        
+            self.system.set_state(self.istrain, xstrain, 0)
 
-    
+
     def distal_pos(self):
         vs = skewmat(self.hinge_axis)
         th = self.xstrain[0]
@@ -432,7 +431,7 @@ class Hinge(Element):
 
         self.F_ve[3:,:] = n[:,np.newaxis]
         self.F_v2[3:] = thd*dot(wps, n)
-    
+
     def shape(self):
         # proximal values
         return [
@@ -441,7 +440,7 @@ class Hinge(Element):
                              [dot(self.Rd,[0,1,0])], [[0,0,0]],
                              [dot(self.Rd,[0,0,1])] ]
         ]
-    
+
     shape_plot_options = [
         {'marker': 's', 'ms': 4, 'c': 'r'},
         {'c': 'k', 'lw': 0.5}
@@ -450,17 +449,77 @@ class Hinge(Element):
     def calc_external_loading(self):
         self.applied_stress[0] = self.stiffness*self.xstrain[0] + self.damping*self.vstrain[0]
 
+class FreeJoint(Element):
+    _ndistal = 1
+    _nstrain = 6
+    _nconstraints = NQD
+
+    def __init__(self, name, stiffness=None, damping=None, post_transform=None):
+        Element.__init__(self, name)
+        if stiffness is None: stiffness = zeros((6,6))
+        if damping is None: damping = zeros((6,6))
+        self.stiffness = stiffness
+        self.damping = damping
+        self.post_transform = post_transform
+
+        # Constant parts of transformation matrices
+        self.F_ve = eye(6)
+
+    def distal_pos(self):
+        rd = self.rp + self.xstrain[0:3]
+        Rd = dot( dot(rotmat_z(self.xstrain[3]),
+                      rotmat_y(self.xstrain[4])),
+                      rotmat_x(self.xstrain[5]))
+        if self.post_transform is not None:
+            Rd = dot(Rd, self.post_transform)
+        return rd, Rd
+
+    def calc_kinematics(self):
+        """
+        Update kinematic transforms: F_vp, F_ve and F_v2
+        [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
+        """
+        # Angle strains to angular velocity depend on current angles
+        F = self.F_ve[3:6,3:6]
+        a1,a2,a3 = self.xstrain[3:6]
+        b1,b2,b3 = self.vstrain[3:6]
+        F[0:3,0] = [cos(a1)*cos(a2), sin(a3)*cos(a2), -sin(a2)]
+        F[0:2,1] = [-sin(a3), cos(a3)]
+        self.F_v2[3:6] = [
+            -b1*b2*cos(a3)*sin(a2) - b1*b3*sin(a3)*cos(a2) - b2*b3*cos(a3),
+            -b1*b2*sin(a3)*sin(a2) - b1*b3*cos(a3)*cos(a2) - b2*b3*sin(a3),
+            -b1*b2*cos(a2),
+        ]
+
+    def shape(self):
+        # proximal values
+        return [
+            array([self.rd]),
+            self.rd + np.r_[ [dot(self.Rd,[1,0,0])], [[0,0,0]],
+                             [dot(self.Rd,[0,1,0])], [[0,0,0]],
+                             [dot(self.Rd,[0,0,1])] ]
+        ]
+
+    shape_plot_options = [
+        {'marker': 's', 'ms': 4, 'c': 'r'},
+        {'c': 'k', 'lw': 0.5}
+    ]
+
+    def calc_external_loading(self):
+        self.applied_stress[:] = dot(self.stiffness,self.xstrain) + \
+                                 dot(self.damping,  self.vstrain)
+
 class RigidConnection(Element):
     _ndistal = 1
     _nstrain = 0
     _nconstraints = NQD
-    
+
     def __init__(self, name, offset=None, rotation=None):
         Element.__init__(self, name)
         if offset is None:
             offset = zeros(3)
         if rotation is None:
-            rotation = eye(3)            
+            rotation = eye(3)
         self.offset = offset
         self.rotation = rotation
 
@@ -468,7 +527,7 @@ class RigidConnection(Element):
         rd = self.rp + dot(self.Rp, self.offset)
         Rd = dot(self.Rp, self.rotation)
         return rd, Rd
- 
+
     def calc_kinematics(self):
         """
         Update kinematic transforms: F_vp, F_ve and F_v2
@@ -481,7 +540,7 @@ class RigidConnection(Element):
         self.F_vp[0:3,3:6] = -skewmat(xc)
         # Distal velocity quadratic term w_p \times w_p \times xc
         self.F_v2[0:3] = dot( dot(wps,wps), xc )
-  
+
     def shape(self):
         return [
             np.r_[ [self.rp], [self.rd] ],
@@ -489,7 +548,7 @@ class RigidConnection(Element):
                              [dot(self.Rd,[0,1,0])], [[0,0,0]],
                              [dot(self.Rd,[0,0,1])] ]
         ]
-    
+
     shape_plot_options = [
         {'c': 'm', 'lw': 1},
         {'c': 'k', 'lw': 0.5}
@@ -505,11 +564,11 @@ class EulerBeam(Element):
     _ndistal = 1
     _nstrain = 6
     _nconstraints = NQD
-    
+
     def __init__(self, name, length, density, EA, EIy, EIz, GIx=0.0, Jx=0.0):
         '''
         Euler beam element.
-        
+
          - length  : undeformed length of beam
          - density : mass per unit length
          - radius  : radius of beam, assumed circular for calculating stiffness
@@ -517,9 +576,9 @@ class EulerBeam(Element):
          - GIx     : torsional stiffness (G*Ix*kx)
          - EIy     : bending stiffness about y axis
          - EIz     : bending stiffness about z axis
-         
+
         '''
-        Element.__init__(self, name)        
+        Element.__init__(self, name)
         self.length = length
         self.linear_density = density
         self.damping = 0.1
@@ -529,7 +588,7 @@ class EulerBeam(Element):
         self.EIz = EIz
         self.Jx = Jx
         self._initial_calcs()
-        
+
     def _initial_calcs(self):
         m = self.linear_density # mass per unit length
         l0 = self.length
@@ -541,7 +600,7 @@ class EulerBeam(Element):
             [0, 0, 13*l0*m/35, 11*l0**2*m/210],
             [0, 0, 0, l0**3*m/105]
         ])
-        
+
         # with t2 = l0*(xi - p1 - p2)
         #self._mass_coeffs = array([
         #    [13*l0*m/35, -l0**2*m/105, 9*l0*m/70, 13*l0**2*m/420],
@@ -549,7 +608,7 @@ class EulerBeam(Element):
         #    [0, 0, 13*l0*m/35, 11*l0**2*m/210],
         #    [0, 0, 0, l0**3*m/105]
         #])
-        
+
         # Set constant parts of mass matrix
         c = self._mass_coeffs
         I = eye(3)
@@ -583,7 +642,7 @@ class EulerBeam(Element):
             [0, 3*s**2 - 2*s**3, 0,               0, 0,            -l*(s**2-s**3)],
             [0, 0,               3*s**2 - 2*s**3, 0, l*(s**2-s**3), 0            ],
         ])
-    
+
     def _beam_qfuncs(self, s):
         # rotation in local coords in terms of generalised strains
         l = self.length
@@ -598,12 +657,12 @@ class EulerBeam(Element):
         S = self._beam_rfuncs(s)
         X0 = array([self.length*s, 0, 0])
         return X0 + dot(S, xstrain)
-    
+
     def _beam_centreline_vel(self, s, vstrain):
         # return centreline in proximal frame
         S = self._beam_rfuncs(s)
         return dot(S, vstrain)
-    
+
     def _beam_rotation(self, s, xstrain):
         # return cross-section rotation (Euler parameters in proximal frame)
         B = self._beam_qfuncs(s)
@@ -621,27 +680,27 @@ class EulerBeam(Element):
         q0,q1,q2,q3 = self._beam_rotation(1.0, xstrain)
         qd0 = -(q1*qd1 + q2*qd2 + q3*qd3)/q0
         return array([qd0,qd1,qd2,qd3])
-        
+
     def _beam_R(self, s, xstrain):
         # rotation matrix of cross-section in proximal frame
         q = self._beam_rotation(s, xstrain)
         E,Ebar = euler_param_mats(q)
         return dot(E,Ebar.T)
-    
+
     def _beam_wrel(self, s, xstrain, vstrain):
         q0, q1, q2, q3  = self._beam_rotation(s, xstrain)
         q0, q1, q2, q3  = self._beam_rotation(s, xstrain)
         qd0,qd1,qd2,qd3 = self._beam_rotation_vel(s, xstrain, vstrain)
         E,Ebar = euler_param_mats((q0,q1,q2,q3))
         return 2*dot(E,[qd0,qd1,qd2,qd3])
-    
+
     def distal_pos(self):
         X  = array([self.length,0,0]) + self.xstrain[0:3]
         R  = self._beam_R(1.0, self.xstrain)
         rd = self.rp + dot(self.Rp,X)
         Rd = dot(self.Rp, R)
         return rd, Rd
-    
+
     def calc_kinematics(self):
         """
         Update kinematic transforms: F_vp, F_ve and F_v2
@@ -655,7 +714,7 @@ class EulerBeam(Element):
         qd = self._beam_rotation_vel(1.0, self.xstrain, self.vstrain)
         E  = euler_param_E(q)
         Ed = euler_param_E(qd)
-        wrel = 2*dot(E,qd) 
+        wrel = 2*dot(E,qd)
         assert np.allclose(q [1:]*2, self.xstrain[3:])
         assert np.allclose(qd[1:]*2, self.vstrain[3:])
 
@@ -685,18 +744,18 @@ class EulerBeam(Element):
                              [dot(self.Rd,[0,0,1])] ],
             np.r_[ [self.rp], [self.rp + dot(self.Rp,[self.length,0,0])], [self.rd] ]
         ]
-        
+
     shape_plot_options = [
         {'c': 'g', 'marker': 'o', 'lw': 2, 'ms': 1},
         {'c': 'k', 'lw': 0.5},
         {'c': 'k', 'lw': 2, 'alpha': 0.3},
     ]
-    
+
     def calc_mass(self):
         np = self.Rp[:,0] # unit vectors along elastic line
-        nd = self.Rd[:,0]       
+        nd = self.Rd[:,0]
         nps = skewmat(self.Rp[:,0]) # unit vectors along elastic line
-        nds = skewmat(self.Rd[:,0])        
+        nds = skewmat(self.Rd[:,0])
         wps = skewmat(self.vp[WP]) # angular velocity matrices
         wds = skewmat(self.vd[WP])
 
@@ -706,26 +765,26 @@ class EulerBeam(Element):
         Jxxd = dot(self.Rd, dot(Jbar, self.Rd.T))
 
         # shorthand
-        c = self._mass_coeffs 
+        c = self._mass_coeffs
         m = self.mass_vv
         gv = self.quad_forces
-        
+
         ## MASS MATRIX ##
         #[VP,VP] constant
         m[VP,WP] = -c[0,1]*nps
         #[VP,VD] constant
         m[VP,WD] = -c[0,3]*nds
-        
+
         m[WP,VP] =  m[VP,WP].T
         m[WP,WP] = -c[1,1]*dot(nps,nps) + Jxxp
         m[WP,VD] =  c[1,2]*nps
         m[WP,WD] = -c[1,3]*dot(nps,nds)
-        
+
         #[VD,VP] constant
         m[VD,WP] =  m[WP,VD].T
         #[VD,VD] constant
         m[VD,WD] = -c[2,3]*nds
-        
+
         m[WD,VP] =  m[VP,WD].T
         m[WD,WP] =  m[WP,WD].T
         m[WD,VD] =  m[VD,WD].T
@@ -737,12 +796,12 @@ class EulerBeam(Element):
         gv[VD] = c[1,2]*dot(        dot(wps,wps) ,np) + c[2,3]*dot(        dot(wds,wds) ,nd)
         gv[WD] = c[1,3]*dot(dot(nds,dot(wps,wps)),np) + c[3,3]*dot(dot(nds,dot(wds,wds)),nd)
         # quadratic stresses are all zero
-        
+
     def calc_external_loading(self):
-        self._set_gravity_force() 
+        self._set_gravity_force()
         self.applied_stress[:] = dot(self.stiffness, self.xstrain) + \
                                  dot(self.damping, dot(self.stiffness, self.vstrain))
-        
+
 ################################################
 
 def rk4(derivs, y0, t):
@@ -780,16 +839,16 @@ def solve_system(system, t):
         system.q[system.iDOF]  = y[:len(y)/2]
         system.qd[system.iDOF] = y[len(y)/2:]
         system.update()
-        
+
         # solve system
         system.solve()
-                
+
         # new state vector is [strains_dot, strains_dotdot]
         return np.r_[ system.qd[system.iDOF], system.qdd[system.iDOF] ]
 
 
     y0 = np.r_[ system.q[system.iDOF], system.qd[system.iDOF] ]
-    
+
     print 'Running simulation...',
     sys.stdout.flush()
     tstart = time.clock()
@@ -809,6 +868,6 @@ def solve_system(system, t):
 
     print 'done'
     print '%.1f seconds elapsed' % (time.clock() - tstart)
-    
+
     return y
 

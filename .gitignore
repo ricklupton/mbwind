@@ -8,3 +8,6 @@
 
 # Ignore profiling reports
 *.profile
+
+*.un~
+
