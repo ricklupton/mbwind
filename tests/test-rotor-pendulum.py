@@ -15,44 +15,83 @@ import dynvis
 
 dynamics.gravity = 0
 
+class RotatingBeam(object):
+    def __init__(self, r, l, mass):
+        self.r = r
+        self.l = l
+        
+        self.bearing = Hinge('bearing', [0,0,1])
+        self.disc = RigidConnection('disc', [r,0,0])
+        self.hinge_ip  = Hinge('hinge_ip',  [0,0,1])
+        self.hinge_oop = Hinge('hinge_oop', [0,1,0])
+        self.beam = EulerBeam('beam', l, mass/l, 1, 1, 1)
+        
+        self.bearing.add_leaf(self.disc)
+        self.disc.add_leaf(self.hinge_ip)
+        self.hinge_ip.add_leaf(self.hinge_oop)
+        self.hinge_oop.add_leaf(self.beam)
+        self.system = System(self.bearing)
+
+        #hinge_ip.stiffness = 1e3
+        #hinge_oop.stiffness = 1e3
+
+        # Prescribed DOF accelerations
+        self.system.prescribe(self.beam.istrain, 0.0)    # rigid beam
+        self.system.prescribe(self.bearing.istrain, 0.0) # constant rotational speed
+
+    def init(self, rotspeed, ip0, oop0):
+        # reset
+        self.system.q [:] = 0.0
+        self.system.qd[:] = 0.0        
+        
+        # initial conditions
+        self.system.qd[self.bearing.istrain[0]] = rotspeed # initial rotational speed
+        self.system.qd[self.hinge_oop.istrain[0]] = oop0    # initial OOP angle
+        self.system.qd[self.hinge_ip .istrain[0]] = ip0     # initial IP angle
+
+    def simulate(self, t1, dt=0.05):
+        t = np.arange(0, t1, dt)
+        y = solve_system(self.system, t)
+        return t,y
+
+def ani_xy(s,t,y):
+    return dynvis.anim(s, t, y, (0,1), (-3,3), (-3,3), velocities=False)
+
+def ani_xz(s,t,y):
+    return dynvis.anim(s, t, y, (0,2), (-3,3), (-3,3), velocities=False)
+
+
 rdisc = 1.0
-lpend = 1.0
+lpend = 0.2
+mass = 100
 
-bearing = Hinge('bearing', [0,0,1])
-disc = RigidConnection('disc', [rdisc,0,0])
-hinge_ip  = Hinge('hinge_ip',  [0,0,1])
-hinge_oop = Hinge('hinge_oop', [0,1,0])
-beam = EulerBeam('beam', lpend, 250, 1, 1, 1)
-
-bearing.add_leaf(disc)
-disc.add_leaf(hinge_ip)
-hinge_ip.add_leaf(hinge_oop)
-hinge_oop.add_leaf(beam)
-system = System(bearing)
-
-# Prescribed DOF accelerations and initial conditions
-system.prescribe(beam.istrain, 0.0)        # rigid beam
-system.prescribe(bearing.istrain, 0.0)     # constant rotational speed
-system.qd[bearing.istrain[0]] = 10 * pi/180 # initial rotational speed
-#system.q[hinge_oop.istrain[0]] = 15 * pi/180 # initial OOP angle
-system.q[hinge_ip.istrain[0]] = 15 * pi/180 # initial IP angle
-
-#hinge_ip.stiffness = 1e3
-#hinge_oop.stiffness = 1e3
-
-def test1():
-    # Solve
-    dt = 0.1
-    t = np.arange(0,40, dt)
-    y = solve_system(system, t, outputs=lambda s: [s.rhs[i] for i in beam.iprox])
+def test(r,l,m,speeds):
+    PHI = 1
+    PSI = 2
     
-    return t,y
+    rb = RotatingBeam(r, l, m)
+    # results
+    ip = []
+    oop = []
+    for Omega in speeds:
+        rotor_period = 2*pi/Omega
 
-def ani_xy(t,y):
-    return dynvis.anim(system, t, y, (0,1), (-3,3), (-3,3), velocities=False)
+        # in-plane
+        rb.init(Omega, 0.1, 0.0)
+        t,y = rb.simulate(rotor_period)
+        t_half = t[np.nonzero(y[:,PHI]<0)[0][0]]
+        ip.append(pi/t_half)
+        
+        # out-of-plane
+        rb.init(Omega, 0.0, 0.1)
+        t,y = rb.simulate(rotor_period)
+        t_half = t[np.nonzero(y[:,PSI]<0)[0][0]]
+        oop.append(pi/t_half)
+        
+    return ip,oop
 
-def ani_xz(t,y):
-    return dynvis.anim(system, t, y, (0,2), (-3,3), (-3,3), velocities=False)
+speeds = [0.1,0.2,0.5,1.0]
+ip,oop = test(rdisc,lpend,mass,speeds)
 
 def plot_defl(t,y):
     ip  = [b+i for i in (1,5) for b in (8,14,20)]
