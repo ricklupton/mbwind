@@ -125,6 +125,7 @@ class System(object):
         # Reset state book-keeping
         self.state_elements = []
         self.state_types = []
+        self.states_by_type = defaultdict(list)
 
         # Set up first node
         ground_ind = self.request_new_states(NQD, None, 'ground')
@@ -254,7 +255,7 @@ class Element(object):
 
     def __init__(self, name):
         self.name = name
-        self.children = []
+        self.children = [[]] * self._ndistal
 
         self.rp = zeros(3)
         self.Rp = eye(3)
@@ -292,19 +293,21 @@ class Element(object):
         return '<%s "%s">' % (self.__class__.__name__, self.name)
 
     def add_leaf(self, elem, distnode=0):
-        self.children.append((distnode,elem))
+        self.children[distnode].append(elem)
 
     def iter_leaves(self):
-        for distnode,child in self.children:
-            yield child
-            for descendent in child.iter_leaves():
-                yield descendent
+        for node_children in self.children:
+            for child in node_children:
+                yield child
+                for descendent in child.iter_leaves():
+                    yield descendent
 
     def plot_chain(self, ax):
         for linedata,opts in zip(self.shape(), self.shape_plot_options):
             ax.plot(linedata[:,0], linedata[:,1], linedata[:,2], **opts)
-        for distnode,child in sorted(self.children):
-            child.plot_chain(ax)
+        for node_children in self.children:
+            for child in node_children:
+                child.plot_chain(ax)
 
     def setup_chain(self, sys, prox_indices):
         assert len(prox_indices) == NQD # number of nodal coordinates
@@ -318,15 +321,14 @@ class Element(object):
         self.istrain = sys.request_new_states(self._nstrain, self, 'strain')
 
         # Request new states for distal node coordinates
-        idist = []
-        for i in range(self._ndistal):
-            idist.append(sys.request_new_states(NQD, self, 'node'))
+        idist = [sys.request_new_states(NQD, self, 'node') for i in range(self._ndistal)]
         # Just keep a flat list of distal nodal indices
         self.idist = [i for sublist in idist for i in sublist]
 
         # Pass onto children for each distal node
-        for distnode,child in sorted(self.children):
-            child.setup_chain(sys, idist[distnode])
+        for inode,node_children in zip(idist,self.children):
+            for child in node_children:
+                child.setup_chain(sys, inode)
 
     def _inodes(self): return self.iprox + self.idist
     def _imass(self):  return self._inodes() + self.istrain
@@ -378,8 +380,9 @@ class Element(object):
             #self.system.add_to_rhs(self.imult,     self.F_v2)
 
         # Pass onto children for each distal node
-        for distnode,child in sorted(self.children):
-            child.update(self.rd, self.Rd, self.vd, matrices)
+        for node_children in self.children:
+            for child in node_children:
+                child.update(self.rd, self.Rd, self.vd, matrices)
 
     def _set_gravity_force(self):
         # include gravity by default
@@ -868,45 +871,56 @@ def rk4(derivs, y0, t):
         raise
     return yout
 
-def solve_system(system, t):
+def solve_system(system, tvals, outputs=None):
+    iDOF = system.iDOF
+    nDOF = np.count_nonzero(iDOF)
+    
+    # By default, output DOFs
+    if outputs is None:
+        all_outputs = lambda s: s.q[iDOF]
+    else:
+        all_outputs = lambda s: np.r_[ s.q[iDOF], outputs(s) ]
+    
     def func(ti, y):
-    #def func(y, ti):
         # update system state with states and state rates
         # y constains [strains, d(strains)/dt]
-        system.q[system.iDOF]  = y[:len(y)/2]
-        system.qd[system.iDOF] = y[len(y)/2:]
+        system.q[iDOF]  = y[:nDOF]
+        system.qd[iDOF] = y[nDOF:]
         system.update(ti)
 
         # solve system
         system.solve()
 
         # new state vector is [strains_dot, strains_dotdot]
-        return np.r_[ system.qd[system.iDOF], system.qdd[system.iDOF] ]
+        return np.r_[ system.qd[iDOF], system.qdd[iDOF] ]
 
+    system.update(tvals[0])
 
-    y0 = np.r_[ system.q[system.iDOF], system.qd[system.iDOF] ]
+    # Initial conditions
+    y0 = np.r_[ system.q[iDOF], system.qd[iDOF] ]
 
     print 'Running simulation:',
     sys.stdout.flush()
     tstart = time.clock()
 
-    r = ode(func)
-    r.set_initial_value(y0, 0.0)
-    t1 = t[-1]
-    dt = t[1] - t[0]
-    y = np.nan * zeros((len(t), len(y0)))
-    tprint = 1.0
-    while r.successful() and r.t <= t1+dt/2:
-        y[int(r.t/dt),:] = r.y
-        r.integrate(r.t + dt)
-        if r.t > tprint:
+    integrator = ode(func)
+    integrator.set_initial_value(y0, tvals[0])
+    integrator.set_integrator("dopri5")
+    result = -1 * zeros((len(tvals), len(all_outputs(system))))
+    result[0,:] = all_outputs(system)
+    nprint = 20
+    for it,t in enumerate(tvals[1:], start=1):
+        integrator.integrate(t)
+        if not integrator.successful():
+            print 'stopping'
+            break
+        system.update(t,False)
+        result[it,:] = all_outputs(system)
+        if (it % nprint) == 0:
             sys.stdout.write('.'); sys.stdout.flush()
-            tprint += 1.0
-    #y = odeint(func, y0, t)
-    #y = rk4(func, y0, t)
 
     print 'done'
     print '%.1f seconds elapsed' % (time.clock() - tstart)
 
-    return y
+    return result
 

@@ -53,7 +53,8 @@ system = System(foundation)
 
 def test1():
     # Initial conditions
-    system.qd[bearing.istrain[0]] = -10 * pi/180
+    system.q [bearing.istrain[0]] =  20 * pi/180    
+    system.qd[bearing.istrain[0]] = -5 * pi/180
     #system.q[foundation.istrain[0]] = pi/6
     
     # Prescribed DOFs
@@ -69,16 +70,16 @@ def test1():
     
     # Solve
     dt = 0.05
-    t = np.arange(0, 4, dt)
+    t = np.arange(0,8, dt)
     y = solve_system(system, t)
     
     return t,y
 
 def ani_xz(t,y):
-    return dynvis.anim(system, t, y, (0,2), (-30,30), (0,tower_height+blade_length+5))
+    return dynvis.anim(system, t, y, (0,2), (-30,30), (0,tower_height+blade_length+5), velocities=False)
 
 def ani_yz(t,y):
-    return dynvis.anim(system, t, y, (1,2), (-blade_length-2,blade_length+2), (0,tower_height+blade_length+5))
+    return dynvis.anim(system, t, y, (1,2), (-blade_length-2,blade_length+2), (0,tower_height+blade_length+5), velocities=False)
 
 def plot_defl(t,y):
     ip  = [b+i for i in (1,5) for b in (8,14,20)]

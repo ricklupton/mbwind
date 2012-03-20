@@ -26,7 +26,7 @@ def show(system, tt, yy, tvals):
         system.update(t, False)
         system.first_element.plot_chain(ax)
 
-def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None):
+def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, velocities=True):
     fig = plt.figure()
     fig.set_size_inches(10,10,forward=True)
     ax = fig.add_subplot(111, aspect=1, xlim=lim1,ylim=lim2)
@@ -49,10 +49,11 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None):
         time_text.set_text('')
         return [line for line in ellines for el,ellines in lines] + [time_text]
 
-    N = yy.shape[1]/2
+    N = np.count_nonzero(system.iDOF)
     def animate(i):
-        system.q [system.iDOF] = yy[i,:N]
-        system.qd[system.iDOF] = yy[i,N:]
+        system.q[system.iDOF] = yy[i,:N]
+        if velocities:
+            system.qd[system.iDOF] = yy[i,N:]
         system.update(tt[i], False)
 
         for el,ellines in lines:
