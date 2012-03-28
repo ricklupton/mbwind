@@ -245,7 +245,6 @@ class System(object):
         #    return self.eval_reduced_system(hi(zdd0,zdd,i))
             
         for iz in range(f):
-            print iz
             Hz  [:,iz] = derivative(z_func,   0, args=(iz,))
             Hzd [:,iz] = derivative(zd_func,  0, args=(iz,))
             Hzdd[:,iz] = derivative(zdd_func, 0, args=(iz,))

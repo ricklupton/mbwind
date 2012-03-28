@@ -2,7 +2,7 @@
 """
 Created on Wed 28 Mar 2012
 
-Test linearisation of a rigid 3-bladed rotor with can bounce verticallys
+Test linearisation of a rigid 3-bladed rotor which can bounce vertically
 
 @author: Rick Lupton
 """
@@ -15,20 +15,28 @@ import dynvis
 
 #dynamics.gravity = 0
 
+tower_height = 90.0
+overhang = 0.8
+r_root = 0.5
+blade_length = 60.0
+
+EIy = 1000e6
+EIz = 1000e6
+
 Ry = rotmat_y(-pi/2)
 Rhb1 = rotmat_z(0 * 2*pi/3)
 Rhb2 = rotmat_z(1 * 2*pi/3)
 Rhb3 = rotmat_z(2 * 2*pi/3)
 
 slider = PrismaticJoint('slider', [0,0,1], Ry)
-beam = EulerBeam('beam', 5, 10, 1, 1, 1)
+beam = EulerBeam('beam', tower_height, 3000, 1, 1, 1)
 hinge = Hinge('hinge',  [0,0,1])
-hb1 = RigidConnection('hb1', np.dot(Rhb1,[1,0,0]), Rhb1)
-hb2 = RigidConnection('hb2', np.dot(Rhb2,[1,0,0]), Rhb2)
-hb3 = RigidConnection('hb3', np.dot(Rhb3,[1,0,0]), Rhb3)
-b1 = EulerBeam('b1', 7, 10, 1, 1, 1)
-b2 = EulerBeam('b2', 7, 10, 1, 1, 1)
-b3 = EulerBeam('b3', 7, 10, 1, 1, 1)
+hb1 = RigidConnection('hb1', r_root*np.dot(Rhb1,[1,0,0]), Rhb1)
+hb2 = RigidConnection('hb2', r_root*np.dot(Rhb2,[1,0,0]), Rhb2)
+hb3 = RigidConnection('hb3', r_root*np.dot(Rhb3,[1,0,0]), Rhb3)
+b1 = EulerBeam('b1', blade_length, 250, 1000e6, EIy, EIz)
+b2 = EulerBeam('b2', blade_length, 250, 1000e6, EIy, EIz)
+b3 = EulerBeam('b3', blade_length, 250, 1000e6, EIy, EIz)
 
 slider.add_leaf(beam)
 beam.add_leaf(hinge)
@@ -40,30 +48,31 @@ hb2.add_leaf(b2)
 hb3.add_leaf(b3)
 system = System(slider)
 
-slider.stiffness = 54
+slider.stiffness = 1e7
         
 # Prescribed DOF accelerations
 system.prescribe(beam.istrain, 0.0)    # rigid beam
 for b in (b1,b2,b3):
-    system.prescribe([b.istrain[0], b.istrain[3]], 0.0) # no elongation or torsion
+    x = b.istrain
+    system.prescribe([x[0],x[2],x[3],x[4]], 0.0) # only deflection in y-direction & rotation about z (IP)
 
-K,C,M = system.linearise([1,1], [0,0], [0,0])
-W,Vr = scipy.linalg.eig(K,M)
+linsys = system.linearise() # about zeros
+W,Vr = scipy.linalg.eig(linsys.K,linsys.M)
 
 def sim_both(a,b,a1,b1):
     t = np.arange(0, 20, 0.05)
-    ylin = solve_lin_system(M, C, K, [a,b], [a1,b1], t)
+    ylin = linsys.integrate(t, [a,b]+[0]*6, [a1,b1]+[0]*6)
     system.q [system.iFreeDOF[0]] = a
     system.q [system.iFreeDOF[1]] = b
     system.qd[system.iFreeDOF[0]] = a1
     system.qd[system.iFreeDOF[1]] = b1
     y = solve_system(system,t)
     
-    # pick out 2 interesting strains
-    y = y[:,[0,7]]
-    ylin = ylin[:,:2]
+    # pick out interesting strains
+    y = y[:,[0,7,9,13,15,19,21,25]]
+    ylin = ylin[:,:8]
     ax = plt.figure().add_subplot(111)
-    ax.set_color_cycle(['b','r'])
+    #ax.set_color_cycle(['b','r'])
     ax.plot(t,ylin,':',t,y,'--')
     return t,y,ylin
     

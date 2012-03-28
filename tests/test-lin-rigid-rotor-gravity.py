@@ -2,7 +2,7 @@
 """
 Created on Wed 28 Mar 2012
 
-Test linearisation of a rigid 3-bladed rotor with can bounce verticallys
+Test linearisation of a flexible 3-bladed rotor which can bounce vertically
 
 @author: Rick Lupton
 """
