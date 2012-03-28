@@ -158,7 +158,7 @@ class System(object):
         self.iPrescribed[ipres] = True
 
     def request_new_states(self, num, elem, type):
-        print 'element %s requesting %d new "%s" states' % (elem, num, type)
+        #print 'element %s requesting %d new "%s" states' % (elem, num, type)
         n0 = len(self.state_elements)
         self.state_elements.extend([elem]*num)
         self.state_types.extend([type]*num)
