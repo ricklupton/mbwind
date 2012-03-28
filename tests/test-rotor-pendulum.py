@@ -72,6 +72,9 @@ rdisc = 1.0
 lpend = 1.0
 mass = 100
 
+rb = RotatingBeam(rdisc,lpend,mass)
+system = rb.system
+
 def test(r,l,m,speeds):
     PHI = 1
     PSI = 2
@@ -129,21 +132,22 @@ def test_geom(m,speed,radii,lengths):
 
     return array([ip,oop]), t1,y1,t2,y2
 
-rads = array([0.0,0.1,0.3,0.5,1.0,1.0,2.0,3.0,9.0])
-lens = array([1.0,1.0,1.0,1.0,1.0,0.5,0.5,0.5,0.5])
-gamma = rads/lens
-lambd = gamma / (gamma+1)
-rotspeed = pi
-freqs,t1,y1,t2,y2 = test_geom(mass,pi,rads,lens)
-x=np.linspace(0,0.96)
-
-import matplotlib.pyplot as plt
-plt.plot(lambd,freqs[0]/rotspeed,'b-x',lambd,freqs[1]/rotspeed,'g-x',
-         x,sqrt(x/(1-x)),'b--',x,sqrt(1/(1-x)),'g--')
-plt.xlabel('$\lambda$ (disc inertia / total inertia)')
-plt.ylabel('Natural frequencies normalised by rotor frequency')
-plt.legend(('Simulated IP','Simulated OOP','Theory IP','Theory OOP'),loc='nw')
-plt.title('Disc+rigid beam rotating at %.2f rad/s' % rotspeed)
+if False:
+    rads = array([0.0,0.1,0.3,0.5,1.0,1.0,2.0,3.0,9.0])
+    lens = array([1.0,1.0,1.0,1.0,1.0,0.5,0.5,0.5,0.5])
+    gamma = rads/lens
+    lambd = gamma / (gamma+1)
+    rotspeed = pi
+    freqs,t1,y1,t2,y2 = test_geom(mass,pi,rads,lens)
+    x=np.linspace(0,0.96)
+    
+    import matplotlib.pyplot as plt
+    plt.plot(lambd,freqs[0]/rotspeed,'b-x',lambd,freqs[1]/rotspeed,'g-x',
+             x,sqrt(x/(1-x)),'b--',x,sqrt(1/(1-x)),'g--')
+    plt.xlabel('$\lambda$ (disc inertia / total inertia)')
+    plt.ylabel('Natural frequencies normalised by rotor frequency')
+    plt.legend(('Simulated IP','Simulated OOP','Theory IP','Theory OOP'),loc='nw')
+    plt.title('Disc+rigid beam rotating at %.2f rad/s' % rotspeed)
 
 def plot_defl(t,y):
     ip  = [b+i for i in (1,5) for b in (8,14,20)]

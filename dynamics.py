@@ -144,6 +144,9 @@ class System(object):
         self.mass = zeros((Nq,Nq))
         self.iDOF = zeros(Nq, dtype=bool)
         self.iPrescribed = zeros(Nq, dtype=bool)
+        # indep coords z = Bq where q are interdependent
+        ndof = len(self.states_by_type['strain']) # assuming base coords fixed
+        self.B = zeros((ndof,Nq), dtype=bool)
         self._update_indices()
 
     def _update_indices(self):
@@ -156,6 +159,98 @@ class System(object):
         # prescribed strains
         ipres = list(self.prescribed_accels.keys())
         self.iPrescribed[ipres] = True
+        
+        # real coords, node and strains
+        ir = self.states_by_type['ground'] + self.states_by_type['node'] + self.states_by_type['strain']
+        self.iReal = zeros(len(self.qd), dtype=bool)
+        self.iReal[ir] = True
+        
+        # update B matrix
+        indep_coords = [i for i in (self.states_by_type['ground'] + self.states_by_type['strain'])
+                          if i not in self.prescribed_accels]
+        B = zeros((len(indep_coords),len(self.qd)), dtype=bool)
+        self.iFreeDOF = array(indep_coords)
+        for iz,iq in enumerate(indep_coords):
+            B[iz,iq] = True
+        self.B = B[:,self.iReal]
+            
+
+    
+    def get_constraints(self):
+        p = self.mass[np.ix_(~self.iReal,self.iReal)]
+        r = self.rhs[~self.iReal]
+        # add extra constraints for prescribed accelerations
+        ipres_orig    = np.nonzero(self.iPrescribed)[0]
+        ipres_reduced = np.nonzero(self.iPrescribed[self.iReal])[0]
+        pextra = np.zeros((len(ipres_orig), p.shape[1]))
+        rextra = np.zeros(len(ipres_orig))
+        for i in range(len(ipres_orig)): #,(idof,val) in enumerate(zip(ipres,self.prescribed_accels.values())):
+            pextra[i,ipres_reduced[i]] = 1
+            rextra[i] = self.prescribed_accels[ipres_orig[i]]
+        return np.r_[p,pextra], np.r_[r,rextra]
+        
+    def calc_projections(self):
+        p,c = self.get_constraints()
+        SR = LA.inv(np.r_[p, self.B])
+        f = self.B.shape[0]
+        S = SR[:,:-f]
+        self.R = SR[:,-f:]
+        self.Sc = dot(S,c)
+        self.Sb = 0*self.Sc
+        
+    def eval_reduced_system(self, zdd):
+        self.update()
+        self.calc_projections()
+
+        RtM = dot(self.R.T, self.mass[np.ix_(self.iReal,self.iReal)])
+        Mr = dot(RtM,self.R)
+        Qr = dot(self.R.T,self.rhs[self.iReal])
+        
+        return dot(Mr, zdd) - Qr + dot(RtM, self.Sc)
+
+    def linearise(self, z0=None, zd0=None, zdd0=None):
+        from scipy.misc import derivative
+        self._update_indices()
+        f = self.B.shape[0]
+
+        if z0   is None: z0   = zeros(f)
+        if zd0  is None: zd0  = zeros(f)
+        if zdd0 is None: zdd0 = zeros(f)
+        
+        Hz   = np.zeros((f,f))
+        Hzd  = np.zeros((f,f))
+        Hzdd = np.zeros((f,f))
+        HQ   = np.zeros((f,f))
+        
+        def hi(x0,h,i):
+            y = np.zeros_like(x0)
+            y[i] = h
+            return x0+y
+            
+        def z_func(z, i):
+            self.q [self.iFreeDOF] = hi(z0,z,i)
+            self.qd[self.iFreeDOF] = zd0
+            return self.eval_reduced_system(zdd0)
+        def zd_func(zd, i):
+            self.q [self.iFreeDOF] = z0
+            self.qd[self.iFreeDOF] = hi(zd0,zd,i)
+            return self.eval_reduced_system(zdd0)
+        def zdd_func(zdd, i):
+            self.q [self.iFreeDOF] = z0
+            self.qd[self.iFreeDOF] = zd0
+            return self.eval_reduced_system(hi(zdd0,zdd,i))
+        #def Q_func(zdd, i):
+        #    self.q [self.iFreeDOF] = z0
+        #    self.qd[self.iFreeDOF] = zd0
+        #    return self.eval_reduced_system(hi(zdd0,zdd,i))
+            
+        for iz in range(f):
+            print iz
+            Hz  [:,iz] = derivative(z_func,   0, args=(iz,))
+            Hzd [:,iz] = derivative(zd_func,  0, args=(iz,))
+            Hzdd[:,iz] = derivative(zdd_func, 0, args=(iz,))
+        
+        return LinearisedSystem(z0, zd0, zdd0, Hz, Hzd, Hzdd)
 
     def request_new_states(self, num, elem, type):
         #print 'element %s requesting %d new "%s" states' % (elem, num, type)
@@ -244,6 +339,66 @@ class System(object):
         a = LA.solve(M, b)
         self.qdd[~self.iPrescribed] = a
 
+class LinearisedSystem(object):
+    def __init__(self, z0, zd0, zdd0, Hz, Hzd, Hzdd):
+        self.z0 = z0
+        self.zd0 = zd0
+        self.zdd0 = zdd0
+        self.K = Hz
+        self.C = Hzd
+        self.M = Hzdd
+
+    def state_space(self):
+        f = self.M.shape[0]
+        A = np.r_[
+            np.c_[self.M,       zeros((f,f))],
+            np.c_[zeros((f,f)), eye(f)      ]
+        ]
+        B = np.r_[
+            np.c_[self.C,       self.K      ],
+            np.c_[-eye(f),      zeros((f,f))]
+        ]
+        return A,B
+    
+    def integrate(self, tvals, z0, zd0):
+        f = self.M.shape[0]
+        Mi = LA.inv(self.M)
+        
+        def func(ti, y):
+            # y constains [z, dz/dt]
+            z  = y[:f]
+            zd = y[f:]        
+            # calculate accelerations
+            zdd = -dot(Mi, dot(self.C,zd-self.zd0) + dot(self.K,z-self.z0))
+            # new state vector is [strains_dot, strains_dotdot]
+            return np.r_[ zd, zdd ]
+    
+        # Initial conditions
+        y0 = np.r_[ z0, zd0 ]
+    
+        print 'Running simulation:',
+        sys.stdout.flush()
+        tstart = time.clock()
+    
+        integrator = ode(func)
+        integrator.set_initial_value(y0, tvals[0])
+        integrator.set_integrator("dopri5")
+        result = np.nan * zeros((len(tvals), 2*f))
+        result[0,:] = y0
+        nprint = 20
+        for it,t in enumerate(tvals[1:], start=1):
+            integrator.integrate(t)
+            if not integrator.successful():
+                print 'stopping'
+                break
+            result[it,:] = integrator.y
+            if (it % nprint) == 0:
+                sys.stdout.write('.'); sys.stdout.flush()
+    
+        print 'done'
+        print '%.1f seconds elapsed' % (time.clock() - tstart)
+    
+        return result
 
 
 gravity = 9.81
@@ -465,6 +620,50 @@ class Hinge(Element):
 
     def calc_external_loading(self):
         self.applied_stress[0] = self.stiffness*self.xstrain[0] + self.damping*self.vstrain[0]
+
+class PrismaticJoint(Element):
+    _ndistal = 1
+    _nstrain = 1
+    _nconstraints = NQD
+
+    def __init__(self, name, axis, post_transform=None):
+        Element.__init__(self, name)
+        self.axis = axis # proximal node coords
+        self.stiffness = 0.0
+        self.damping = 0.0
+        if post_transform is None:
+            post_transform = np.eye(3)
+        self.post_transform = post_transform
+
+    def distal_pos(self):
+        n = dot(self.Rp, self.axis) # axis in global frame
+        return self.rp + self.xstrain[0]*n, dot(self.Rp, self.post_transform)
+
+    def calc_kinematics(self):
+        """
+        Update kinematic transforms: F_vp, F_ve and F_v2
+        [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
+        """
+        n = dot(self.Rp, self.axis) # global axis vector
+        self.F_ve[:3,:] = n[:,np.newaxis]
+        
+    def shape(self):
+        # proximal values
+        return [
+            array([self.rd]),
+            self.rd + np.r_[ [dot(self.Rd,[1,0,0])], [[0,0,0]],
+                             [dot(self.Rd,[0,1,0])], [[0,0,0]],
+                             [dot(self.Rd,[0,0,1])] ]
+        ]
+
+    shape_plot_options = [
+        {'marker': 's', 'ms': 4, 'c': 'r'},
+        {'c': 'k', 'lw': 0.5}
+    ]
+
+    def calc_external_loading(self):
+        self.applied_stress[0] = self.stiffness*self.xstrain[0] + self.damping*self.vstrain[0]
+
 
 class FreeJoint(Element):
     _ndistal = 1
