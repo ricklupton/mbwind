@@ -198,7 +198,9 @@ class System(object):
         self.Sc = dot(S,c)
         self.Sb = 0*self.Sc
         
-    def eval_reduced_system(self, zdd):
+    def eval_residue(self, z, zd, zdd):
+        self.q [self.iFreeDOF] = z
+        self.qd[self.iFreeDOF] = zd
         self.update()
         self.calc_projections()
 
@@ -207,49 +209,6 @@ class System(object):
         Qr = dot(self.R.T,self.rhs[self.iReal])
         
         return dot(Mr, zdd) - Qr + dot(RtM, self.Sc)
-
-    def linearise(self, z0=None, zd0=None, zdd0=None):
-        from scipy.misc import derivative
-        self._update_indices()
-        f = self.B.shape[0]
-
-        if z0   is None: z0   = zeros(f)
-        if zd0  is None: zd0  = zeros(f)
-        if zdd0 is None: zdd0 = zeros(f)
-        
-        Hz   = np.zeros((f,f))
-        Hzd  = np.zeros((f,f))
-        Hzdd = np.zeros((f,f))
-        HQ   = np.zeros((f,f))
-        
-        def hi(x0,h,i):
-            y = np.zeros_like(x0)
-            y[i] = h
-            return x0+y
-            
-        def z_func(z, i):
-            self.q [self.iFreeDOF] = hi(z0,z,i)
-            self.qd[self.iFreeDOF] = zd0
-            return self.eval_reduced_system(zdd0)
-        def zd_func(zd, i):
-            self.q [self.iFreeDOF] = z0
-            self.qd[self.iFreeDOF] = hi(zd0,zd,i)
-            return self.eval_reduced_system(zdd0)
-        def zdd_func(zdd, i):
-            self.q [self.iFreeDOF] = z0
-            self.qd[self.iFreeDOF] = zd0
-            return self.eval_reduced_system(hi(zdd0,zdd,i))
-        #def Q_func(zdd, i):
-        #    self.q [self.iFreeDOF] = z0
-        #    self.qd[self.iFreeDOF] = zd0
-        #    return self.eval_reduced_system(hi(zdd0,zdd,i))
-            
-        for iz in range(f):
-            Hz  [:,iz] = derivative(z_func,   0, args=(iz,))
-            Hzd [:,iz] = derivative(zd_func,  0, args=(iz,))
-            Hzdd[:,iz] = derivative(zdd_func, 0, args=(iz,))
-        
-        return LinearisedSystem(z0, zd0, zdd0, Hz, Hzd, Hzdd)
 
     def request_new_states(self, num, elem, type):
         #print 'element %s requesting %d new "%s" states' % (elem, num, type)
@@ -338,66 +297,6 @@ class System(object):
         a = LA.solve(M, b)
         self.qdd[~self.iPrescribed] = a
 
-class LinearisedSystem(object):
-    def __init__(self, z0, zd0, zdd0, Hz, Hzd, Hzdd):
-        self.z0 = z0
-        self.zd0 = zd0
-        self.zdd0 = zdd0
-        self.K = Hz
-        self.C = Hzd
-        self.M = Hzdd
-
-    def state_space(self):
-        f = self.M.shape[0]
-        A = np.r_[
-            np.c_[self.M,       zeros((f,f))],
-            np.c_[zeros((f,f)), eye(f)      ]
-        ]
-        B = np.r_[
-            np.c_[self.C,       self.K      ],
-            np.c_[-eye(f),      zeros((f,f))]
-        ]
-        return A,B
-    
-    def integrate(self, tvals, z0, zd0):
-        f = self.M.shape[0]
-        Mi = LA.inv(self.M)
-        
-        def func(ti, y):
-            # y constains [z, dz/dt]
-            z  = y[:f]
-            zd = y[f:]        
-            # calculate accelerations
-            zdd = -dot(Mi, dot(self.C,zd-self.zd0) + dot(self.K,z-self.z0))
-            # new state vector is [strains_dot, strains_dotdot]
-            return np.r_[ zd, zdd ]
-    
-        # Initial conditions
-        y0 = np.r_[ z0, zd0 ]
-    
-        print 'Running simulation:',
-        sys.stdout.flush()
-        tstart = time.clock()
-    
-        integrator = ode(func)
-        integrator.set_initial_value(y0, tvals[0])
-        integrator.set_integrator("dopri5")
-        result = np.nan * zeros((len(tvals), 2*f))
-        result[0,:] = y0
-        nprint = 20
-        for it,t in enumerate(tvals[1:], start=1):
-            integrator.integrate(t)
-            if not integrator.successful():
-                print 'stopping'
-                break
-            result[it,:] = integrator.y
-            if (it % nprint) == 0:
-                sys.stdout.write('.'); sys.stdout.flush()
-    
-        print 'done'
-        print '%.1f seconds elapsed' % (time.clock() - tstart)
-    
-        return result
 
 
 gravity = 9.81
