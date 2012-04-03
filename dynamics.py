@@ -678,6 +678,50 @@ class RigidConnection(Element):
         {'c': 'k', 'lw': 0.5}
     ]
 
+class RigidBody(Element):
+    _ndistal = 0
+    _nstrain = 0
+    _nconstraints = 0
+
+    def __init__(self, name, mass, inertia, Xc=None):
+        '''
+        Rigid body element with only one node.
+        Defined by mass and inertia tensor.
+        '''
+        Element.__init__(self, name)
+        if Xc is None: Xc = zeros(3)
+        self.mass = mass
+        self.inertia = inertia
+        self.Xc = Xc
+        # Set constant parts of mass matrix
+        self.mass_vv[VP,VP] = self.mass * eye(3)
+
+    def shape(self):
+        return [
+            np.r_[ [self.rp], [self.rp+dot(self.Rp,self.Xc)] ]
+        ]
+
+    shape_plot_options = [
+        {'marker': 'x', 'ms': 4, 'c': 'y'},
+    ]
+
+    def calc_mass(self):
+        # global offset to centre of mass
+        xc = dot(self.Rp, self.Xc)
+        Jp = dot(self.Rp, dot(self.inertia, self.Rp.T))
+        wps = skewmat(self.vp[3:])
+
+        ## MASS MATRIX ##
+        #    mass_vv[VP,VP] constant
+        self.mass_vv[VP,WP] = -self.mass * skewmat(xc)
+        self.mass_vv[WP,VP] =  self.mass * skewmat(xc)
+        self.mass_vv[WP,WP] =  Jp
+
+        ## QUADRATIC FORCES ## (remaining terms)
+        self.quad_forces[VP] = self.mass * dot(dot(wps,wps), xc)
+        self.quad_forces[WP] = dot(wps, dot(Jp, self.vp[3:]))
+
+
 class ElementLoading(object):
     '''
     Define the loading applied to an element, e.g. wind drag loading on a beam
