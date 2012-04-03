@@ -59,11 +59,10 @@ slider.stiffness = 1e7
 # Prescribed DOF accelerations
 system.prescribe(beam.istrain, 0.0)    # rigid beam
 for b in (b1,b2,b3):
-    x = b.istrain
-    system.prescribe([x[0],x[2],x[3],x[4]], 0.0) # only deflection in y-direction & rotation about z (IP)
+    system.prescribe([b.istrain[i] for i in (0,2,3,4,5)], 0.0) # only deflection in y-direction & rotation about z (IP)
 
-omega = 5
-linsys = LinearisedSystem(system, zd0=[0,omega]+[0]*6)
+omega = 0
+linsys = LinearisedSystem(system, zd0=[0,omega,0,0,0])
 
 W,Vr = scipy.linalg.eig(linsys.K,linsys.M)
 
@@ -76,7 +75,7 @@ def calc_matrices(system, iz, omega, nvals=50, mbc=False):
         z[iz] = v
         linsys = LinearisedSystem(system, z)
         if mbc:
-            linsys = linsys.multiblade_transform(1, slice(2,4), slice(4,6), slice(6,8))
+            linsys = linsys.multiblade_transform(1, slice(2,3), slice(3,4), slice(4,5))
         result[i] = linsys.M
     return result
 
@@ -107,7 +106,7 @@ if False:
 
 def sim_both(a,b,a1,b1):
     t = np.arange(0, 20, 0.05)
-    ylin = linsys.integrate(t, [a,b]+[0]*6, [a1,b1]+[0]*6)
+    ylin = linsys.integrate(t, [a,b,0,0,0], [a1,b1,0,0,0])
     system.q [system.iFreeDOF[0]] = a
     system.q [system.iFreeDOF[1]] = b
     system.qd[system.iFreeDOF[0]] = a1
@@ -115,8 +114,8 @@ def sim_both(a,b,a1,b1):
     y = solve_system(system,t)
 
     # pick out interesting strains
-    y = y[:,[0,7,9,13,15,19,21,25]]
-    ylin = ylin[:,:8]
+    y = y[:,[0,7,9,15,21]]
+    ylin = ylin[:,:5]
     ax = plt.figure().add_subplot(111)
     #ax.set_color_cycle(['b','r'])
     ax.plot(t,ylin,':',t,y,'--')
@@ -124,21 +123,18 @@ def sim_both(a,b,a1,b1):
 
 def plot_three(t,ynl,ylin,ymbc):
     fig = plt.figure()
-    ax = fig.add_subplot(311)
+    ax = fig.add_subplot(211)
     ax.set_color_cycle(['b','r'])
     ax.plot(t,ylin[:,:2],':',t,ymbc[:,:2],'--',t,ynl[:,:2],'-')
-    ax = fig.add_subplot(312)
+    ax = fig.add_subplot(212)
     ax.set_color_cycle(['r','g','b'])
-    ax.plot(t,ylin[:,2::2],':',t,ymbc[:,2::2],'--',t,ynl[:,2::2],'-')
-    ax = fig.add_subplot(313)
-    ax.set_color_cycle(['r','g','b'])
-    ax.plot(t,ylin[:,3::2],':',t,ymbc[:,3::2],'--',t,ynl[:,3::2],'-')
+    ax.plot(t,ylin[:,2:],':',t,ymbc[:,2:],'--',t,ynl[:,2:],'-')
 
 def sim_three(system,linsys,a,b,a1,b1):
     t = np.arange(0, 20, 0.05)
-    mbcsys = linsys.multiblade_transform(1, slice(2,4), slice(4,6), slice(6,8))
-    ylin = linsys.integrate(t, [a,b]+[0]*6, [a1,b1]+[0]*6)
-    ymbc = mbcsys.integrate(t, [a,b]+[0]*6, [a1,b1]+[0]*6)
+    mbcsys = linsys.multiblade_transform(1, slice(2,3), slice(3,4), slice(4,5))
+    ylin = linsys.integrate(t, [a,b,0,0,0], [a1,b1,0,0,0])
+    ymbc = mbcsys.integrate(t, [a,b,0,0,0], [a1,b1,0,0,0])
     system.q [system.iFreeDOF[0]] = a
     system.q [system.iFreeDOF[1]] = b
     system.qd[system.iFreeDOF[0]] = a1
@@ -146,9 +142,9 @@ def sim_three(system,linsys,a,b,a1,b1):
     ynl = solve_system(system,t)
 
     # pick out interesting strains
-    ynl = ynl[:,[0,7,9,13,15,19,21,25]]
-    ylin = ylin[:,:8]
-    ymbc = ymbc[:,:8]
+    ynl = ynl[:,[0,7,9,15,21]]
+    ylin = ylin[:,:5]
+    ymbc = ymbc[:,:5]
     plot_three(t,ynl,ylin,ymbc)
     return t,ynl,ylin,ymbc
 

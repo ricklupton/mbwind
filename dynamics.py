@@ -11,8 +11,10 @@ from collections import defaultdict
 import numpy as np
 from numpy import array, zeros, eye, dot, pi, cos, sin
 import numpy.linalg as LA
+import scipy.linalg
 #import matplotlib.pylab as plt
 from scipy.integrate import ode
+
 
 import pyximport
 pyximport.install(setup_args={'include_dirs':[np.get_include()]})
@@ -111,8 +113,9 @@ class System(object):
             self.init(first_element)
 
     def print_states(self):
-        for el,type_ in zip(self.state_elements, self.state_types):
-            print '{:<20}{:<20}'.format(el, type_)
+        for i,(el,type_) in enumerate(zip(self.state_elements,
+                                          self.state_types)):
+            print '{:<5}{:<20}{:<20}'.format(i,el, type_)
 
     def iter_elements(self):
         yield self.first_element
@@ -159,12 +162,12 @@ class System(object):
         # prescribed strains
         ipres = list(self.prescribed_accels.keys())
         self.iPrescribed[ipres] = True
-        
+
         # real coords, node and strains
         ir = self.states_by_type['ground'] + self.states_by_type['node'] + self.states_by_type['strain']
         self.iReal = zeros(len(self.qd), dtype=bool)
         self.iReal[ir] = True
-        
+
         # update B matrix
         indep_coords = [i for i in (self.states_by_type['ground'] + self.states_by_type['strain'])
                           if i not in self.prescribed_accels]
@@ -173,9 +176,9 @@ class System(object):
         for iz,iq in enumerate(indep_coords):
             B[iz,iq] = True
         self.B = B[:,self.iReal]
-            
 
-    
+
+
     def get_constraints(self):
         p = self.mass[np.ix_(~self.iReal,self.iReal)]
         r = self.rhs[~self.iReal]
@@ -188,7 +191,7 @@ class System(object):
             pextra[i,ipres_reduced[i]] = 1
             rextra[i] = self.prescribed_accels[ipres_orig[i]]
         return np.r_[p,pextra], np.r_[r,rextra]
-        
+
     def calc_projections(self):
         p,c = self.get_constraints()
         SR = LA.inv(np.r_[p, self.B])
@@ -197,8 +200,8 @@ class System(object):
         self.R = SR[:,-f:]
         self.Sc = dot(S,c)
         self.Sb = 0*self.Sc
-        
-    def eval_residue(self, z, zd, zdd):
+
+    def eval_residue(self, z, zd, zdd, parts=False):
         self.q [self.iFreeDOF] = z
         self.qd[self.iFreeDOF] = zd
         self.update()
@@ -207,8 +210,15 @@ class System(object):
         RtM = dot(self.R.T, self.mass[np.ix_(self.iReal,self.iReal)])
         Mr = dot(RtM,self.R)
         Qr = dot(self.R.T,self.rhs[self.iReal])
-        
-        return dot(Mr, zdd) - Qr + dot(RtM, self.Sc)
+
+        if parts:
+            return {
+                'M':   dot(Mr, zdd),
+                'Q':  -Qr,
+                'Sc':  dot(RtM, self.Sc),
+            }
+        else:
+            return dot(Mr, zdd) - Qr + dot(RtM, self.Sc)
 
     def request_new_states(self, num, elem, type):
         #print 'element %s requesting %d new "%s" states' % (elem, num, type)
@@ -407,13 +417,14 @@ class Element(object):
         self.calc_kinematics()
 
         # find distal node values in terms of proximal node values
-        self.rd,self.Rd = self.distal_pos()
-        self.vd = dot(self.F_vp, self.vp     ) + \
-                  dot(self.F_ve, self.vstrain)
+        if self._ndistal > 0:
+            self.rd,self.Rd = self.distal_pos()
+            self.vd = dot(self.F_vp, self.vp     ) + \
+                      dot(self.F_ve, self.vstrain)
 
-        # Save back to system state vector
-        #self.system.q[self.idist] = self.xd
-        #self.system.qd[self.idist] = self.vd
+            # Save back to system state vector
+            #self.system.q[self.idist] = self.xd
+            #self.system.qd[self.idist] = self.vd
 
         # Update mass and constraint matrices
         if matrices:
@@ -439,8 +450,7 @@ class Element(object):
 
     def _set_gravity_force(self):
         # include gravity by default
-        gravacc = array([0, 0, -gravity, 0, 0, 0,
-                         0, 0, -gravity, 0, 0, 0,])
+        gravacc = np.tile([0, 0, -gravity, 0, 0, 0], 1 + self._ndistal)
         self.applied_forces = dot(self.mass_vv, gravacc)
 
     def calc_kinematics(self):
@@ -544,7 +554,7 @@ class PrismaticJoint(Element):
         """
         n = dot(self.Rp, self.axis) # global axis vector
         self.F_ve[:3,:] = n[:,np.newaxis]
-        
+
     def shape(self):
         # proximal values
         return [
@@ -680,7 +690,7 @@ WP = slice(3,6)
 VD = slice(6,9)
 WD = slice(9,12)
 
-class EulerBeam(Element):
+class UniformBeam(Element):
     _ndistal = 1
     _nstrain = 6
     _nconstraints = NQD
@@ -710,7 +720,7 @@ class EulerBeam(Element):
         self.wind = wind
         self._initial_calcs()
 
-    def _initial_calcs(self):
+    def _calc_mass_coeffs(self):
         m = self.linear_density # mass per unit length
         l0 = self.length
         # Integrals of interpolating factors
@@ -730,6 +740,8 @@ class EulerBeam(Element):
         #    [0, 0, 0, l0**3*m/105]
         #])
 
+    def _initial_calcs(self):
+        self._calc_mass_coeffs()
         # Set constant parts of mass matrix
         c = self._mass_coeffs
         I = eye(3)
@@ -941,6 +953,187 @@ class EulerBeam(Element):
                 self.applied_forces[WP] += Qwp
                 self.applied_stress[:]  += Qstrain
 
+#==============================================================================
+# class EulerBeam(UniformBeam):
+#     def __init__(self, name, x, density, EA, EIy, EIz, GIx=0.0, Jx=0.0, wind=None):
+#         '''
+#         Euler beam element.
+#
+#          - x       : undeformed coordinates where beam properties are given
+#          - density : mass per unit length, specified at points given in x
+#          - EA      : Extensional stiffness
+#          - EIy     : bending stiffness about y axis
+#          - EIz     : bending stiffness about z axis
+#          - GIx     : torsional stiffness (G*Ix*kx)
+#
+#         '''
+#         Element.__init__(self, name)
+#         assert x[0] == 0.0
+#         self.length = x[-1]
+#         self.props_x = x
+#         self.linear_density = density
+#         self.EA = EA
+#         self.GIx = GIx
+#         self.EIy = EIy
+#         self.EIz = EIz
+#         self.Jx = Jx
+#         self.wind = wind
+#         self.damping = 0.1
+#         self._initial_calcs()
+#
+#     def _calc_mass_coeffs(self):
+#         rho = self.linear_density # mass per unit length
+#         x = self.props_x
+#         l = self.props_x[-1]
+#
+#         # Integrals of interpolating factors
+#         #  p1 = 3 xi^2 - 2 xi^3 = (3x^2 * l - 2x^3)/l^3
+#         #  p2 =   xi^2 -   xi^3 = ( x^2 * l -  x^3)/l^3
+#         p1 = (3 * l * x**2 - 2 * x**3) / l**3
+#         p2 = (    l * x**2 -     x**3) / l**3
+#
+#         # Combined terms
+#         terms = array([
+#             1 - p1,
+#             x - l*(p1 - p2),
+#             p1,
+#             l*p2,
+#         ])
+#
+#         self._mass_coeffs = np.zeros((4,4))
+#         for i in range(4):
+#             for j in range(4):
+#                self._mass_coeffs[i,j] = np.trapz(rho * terms[i] * terms[j], x)
+#==============================================================================
+
+#==============================================================================
+# class ModalRepresentation(object):
+#     def __init__(self, mass_matrix, stiffness_matrix, density_distribution, Nmodes=None):
+#         '''
+#         Setup modal representation of the mass and stiffness matrices. If
+#         Nmodes is specified, at most that many modes (with the lowest freqs)
+#         will be kept.
+#
+#         Parameters
+#         ----------
+#         mass_matrix : array
+#             Mass matrix
+#
+#         stiffness_matrix : array
+#             Stiffness matrix
+#
+#         density_distribution : array
+#             Density distribution, first row contains X-vals and second row
+#             densities.
+#
+#         '''
+#         self.M = mass_matrix
+#         self.K = stiffness_matrix
+#
+#         # calc mode shapes
+#         w,v = scipy.linalg.eig(self.K,self.M)
+#         w_order = np.argsort(w)
+#         w = np.real(w[w_order])
+#         v = v[:,w_order]
+#         if Nmodes is not None:
+#             w = w[:Nmodes]
+#             v = v[:,:Nmodes]
+#
+#         self.freqs = w
+#        self.shapes = v
+#        # Calculate shape integrals
+#==============================================================================
+
+class ModalElement(Element):
+    _ndistal = 0
+    _nstrain = 6
+    _nconstraints = 0
+
+    def __init__(self, name, modal_rep):
+        '''
+        General element represented by mode shapes. Assume no distal nodes.
+
+         - modal_rep : ModalRepresentation instance describing the
+                       modal representation
+
+        '''
+        self._nstrain = len(modal_rep.freqs)
+        Element.__init__(self, name)
+        self.rep = modal_rep
+        self._initial_calcs()
+
+    def _initial_calcs(self):
+        # Set constant parts of mass matrix
+        self.mass_vv[VP,VP] = self.rep.mass * eye(3)
+        self.mass_ee[ :, :] = dot(self.rep.shape_int.T, self.rep.shape_int)
+
+        # Stiffness matrix
+        self.stiffness = np.diag(self.rep.mass * self.rep.freqs)
+        self.damping = np.zeros_like(self.stiffness) # XXX
+
+    def _local_pos(self, s):
+        # return position of point in proximal frame
+        U = self.rep.modeshapes(s)
+        X0 = array([self.length*s, 0, 0])
+        return X0 + dot(U, self.xstrain)
+
+    def shape(self, N=20):
+        # proximal values
+        X0 = zeros((len(self.rep.x),3))
+        X0[:,0] = self.rep.x
+        defl = dot(self.rep.shapes, self.xstrain)
+        shape = [dot(self.Rp, (X0+defl)) for i in range(X0.shape[0])]
+        return [
+            self.rp + array(shape),
+            np.r_[ [self.rp], [self.rp + dot(self.Rp, X0[-1])], [shape[-1]] ]
+        ]
+
+    shape_plot_options = [
+        {'c': 'g', 'marker': 'o', 'lw': 2, 'ms': 1},
+        {'c': 'k', 'lw': 2, 'alpha': 0.3},
+    ]
+
+    def calc_mass(self):
+        # angular velocity skew matrix
+        wps = skewmat(self.vp[WP])
+
+        # integral of mass in local coords and skew version in global coords
+        int_X = self.rep.moment1 + dot(self.rep.shape_int, self.xstrain)
+        int_x = dot(self.Rp, int_X)
+        int_xs = skewmat(int_x)
+
+        # angular inertia
+        ang = (self.rep.inertia_tensor
+                + dot(self.rep.shape_int1, self.xstrain)
+                + dot(dot(self.rep.shape_int2, self.xstrain), self.xstrain) )
+
+        # shape integrals in global coords
+        sglobal = dot(self.Rp, self.rep.shape_int)
+
+        ## MASS MATRIX ##
+        #    mass_vv[VP,VP] constant
+        self.mass_vv[VP,WP] = -int_xs
+        self.mass_vv[WP,VP] =  int_xs
+        self.mass_vv[WP,WP] =  dot(self.Rp, dot(ang, self.Rp.T)) #dot(int_xs.T, int_xs)
+        self.mass_ve[VP, :] =  sglobal
+        self.mass_ve[WP, :] =  dot(int_xs, sglobal)
+        # mass_ee constant
+
+        ## QUADRATIC FORCES ## (remaining terms)
+        temp = dot(wps, (dot(wps,int_x) + 2*dot(sglobal,self.vstrain)))
+        self.quad_forces[VP] = temp
+        self.quad_forces[WP] = dot(int_xs, temp)
+        self.quad_stress[ :] = dot(sglobal.T, temp)
+
+    def calc_external_loading(self):
+        # Gravity loads
+        self._set_gravity_force()
+
+        # Constitutive loading
+        self.applied_stress[:] = dot(self.stiffness, self.xstrain) + \
+                                 dot(self.damping, dot(self.stiffness, self.vstrain))
+
+
 def rk4(derivs, y0, t):
     try:
         Ny = len(y0)
@@ -971,13 +1164,13 @@ def rk4(derivs, y0, t):
 def solve_system(system, tvals, outputs=None):
     iDOF = system.iDOF
     nDOF = np.count_nonzero(iDOF)
-    
+
     # By default, output DOFs
     if outputs is None:
         all_outputs = lambda s: s.q[iDOF]
     else:
         all_outputs = lambda s: np.r_[ s.q[iDOF], outputs(s) ]
-    
+
     def func(ti, y):
         # update system state with states and state rates
         # y constains [strains, d(strains)/dt]

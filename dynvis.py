@@ -11,18 +11,21 @@ import matplotlib.pylab as plt
 import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D
 
-def show(system, tt, yy, tvals):
+def show(system, tt, yy, tvals, dof=None):
     fig = plt.figure()
     ax = fig.add_subplot(111,projection='3d', xlabel='x', ylabel='y', zlabel='z')
     ax.plot([1,0,0,0,0],[0,0,1,0,0],[0,0,0,0,1], 'k-')
     ax.set_aspect(1,'datalim')
     ax.hold(True)
-    N = yy.shape[1]/2
+
+    if dof is None: dof = system.iFreeDOF
+    N = np.count_nonzero(dof)
     for t in tvals:
         i = np.nonzero(t > tt)
         if not len(i) > 0: break
-        system.q [system.iDOF] = yy[i[0],:N]
-        system.qd[system.iDOF] = yy[i[0],N:]
+        system.q [dof] = yy[i[0],:N]
+        if yy.shape[1] >= 2*N:
+            system.qd[idof] = yy[i[0],N:2*N]
         system.update(t, False)
         system.first_element.plot_chain(ax)
 
@@ -69,3 +72,121 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, velocities=True, only_f
     ani = animation.FuncAnimation(fig, animate, np.arange(1, yy.shape[0]),
         interval=tt[1]-tt[0]*1000*1, blit=False, init_func=init, repeat=False)
     return ani
+
+def anim_modes(system, modeshapes, vs=(0,1), lim1=None, lim2=None):
+    Ndof,Nmodes = modeshapes.shape
+    iDOF = system.iFreeDOF
+    assert Ndof == np.count_nonzero(iDOF)
+    t = np.linspace(0, 2*np.pi, 50)
+
+    fig = plt.figure()
+    fig.set_size_inches(10,10,forward=True)
+
+    axes_lines = []
+    for imode in range(Nmodes):
+        ax = fig.add_subplot(Nmodes//2,2,imode, aspect=1, xlim=lim1,ylim=lim2)
+        ax.grid()
+
+        axes_lines.append([])
+        for el in system.iter_elements():
+            ellines = [ax.plot([], [], **opt)[0] for opt in el.shape_plot_options]
+            axes_lines[-1].append( (el,ellines) )
+        ax.set_xlabel('XYZ'[vs[0]])
+        ax.set_ylabel('XYZ'[vs[1]])
+
+    all_lines = []
+    for lines in axes_lines:
+        for el,ellines in lines:
+            for line in ellines:
+                all_lines.append(line)
+
+    def init():
+        for line in all_lines:
+            line.set_data([], [])
+        return all_lines
+
+    def animate(i):
+        for imode, lines in enumerate(axes_lines):
+            system.q[iDOF] = modeshapes[:, imode] * np.sin(t[i])
+            system.update(0.0, False)
+
+            for el, ellines in lines:
+                linedata = el.shape()
+                for data, line in zip(linedata, ellines):
+                    line.set_data(data[:, vs[0]], data[:, vs[1]])
+
+        return all_lines
+
+    ani = animation.FuncAnimation(fig, animate, np.arange(len(t)),
+        interval=1000, blit=False, init_func=init, repeat=False)
+    return ani
+
+def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None):
+    Ndof = len(modeshape)
+    iDOF = system.iFreeDOF
+    assert Ndof == np.count_nonzero(iDOF)
+    t = np.linspace(0, 2*np.pi, 50)
+
+    fig = plt.figure()
+    fig.set_size_inches(10,10,forward=True)
+
+    axes_lines = [[], []]
+    for iview,lim in enumerate((ylim,zlim)):
+        ax = fig.add_subplot(2,1,(1+iview), aspect=1, xlim=xlim,ylim=lim)
+        ax.grid()
+        for el in system.iter_elements():
+            ellines = [ax.plot([], [], **opt)[0] for opt in el.shape_plot_options]
+            axes_lines[iview].append( (el,ellines) )
+        ax.set_xlabel('X')
+        ax.set_ylabel('YZ'[iview])
+
+    all_lines = []
+    for lines in axes_lines:
+        for el,ellines in lines:
+            for line in ellines:
+                all_lines.append(line)
+
+    def init():
+        for line in all_lines:
+            line.set_data([], [])
+        return all_lines
+
+    def animate(i):
+        system.q[iDOF] = modeshape * np.sin(t[i])
+        system.update(0.0, False)
+
+        for iview, lines in enumerate(axes_lines):
+            for el, ellines in lines:
+                linedata = el.shape()
+                for data, line in zip(linedata, ellines):
+                    line.set_data(data[:,0], data[:,1+iview])
+
+        return all_lines
+
+    ani = animation.FuncAnimation(fig, animate, np.arange(len(t)),
+        interval=10, blit=False, init_func=init, repeat=True)
+    return ani
+
+def show_modeshape(ma, imode):
+    fig = plt.figure()
+#    axy = fig.add_subplot(3,1,1, xlabel='x', ylabel='y')
+#    axy.set_aspect(1,'datalim')
+#    axy.hold(True)
+#    axz = fig.add_subplot(3,1,2, xlabel='x', ylabel='z', sharex=axy)
+#    axz.set_aspect(1,'datalim')
+#    axz.hold(True)
+#    axt = fig.add_subplot(3,1,3, xlabel='x', ylabel='torsion', sharex=axy)
+#    axt.hold(True)
+
+    shape = ma.shapes[imode]
+
+    ax = fig.add_subplot(111, xlabel='x')
+    ax.plot(ma.x0 + shape[:,0], shape[:,1], 'b-o',
+            ma.x0 + shape[:,0], shape[:,2], 'r-o',
+            ma.x0 + shape[:,0], shape[:,3], 'g-x')
+    ax.legend(['Y','Z','Torsion'], loc='upper left')
+    ax.set_title('Mode %d (%.2f Hz)' % (1+imode, ma.freqs[imode]/2/np.pi))
+
+#    axy.plot(shape[:,0], shape[:,1], 'b-o')
+#    axt.plot(shape[:,0], shape[:,3], 'g-x')
+#    axz.plot(shape[:,0], shape[:,2], 'b-o')
