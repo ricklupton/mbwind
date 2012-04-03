@@ -12,8 +12,9 @@ import sys
 if '..' not in sys.path: sys.path.insert(0,'..')
 
 import numpy as np
-from dynamics import System, Hinge, RigidBody, solve_system
+from dynamics import System, Hinge, UniformBeam, RigidBody, solve_system
 import dynvis
+import linearisation
 
 import matplotlib.pylab as plt
 
@@ -25,7 +26,8 @@ class Gyroscope(object):
 
         Jx = radius**2 / 2
         Jyz = (3*radius**2 + length**2) / 12
-        inertia = mass * np.diag([Jx, Jyz, Jyz])
+        Jyz_0 = Jyz + (length/2)**2 # parallel axis theorem
+        inertia = mass * np.diag([Jx, Jyz_0, Jyz_0])
 
         self.bearing = Hinge('bearing', [0,0,1])
         self.pivot   = Hinge('pivot',   [0,1,0])
@@ -76,7 +78,44 @@ class Gyroscope(object):
         ax2.set_ylim((-10,10))
         ax2.set_ylabel('Elevation / deg')
 
+class BeamGyroscope(Gyroscope):
+    def __init__(self, length, radius, mass):
+        self.length = length
+        self.radius = radius
+        self.mass = mass
+        Jx = mass * radius**2 / 2
 
+        self.bearing = Hinge('bearing', [0,0,1])
+        self.pivot   = Hinge('pivot',   [0,1,0])
+        self.axis    = Hinge('axis',    [1,0,0])
+        self.body    = UniformBeam('body', length, mass/length,
+                                   1, 1, 1, Jx=Jx/2) # /2 because added to both ends
 
-gyro = Gyroscope(3.0, 1.0, 100.0)
-system = gyro.system
+        self.bearing.add_leaf(self.pivot)
+        self.pivot.add_leaf(self.axis)
+        self.axis.add_leaf(self.body)
+        self.system = System(self.bearing)
+
+        # Prescribed DOF accelerations
+        self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
+        self.system.prescribe(self.body.istrain, 0.0) # rigid beam
+
+bg = BeamGyroscope(3.0, 1.0, 100.0)
+gg = Gyroscope(3.0, 1.0, 100.0)
+
+bg.system.update(False)
+gg.system.update(False)
+
+bl = linearisation.LinearisedSystem(bg.system)
+gl = linearisation.LinearisedSystem(gg.system)
+
+beam = True
+if beam:
+    gyro = bg
+else:
+    gyro = gg
+
+#gyro.simulate()
+#gyro.plot('Gyroscope 3m x 1m, 100kg, spinning at 10 rad/s')
+#plt.show()
+

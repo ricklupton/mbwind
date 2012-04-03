@@ -745,11 +745,10 @@ class UniformBeam(Element):
 
          - length  : undeformed length of beam
          - density : mass per unit length
-         - radius  : radius of beam, assumed circular for calculating stiffness
          - EA      : Extensional stiffness
-         - GIx     : torsional stiffness (G*Ix*kx)
          - EIy     : bending stiffness about y axis
          - EIz     : bending stiffness about z axis
+         - GIx     : torsional stiffness (G*Ix*kx)
 
         '''
         Element.__init__(self, name)
@@ -769,20 +768,20 @@ class UniformBeam(Element):
         l0 = self.length
         # Integrals of interpolating factors
         # with t2 = l0*(xi - p1 + p2)
-        self._mass_coeffs = array([
-            [13*l0*m/35, 11*l0**2*m/210, 9*l0*m/70, 13*l0**2*m/420],
-            [0, l0**3*m/105, 13*l0**2*m/420, l0**3*m/140],
-            [0, 0, 13*l0*m/35, 11*l0**2*m/210],
-            [0, 0, 0, l0**3*m/105]
-        ])
-
-        # with t2 = l0*(xi - p1 - p2)
         #self._mass_coeffs = array([
-        #    [13*l0*m/35, -l0**2*m/105, 9*l0*m/70, 13*l0**2*m/420],
-        #    [0, 2*l0**3*m/105, -31*l0**2*m/420, -l0**3*m/84],
+        #    [13*l0*m/35, 11*l0**2*m/210, 9*l0*m/70, 13*l0**2*m/420],
+        #    [0, l0**3*m/105, 13*l0**2*m/420, l0**3*m/140],
         #    [0, 0, 13*l0*m/35, 11*l0**2*m/210],
         #    [0, 0, 0, l0**3*m/105]
         #])
+
+        # with t2 = l0*(xi - p1 - p2)
+        self._mass_coeffs = array([
+            [13*l0*m/35, -l0**2*m/105, 9*l0*m/70, 13*l0**2*m/420],
+            [0, 2*l0**3*m/105, -31*l0**2*m/420, -l0**3*m/84],
+            [0, 0, 13*l0*m/35, 11*l0**2*m/210],
+            [0, 0, 0, l0**3*m/105]
+        ])
 
     def _initial_calcs(self):
         self._calc_mass_coeffs()
@@ -921,15 +920,17 @@ class UniformBeam(Element):
     ]
 
     def calc_mass(self):
-        np = self.Rp[:,0] # unit vectors along elastic line
-        nd = self.Rd[:,0]
-        nps = skewmat(self.Rp[:,0]) # unit vectors along elastic line
-        nds = skewmat(self.Rd[:,0])
+        ep = self.Rp[:,0] # unit vectors along elastic line
+        ed = self.Rd[:,0]
+        eps = skewmat(self.Rp[:,0]) # unit vectors along elastic line
+        eds = skewmat(self.Rd[:,0])
         wps = skewmat(self.vp[WP]) # angular velocity matrices
         wds = skewmat(self.vd[WP])
 
-        # lumped inertias xx
-        Jbar = zeros((3,3)); Jbar[0,0] = self.linear_density * self.Jx
+        # lumped inertia of cross-section
+        # XXX check this is right - also add perpendicular inertia of cross-
+        #     section, assumed to be half (ok for uniform laminar)
+        Jbar = self.Jx * np.diag([1.0, 0.5, 0.5])
         Jxxp = dot(self.Rp, dot(Jbar, self.Rp.T))
         Jxxd = dot(self.Rd, dot(Jbar, self.Rd.T))
 
@@ -940,30 +941,30 @@ class UniformBeam(Element):
 
         ## MASS MATRIX ##
         #[VP,VP] constant
-        m[VP,WP] = -c[0,1]*nps
+        m[VP,WP] = -c[0,1]*eps
         #[VP,VD] constant
-        m[VP,WD] = -c[0,3]*nds
+        m[VP,WD] = -c[0,3]*eds
 
         m[WP,VP] =  m[VP,WP].T
-        m[WP,WP] = -c[1,1]*dot(nps,nps) + Jxxp
-        m[WP,VD] =  c[1,2]*nps
-        m[WP,WD] = -c[1,3]*dot(nps,nds)
+        m[WP,WP] = -c[1,1]*dot(eps,eps) + Jxxp
+        m[WP,VD] =  c[1,2]*eps
+        m[WP,WD] = -c[1,3]*dot(eps,eds)
 
         #[VD,VP] constant
         m[VD,WP] =  m[WP,VD].T
         #[VD,VD] constant
-        m[VD,WD] = -c[2,3]*nds
+        m[VD,WD] = -c[2,3]*eds
 
         m[WD,VP] =  m[VP,WD].T
         m[WD,WP] =  m[WP,WD].T
         m[WD,VD] =  m[VD,WD].T
-        m[WD,WD] = -c[3,3]*dot(nds,nds) + Jxxd
+        m[WD,WD] = -c[3,3]*dot(eds,eds) + Jxxd
 
         ## QUADRATIC FORCES ## (remaining terms)
-        gv[VP] = c[0,1]*dot(        dot(wps,wps) ,np) + c[0,3]*dot(        dot(wds,wds) ,nd)
-        gv[WP] = c[1,1]*dot(dot(nps,dot(wps,wps)),np) + c[1,3]*dot(dot(nps,dot(wds,wds)),nd)
-        gv[VD] = c[1,2]*dot(        dot(wps,wps) ,np) + c[2,3]*dot(        dot(wds,wds) ,nd)
-        gv[WD] = c[1,3]*dot(dot(nds,dot(wps,wps)),np) + c[3,3]*dot(dot(nds,dot(wds,wds)),nd)
+        gv[VP] = c[0,1]*dot(        dot(wps,wps) ,ep) + c[0,3]*dot(        dot(wds,wds) ,ed)
+        gv[WP] = c[1,1]*dot(dot(eps,dot(wps,wps)),ep) + c[1,3]*dot(dot(eps,dot(wds,wds)),ed)
+        gv[VD] = c[1,2]*dot(        dot(wps,wps) ,ep) + c[2,3]*dot(        dot(wds,wds) ,ed)
+        gv[WD] = c[1,3]*dot(dot(eds,dot(wps,wps)),ep) + c[3,3]*dot(dot(eds,dot(wds,wds)),ed)
         # quadratic stresses are all zero
 
     def calc_external_loading(self):
