@@ -12,7 +12,8 @@ import sys, time
 
 import numpy as np
 import numpy.linalg as LA
-from numpy import array, zeros, eye, dot, pi, cos, sin
+from numpy import array, zeros, eye, dot, pi, cos, sin, trapz
+from numpy import newaxis as NA
 import scipy.linalg
 from scipy.misc import derivative
 from scipy.integrate import ode
@@ -169,8 +170,109 @@ class LinearisedSystem(object):
 
 
 class ModalRepresentation(object):
-    def __init__(self, x, shapes, rotations, freqs, density):
-        '''
+    r"""
+    Modal representation of a 1-dimensional element.
+
+    Mode shapes
+    ===========
+
+    The mode shapes are defined by the matrix :math:`\boldsymbol{U}`, with one
+    column for each mode shape, defined at a set of points correspondng to the
+    rows.
+
+    Shape integrals
+    ===============
+
+    The equations of motion using the modal representation include integrals
+    over the deformed mass distribution, which is
+
+    .. math::
+
+        \boldsymbol{X}(\boldsymbol{X}_0) =
+            \boldsymbol{X}_0 + \boldsymbol{U}(\boldsymbol{X}_0) \boldsymbol{\epsilon}
+
+    where :math:`\boldsymbol{X}_0` is an undeflected position where the density
+    and modeshapes are defined.
+
+    Firstly, the mass, moment of mass and inertia tensor are required. These
+    are integrals over the undeflected mass distribution only:
+
+    .. math::
+
+        m &= \int dm
+
+        \boldsymbol{I}_0 &= \int \boldsymbol{X}_0 dm
+
+        \boldsymbol{J}
+            &= - \int \boldsymbol{\tilde{X}}_0 \boldsymbol{\tilde{X}}_0 dm
+
+    The velocity and acceleration due to changes in modal amplitude depend only
+    on the mode shapes, and thus require the first shape integral,
+
+    .. math::
+
+        \boldsymbol{S} &= \int \boldsymbol{U} dm
+
+    The rotational inertia depends on the deflected position squared, which
+    gives products requiring the second and third shape integrals,
+
+    .. math::
+
+        \boldsymbol{S}_j
+            &= - \int \boldsymbol{\tilde{X}}_0 \boldsymbol{\tilde{U}}_j dm
+
+        \boldsymbol{S}_{jk}
+            &= - \int \boldsymbol{\tilde{U}}_j \boldsymbol{\tilde{U}}_k dm
+
+    Two more integrals are defined:
+
+    .. math::
+
+        \boldsymbol{T}
+            &= - \int \boldsymbol{\tilde{X}}_0 \boldsymbol{U} dm
+
+        \boldsymbol{T}_j
+            &= - \int \boldsymbol{\tilde{U}}_j \boldsymbol{U} dm
+
+    Strictly fewer integrals are needed, see for example "Dynamics of Multibody
+    Systems" ch. 5 by A. Shabana.
+
+    These integrals are evaluated using the trapezium rule using the provided
+    density distribution and mode shapes. Because the element is 1-dimensional,
+    the inertia of the cross-sections is not included. An extra inertia
+    distribution can be provided which is added to the calculation of the
+    inertia tensor.
+
+    This probably neglects the change in this added inertia with deflection,
+    but that is probably ok.
+
+    Because the element is one-dimensional, the above formulae can be written
+    explicitly as
+
+    .. math::
+
+        \boldsymbol{X}(s) = \begin{bmatrix} s \\ 0 \\ 0 \end{bmatrix}
+            + \boldsymbol{U}(\boldsymbol{X}_0) \boldsymbol{\epsilon}
+
+        I_0 &= \int s \rho(s) \, ds
+
+        \boldsymbol{J}
+            &= \begin{bmatrix} 0 & 0 & 0 \\ 0 & J_0 & 0 \\ 0 & 0 & J_0 \end{bmatrix}
+            \mbox{ where } J_0 &= \int s^2  \rho(s) \, ds
+
+        \boldsymbol{S}_i &= \int \boldsymbol{U}_i(s) \rho(s) \, ds
+
+        \boldsymbol{T}_i &= \int \begin{bmatrix}
+            0 & 0 & 0 \\ 0 & 0 & s \\ 0 & -s & 0 \end{bmatrix}
+            \boldsymbol{\tilde{U}}_i(s) \rho(s) \, ds
+
+        \boldsymbol{\tilde{S}}_{ij}
+            &= - \int \boldsymbol{\tilde{U}}_i(s) \boldsymbol{\tilde{U}}_j(s)
+            \rho(s) \, ds
+
+    """
+    def __init__(self, x, shapes, rotations, freqs, density, gyration_radii=None):
+        r"""
         Setup modal representation for a 1-dimensional element.
 
         Parameters
@@ -190,10 +292,19 @@ class ModalRepresentation(object):
         density : array (`N_x`)
             Linear density distribution at points defined in `x`
 
-        '''
+        gyration_radii : array (`N_x` x 1 or 2), default zeros
+            Array of radii of gyration of the cross-sections. If one column,
+            assume radii are equal in y- and z-directions.
+
+        """
         assert len(x) == shapes.shape[0] == rotations.shape[0] == len(density)
         assert len(freqs) == shapes.shape[2] == rotations.shape[2]
         assert shapes.shape[1] == rotations.shape[1] == 3
+
+        if gyration_radii is None:
+            gyration_radii = zeros((len(x),2))
+        if gyration_radii.ndim == 1 or gyration_radii.shape[1] < 2:
+            gyration_radii = np.c_[ gyration_radii, gyration_radii ]
 
         self.x = x
         self.shapes = shapes
@@ -201,29 +312,41 @@ class ModalRepresentation(object):
         self.freqs = freqs
         self.density = density
 
-        # Calculate shape integrals
-        self.mass      = np.trapz(    density, x)
-        self.moment1   = np.trapz(x * density, x)
-        self.shape_int = np.trapz(shapes, x, axis=0)
+        # Prepare integrands
+        xvec = zeros((len(x),3))
+        xvec[:,0] = x
+        Js = zeros((len(x),3,3))
+        S1 = zeros((len(x),3,3,len(freqs)))
+        S2 = zeros((len(x),3,3,len(freqs),len(freqs)))
+        T1 = zeros((len(x),3,len(freqs)))
+        T2 = zeros((len(x),3,len(freqs),len(freqs)))
 
-        #X0 = zeros((len(x),3))
-        #X0[:,0] = x
-        X0s2 = zeros((len(x),3,3))
-        T2   = zeros((len(x),3,3,len(freqs)))
-        S2   = zeros((len(x),3,3,len(freqs),len(freqs)))
         for i in range(len(x)):
-            skew = skewmat([x[i],0,0])
-            X0s2[i,:,:] = -density[i] * dot(skew, skew)
-
+            xskew = skewmat(xvec[i])
+            ky,kz = gyration_radii[i,:]
+            Js[i,:,:] = np.diag([
+                ky + kz,
+                ky + x[i]**2,
+                kz + x[i]**2
+            ])
+            T1[i,:,:] = -dot(xskew, shapes[i,:,:])
             for j in range(len(freqs)):
-                T2[i,:,:,j] = -density[i] * dot(skew, shapes[i,:,j])
+                jskew = skewmat(shapes[i,:,j])
+                S1[i,:,:,j] = -dot(xskew, jskew)
+                T2[i,:,:,j] = -dot(jskew, shapes[i,:,:])
                 for k in range(len(freqs)):
-                    S2[i,:,:,j,k] = -density[i] * dot(skewmat(shapes[i,:,j]),
-                                                      skewmat(shapes[i,:,k]))
+                    kskew = skewmat(shapes[i,:,k])
+                    S2[i,:,:,j,k] = -dot(jskew, kskew)
 
-        self.inertia_tensor = np.trapz(X0s2, x, axis=0)
-        self.shape_int1 = np.trapz(T2, x, axis=0)
-        self.shape_int2 = np.trapz(S2, x, axis=0)
+        # Calculate shape integrals
+        self.mass = trapz(         density,                x, axis=0)
+        self.I0   = trapz(xvec   * density[:,NA],          x, axis=0)
+        self.J0   = trapz(Js     * density[:,NA,NA],       x, axis=0)
+        self.S    = trapz(shapes * density[:,NA,NA],       x, axis=0)
+        self.T1   = trapz(T1     * density[:,NA,NA],       x, axis=0)
+        self.T2   = trapz(T2     * density[:,NA,NA,NA],    x, axis=0)
+        self.S1   = trapz(S1     * density[:,NA,NA,NA],    x, axis=0)
+        self.S2   = trapz(S2     * density[:,NA,NA,NA,NA], x, axis=0)
 
     def save(self, filename):
         np.savez(filename, x=self.x, shapes=self.shapes, freqs=self.freqs,

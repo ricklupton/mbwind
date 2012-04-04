@@ -768,20 +768,20 @@ class UniformBeam(Element):
         l0 = self.length
         # Integrals of interpolating factors
         # with t2 = l0*(xi - p1 + p2)
-        #self._mass_coeffs = array([
-        #    [13*l0*m/35, 11*l0**2*m/210, 9*l0*m/70, 13*l0**2*m/420],
-        #    [0, l0**3*m/105, 13*l0**2*m/420, l0**3*m/140],
-        #    [0, 0, 13*l0*m/35, 11*l0**2*m/210],
-        #    [0, 0, 0, l0**3*m/105]
-        #])
-
-        # with t2 = l0*(xi - p1 - p2)
         self._mass_coeffs = array([
-            [13*l0*m/35, -l0**2*m/105, 9*l0*m/70, 13*l0**2*m/420],
-            [0, 2*l0**3*m/105, -31*l0**2*m/420, -l0**3*m/84],
+            [13*l0*m/35, 11*l0**2*m/210, 9*l0*m/70, 13*l0**2*m/420],
+            [0, l0**3*m/105, 13*l0**2*m/420, l0**3*m/140],
             [0, 0, 13*l0*m/35, 11*l0**2*m/210],
             [0, 0, 0, l0**3*m/105]
         ])
+
+        # with t2 = l0*(xi - p1 - p2)
+#        self._mass_coeffs = array([
+#            [13*l0*m/35, -l0**2*m/105, 9*l0*m/70, 13*l0**2*m/420],
+#            [0, 2*l0**3*m/105, -31*l0**2*m/420, -l0**3*m/84],
+#            [0, 0, 13*l0*m/35, 11*l0**2*m/210],
+#            [0, 0, 0, l0**3*m/105]
+#        ])
 
     def _initial_calcs(self):
         self._calc_mass_coeffs()
@@ -1051,44 +1051,6 @@ class UniformBeam(Element):
 #                self._mass_coeffs[i,j] = np.trapz(rho * terms[i] * terms[j], x)
 #==============================================================================
 
-#==============================================================================
-# class ModalRepresentation(object):
-#     def __init__(self, mass_matrix, stiffness_matrix, density_distribution, Nmodes=None):
-#         '''
-#         Setup modal representation of the mass and stiffness matrices. If
-#         Nmodes is specified, at most that many modes (with the lowest freqs)
-#         will be kept.
-#
-#         Parameters
-#         ----------
-#         mass_matrix : array
-#             Mass matrix
-#
-#         stiffness_matrix : array
-#             Stiffness matrix
-#
-#         density_distribution : array
-#             Density distribution, first row contains X-vals and second row
-#             densities.
-#
-#         '''
-#         self.M = mass_matrix
-#         self.K = stiffness_matrix
-#
-#         # calc mode shapes
-#         w,v = scipy.linalg.eig(self.K,self.M)
-#         w_order = np.argsort(w)
-#         w = np.real(w[w_order])
-#         v = v[:,w_order]
-#         if Nmodes is not None:
-#             w = w[:Nmodes]
-#             v = v[:,:Nmodes]
-#
-#         self.freqs = w
-#        self.shapes = v
-#        # Calculate shape integrals
-#==============================================================================
-
 class ModalElement(Element):
     _ndistal = 0
     _nstrain = 6
@@ -1110,19 +1072,13 @@ class ModalElement(Element):
     def _initial_calcs(self):
         # Set constant parts of mass matrix
         self.mass_vv[VP,VP] = self.rep.mass * eye(3)
-        self.mass_ee[ :, :] = dot(self.rep.shape_int.T, self.rep.shape_int)
+        self.mass_ee[ :, :] = dot(self.rep.S.T, self.rep.S)
 
         # Stiffness matrix
         self.stiffness = np.diag(self.rep.mass * self.rep.freqs)
         self.damping = np.zeros_like(self.stiffness) # XXX
 
-    def _local_pos(self, s):
-        # return position of point in proximal frame
-        U = self.rep.modeshapes(s)
-        X0 = array([self.length*s, 0, 0])
-        return X0 + dot(U, self.xstrain)
-
-    def shape(self, N=20):
+    def shape(self):
         # proximal values
         X0 = zeros((len(self.rep.x),3))
         X0[:,0] = self.rep.x
@@ -1140,35 +1096,53 @@ class ModalElement(Element):
 
     def calc_mass(self):
         # angular velocity skew matrix
-        wps = skewmat(self.vp[WP])
+        wp = self.vp[WP]
+        wps = skewmat(wp)
 
-        # integral of mass in local coords and skew version in global coords
-        int_X = self.rep.moment1 + dot(self.rep.shape_int, self.xstrain)
-        int_x = dot(self.Rp, int_X)
-        int_xs = skewmat(int_x)
+        # Inertia tensor made up of undefomed inertia J0, and contributions
+        # from shapes
+        inertia = (self.rep.J0
+                    + dot(self.rep.S1, self.xstrain)
+                    + dot(self.rep.S1, self.xstrain).T
+                    + dot(dot(self.rep.S2, self.xstrain), self.xstrain) )
+        inertia_global = dot(self.Rp, dot(inertia, self.Rp.T))
 
-        # angular inertia
-        ang = (self.rep.inertia_tensor
-                + dot(self.rep.shape_int1, self.xstrain)
-                + dot(dot(self.rep.shape_int2, self.xstrain), self.xstrain) )
+        # Linear-rotation term
+        rw_global = dot(self.Rp, self.rep.I0 + dot(self.rep.S, self.xstrain))
+        rw_skew = skewmat(rw_global)
 
-        # shape integrals in global coords
-        sglobal = dot(self.Rp, self.rep.shape_int)
+        # Rotation-strain term
+        wf_global = dot(self.Rp, self.rep.T1 + dot(self.rep.T2, self.xstrain))
+
+        # 1st shape int in global coords
+        S_global = dot(self.Rp, self.rep.S)
 
         ## MASS MATRIX ##
         #    mass_vv[VP,VP] constant
-        self.mass_vv[VP,WP] = -int_xs
-        self.mass_vv[WP,VP] =  int_xs
-        self.mass_vv[WP,WP] =  dot(self.Rp, dot(ang, self.Rp.T)) #dot(int_xs.T, int_xs)
-        self.mass_ve[VP, :] =  sglobal
-        self.mass_ve[WP, :] =  dot(int_xs, sglobal)
+        self.mass_vv[VP,WP] = -rw_skew
+        self.mass_vv[WP,VP] =  rw_skew
+        self.mass_vv[WP,WP] =  inertia_global
+        self.mass_ve[VP, :] =  S_global
+        self.mass_ve[WP, :] =  wf_global
         # mass_ee constant
 
         ## QUADRATIC FORCES ## (remaining terms)
-        temp = dot(wps, (dot(wps,int_x) + 2*dot(sglobal,self.vstrain)))
-        self.quad_forces[VP] = temp
-        self.quad_forces[WP] = dot(int_xs, temp)
-        self.quad_stress[ :] = dot(sglobal.T, temp)
+
+        # Centrifugal forces
+        centrifugal = dot(dot(wps,wps), rw_global)
+
+        # Force dependent on strain velocity
+        strainvel = 2*dot(wps, dot(self.Rp, dot(self.rep.S, self.vstrain)))
+
+        # Terms for moments dependent on strain velocity
+        ang_strainvel_local = dot(
+            dot(self.rep.S1 + dot(self.rep.S2, self.xstrain)), self.vstrain)
+        ang_strainvel_global = dot(self.Rp, dot(ang_strainvel_local, self.Rp.T))
+
+        self.quad_forces[VP] = centrifugal + strainvel
+        self.quad_forces[WP] = dot(
+            (dot(wps, inertia_global) + 2*ang_strainvel_global), wp)
+        self.quad_stress[ :] = dot(S_global.T, centrifugal + strainvel)
 
     def calc_external_loading(self):
         # Gravity loads
@@ -1207,6 +1181,9 @@ def rk4(derivs, y0, t):
     return yout
 
 def solve_system(system, tvals, outputs=None):
+    if not len(tvals) > 0:
+        return
+
     iDOF = system.iDOF
     nDOF = np.count_nonzero(iDOF)
 

@@ -2,7 +2,17 @@
 """
 Created on Tue 3 Apr 2012
 
-Test modelling of a gyroscope and precession/nutation
+Test modelling of a gyroscope and precession/nutation.
+
+System consists of 3 hinges at origin about 3 axes to allow the gyroscope to
+spin, tilt in elevation and rotate in azimuth.
+
+The rigid spinning body is modelled in 3 ways:
+    1. RigidBody element, mass and inertia specified directly.
+    2. ModalElement element with no mode shapes, cross-section inertia and
+       density distribution given.
+    3. UniformBeam element with rigid strains, density and extra cross-section
+       inertia given.
 
 @author: Rick Lupton
 """
@@ -12,7 +22,9 @@ import sys
 if '..' not in sys.path: sys.path.insert(0,'..')
 
 import numpy as np
-from dynamics import System, Hinge, UniformBeam, RigidBody, solve_system
+
+from dynamics import (System, Hinge, UniformBeam, RigidBody,
+                      ModalElement, solve_system)
 import dynvis
 import linearisation
 
@@ -75,7 +87,7 @@ class Gyroscope(object):
 
         ax2 = ax1.twinx()
         ax2.plot(self.t, -angles[:,1], 'r')
-        ax2.set_ylim((-10,10))
+        ax2.set_ylim((-90,10))
         ax2.set_ylabel('Elevation / deg')
 
 class BeamGyroscope(Gyroscope):
@@ -100,22 +112,64 @@ class BeamGyroscope(Gyroscope):
         self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
         self.system.prescribe(self.body.istrain, 0.0) # rigid beam
 
+class ModalGyroscope(Gyroscope):
+    def __init__(self, length, radius, mass):
+        self.length = length
+        self.radius = radius
+        self.mass = mass
+
+        x = np.linspace(0, length)
+        modes = linearisation.ModalRepresentation(
+            x             =x,
+            shapes        =np.zeros((len(x),3,0)),
+            rotations     =np.zeros((len(x),3,0)),
+            freqs         =np.zeros((0,)),
+            density       =np.ones_like(x) * mass/length,
+            gyration_radii=np.ones_like(x) * radius**2 / 4,
+        )
+
+        self.bearing = Hinge('bearing', [0,0,1])
+        self.pivot   = Hinge('pivot',   [0,1,0])
+        self.axis    = Hinge('axis',    [1,0,0])
+        self.body    = ModalElement('body', modes)
+
+        self.bearing.add_leaf(self.pivot)
+        self.pivot.add_leaf(self.axis)
+        self.axis.add_leaf(self.body)
+        self.system = System(self.bearing)
+
+        # Prescribed DOF accelerations
+        self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
+
+# Create 3 different models
 bg = BeamGyroscope(3.0, 1.0, 100.0)
+mg = ModalGyroscope(3.0, 1.0, 100.0)
 gg = Gyroscope(3.0, 1.0, 100.0)
 
-bg.system.update(False)
-gg.system.update(False)
+# Want to test linearisation too?
+#bl = linearisation.LinearisedSystem(bg.system)
+#ml = linearisation.LinearisedSystem(mg.system)
+#gl = linearisation.LinearisedSystem(gg.system)
 
-bl = linearisation.LinearisedSystem(bg.system)
-gl = linearisation.LinearisedSystem(gg.system)
+def test():
+    # Run simulations
+    print '--------------'
+    print 'GYROSCOPE TEST'
+    print '--------------'
+    gg.simulate()
+    mg.simulate()
+    bg.simulate()
+    print 'done.\n\n'
 
-beam = True
-if beam:
-    gyro = bg
-else:
-    gyro = gg
+    print "Comparing to RigidBody results. Should have some theory too..."
+    print "ModalElement: ", np.allclose(gg.y, mg.y, atol=1e-3) and "ok" or "FAIL"
+    print "UniformBeam:  ", np.allclose(gg.y, bg.y, atol=1e-3) and "ok" or "FAIL"
 
-#gyro.simulate()
-#gyro.plot('Gyroscope 3m x 1m, 100kg, spinning at 10 rad/s')
-#plt.show()
+def showplots():
+    gg.plot('RigidBody gyroscope 3m x 1m, 100kg, spinning at 10 rad/s')
+    mg.plot('ModalElement gyroscope 3m x 1m, 100kg, spinning at 10 rad/s')
+    bg.plot('UniformBeam gyroscope 3m x 1m, 100kg, spinning at 10 rad/s')
+    plt.show()
 
+if __name__ == '__main__':
+    test()
