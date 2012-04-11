@@ -1136,7 +1136,7 @@ class ModalElement(Element):
 
         # Terms for moments dependent on strain velocity
         ang_strainvel_local = dot(
-            dot(self.rep.S1 + dot(self.rep.S2, self.xstrain)), self.vstrain)
+            self.rep.S1 + dot(self.rep.S2, self.xstrain), self.vstrain)
         ang_strainvel_global = dot(self.Rp, dot(ang_strainvel_local, self.Rp.T))
 
         self.quad_forces[VP] = centrifugal + strainvel

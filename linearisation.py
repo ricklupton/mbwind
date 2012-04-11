@@ -20,6 +20,8 @@ from scipy.integrate import ode
 
 from dynamics import System, UniformBeam, skewmat
 
+from pybladed.model import Model, ParameterNotFound
+
 def rotation_matrix_to_quaternions(R):
     q0 = 0.5 * np.sqrt(1 + R.trace())
     q1 =(R[2,1] - R[1,2]) / (4*q0)
@@ -271,7 +273,8 @@ class ModalRepresentation(object):
             \rho(s) \, ds
 
     """
-    def __init__(self, x, shapes, rotations, freqs, density, gyration_radii=None):
+    def __init__(self, x, shapes, rotations, density, freqs,
+                 damping=None, gyration_radii=None):
         r"""
         Setup modal representation for a 1-dimensional element.
 
@@ -286,13 +289,16 @@ class ModalRepresentation(object):
         rotations : array (`N_x` x 3 x `N_modes`)
             Array of mode rotations defined at points in `x`
 
-        freqs : array (`N_modes`)
-            Array of modal frequencies
-
         density : array (`N_x`)
             Linear density distribution at points defined in `x`
 
-        gyration_radii : array (`N_x` x 1 or 2), default zeros
+        freqs : array (`N_modes`)
+            Array of modal frequencies
+
+        damping : array (`N_modes`), default zeros
+            Array of modal damping factors
+
+        gyration_radii : array (`N_x`) or (`N_x` x 2), default zeros
             Array of radii of gyration of the cross-sections. If one column,
             assume radii are equal in y- and z-directions.
 
@@ -301,15 +307,18 @@ class ModalRepresentation(object):
         assert len(freqs) == shapes.shape[2] == rotations.shape[2]
         assert shapes.shape[1] == rotations.shape[1] == 3
 
+        if damping is None:
+            damping = zeros(len(freqs))
         if gyration_radii is None:
             gyration_radii = zeros((len(x),2))
-        if gyration_radii.ndim == 1 or gyration_radii.shape[1] < 2:
+        elif gyration_radii.ndim == 1:
             gyration_radii = np.c_[ gyration_radii, gyration_radii ]
 
         self.x = x
         self.shapes = shapes
         self.rotations = rotations
         self.freqs = freqs
+        self.damping = damping
         self.density = density
 
         # Prepare integrands
@@ -359,6 +368,106 @@ class ModalRepresentation(object):
         npz = np.load(filename)
         return ModalRepresentation(npz['x'], npz['shapes'], npz['rotations'],
                                    npz['freqs'], npz['density'])
+
+    @classmethod
+    def from_Bladed(self, filename):
+        """Load modal data from Bladed .prj or .$pj file."""
+        bmf = BladedModesReader(filename)
+        shapes_rotations = bmf.data.transpose(2,0,1)
+        kgyr = np.ones_like(bmf.radii)
+        rep = ModalRepresentation(bmf.radii, shapes_rotations[:,:3,:],
+                                  shapes_rotations[:,3:,:], bmf.density,
+                                  bmf.freqs, bmf.damping, kgyr)
+        return rep
+
+import re
+
+class BladedModesReader(object):
+    def __init__(self, filename):
+        self.data = None
+        self.load(filename)
+
+    def load(self, filename):
+        self.filename = filename
+
+        # read header file and find RMODE module
+        with open(filename,'rU') as f:
+            s = f.read()
+        model = Model(s)
+
+        try:
+            model.get_param('MULTIBODY')
+        except ParameterNotFound:
+            raise NotImplemented('Only Bladed versions >= v4 are supported')
+
+        # Blade station radii
+        self.radii = model.get_param(('BGEOMMB','RJ')).split(',')
+        self.radii = array(map(float, self.radii[::2])) # values duplicated for split station
+
+        try:
+            module = model.get_module('RMODE')
+            module = re.search(r'''
+                    NBLADE[ \t]+(\d+)\n
+                    (?:TYPE[ \t]+(.*)\n
+                    FREQ[ \t]+(.*)\n
+                    DAMP[ \t]+(.*)\n
+                    ((?:MD.*\n)+|CRYPT))?
+                ''', module, re.VERBOSE).groups()
+        except (ParameterNotFound, AttributeError):
+            raise Exception("Couldn't read RMODE module from '%s'" % filename)
+
+        nmodes = int(module[0])
+        self.data = np.zeros((6, nmodes, len(self.radii)))
+        if nmodes > 0:
+            self.types = module[1].split()
+            self.freqs = array(map(float, module[2].split()))
+            self.damping = array(map(float, module[3].split()))
+            rest = module[4]
+
+            if rest == 'CRYPT':
+                raise NotImplemented("Cannot read encrypted modes")
+
+            for i,line in enumerate(rest.splitlines()):
+                imode = int(i/6)
+                icomp = i % 6
+                assert line.startswith('MD%02d%d' % (1+imode, 1+icomp))
+                d = [float(xx.strip(',')) for xx in line[5:].split()]
+                self.data[icomp,imode,:] = d
+        else:
+            raise Exception('No modes found in "%s"' % filename)
+
+        # extract channel names
+        self.axnames = ['Component', 'Mode', 'Radius']
+        self.axticks = [
+            ['x', 'y', 'z', 'Rx', 'Ry', 'Rz'],
+            ['%d(%s)' % xx for xx in zip(range(1,1+nmodes), self.types)],
+            ['%g' % xx for xx in self.radii],
+        ]
+        self.axvals = [
+            range(6),
+            range(nmodes),
+            self.radii,
+        ]
+
+        # Other data
+        self.density = model.get_param(('BMASSMB','MASS')).split(',')
+        self.density = array(map(float, self.density[::2])) # ignore split stations
+
+    def _splitquoted(self, string):
+        """Split on spaces, keeping quoted things together"""
+        parts = re.findall(r"('[^']*'|[^\n ]+)", string)
+        return [xx.replace("'", "") for xx in parts]
+
+    def _getproperty(self, prop, string, split=False):
+        """Get value of a Bladed prj file property
+        Return last occurrence if more than one. Allow continuation onto new
+        lines if they start with whitespace.
+        """
+        matches = re.findall(r'^%s[ \t]+((?:.|\n(?=[ \t]))*)' % prop,
+                             string, re.MULTILINE)
+        if len(matches) > 0:
+            return (split and splitquoted(matches[-1]) or matches[-1])
+        return None
 
 class BeamModalAnalysis(object):
     '''
