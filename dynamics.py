@@ -1066,24 +1066,23 @@ class ModalElement(Element):
         '''
         self._nstrain = len(modal_rep.freqs)
         Element.__init__(self, name)
-        self.rep = modal_rep
+        self.modes = modal_rep
         self._initial_calcs()
 
     def _initial_calcs(self):
         # Set constant parts of mass matrix
-        self.mass_vv[VP,VP] = self.rep.mass * eye(3)
-        self.mass_ee[ :, :] = dot(self.rep.S.T, self.rep.S)
+        self.mass_vv[VP,VP] = self.modes.mass * eye(3)
+        self.mass_ee[ :, :] = self.modes.strain_strain()
 
         # Stiffness matrix
-        self.stiffness = np.diag(self.rep.mass * self.rep.freqs)
+        self.stiffness = np.diag(np.diag(self.mass_ee) * self.modes.freqs**2)
         self.damping = np.zeros_like(self.stiffness) # XXX
 
     def shape(self):
         # proximal values
-        X0 = zeros((len(self.rep.x),3))
-        X0[:,0] = self.rep.x
-        defl = dot(self.rep.shapes, self.xstrain)
-        shape = [dot(self.Rp, (X0+defl)) for i in range(X0.shape[0])]
+        X0 = self.modes.X0
+        defl = dot(self.modes.shapes, self.xstrain)
+        shape = [dot(self.Rp, (X0[i]+defl[i])) for i in range(X0.shape[0])]
         return [
             self.rp + array(shape),
             np.r_[ [self.rp], [self.rp + dot(self.Rp, X0[-1])], [shape[-1]] ]
@@ -1098,29 +1097,27 @@ class ModalElement(Element):
         # angular velocity skew matrix
         wp = self.vp[WP]
         wps = skewmat(wp)
+        local_wp = dot(self.Rp.T, wp)
 
         # Inertia tensor made up of undefomed inertia J0, and contributions
         # from shapes
-        inertia = (self.rep.J0
-                    + dot(self.rep.S1, self.xstrain)
-                    + dot(self.rep.S1, self.xstrain).T
-                    + dot(dot(self.rep.S2, self.xstrain), self.xstrain) )
+        inertia = self.modes.inertia_tensor(self.xstrain)
         inertia_global = dot(self.Rp, dot(inertia, self.Rp.T))
 
         # Linear-rotation term
-        rw_global = dot(self.Rp, self.rep.I0 + dot(self.rep.S, self.xstrain))
-        rw_skew = skewmat(rw_global)
+        rw_global = dot(self.Rp, self.modes.I0 + dot(self.modes.S, self.xstrain))
+        rw_global_skew = skewmat(rw_global)
 
         # Rotation-strain term
-        wf_global = dot(self.Rp, self.rep.T1 + dot(self.rep.T2, self.xstrain))
+        wf_global = dot(self.Rp, self.modes.rotation_strain(self.xstrain))
 
         # 1st shape int in global coords
-        S_global = dot(self.Rp, self.rep.S)
+        S_global = dot(self.Rp, self.modes.S)
 
         ## MASS MATRIX ##
         #    mass_vv[VP,VP] constant
-        self.mass_vv[VP,WP] = -rw_skew
-        self.mass_vv[WP,VP] =  rw_skew
+        self.mass_vv[VP,WP] = -rw_global_skew
+        self.mass_vv[WP,VP] =  rw_global_skew
         self.mass_vv[WP,WP] =  inertia_global
         self.mass_ve[VP, :] =  S_global
         self.mass_ve[WP, :] =  wf_global
@@ -1132,17 +1129,17 @@ class ModalElement(Element):
         centrifugal = dot(dot(wps,wps), rw_global)
 
         # Force dependent on strain velocity
-        strainvel = 2*dot(wps, dot(self.Rp, dot(self.rep.S, self.vstrain)))
+        strainvel = 2*dot(wps, dot(self.Rp, dot(self.modes.S, self.vstrain)))
 
         # Terms for moments dependent on strain velocity
-        ang_strainvel_local = dot(
-            self.rep.S1 + dot(self.rep.S2, self.xstrain), self.vstrain)
+        ang_strainvel_local = self.modes.inertia_vel(self.xstrain, self.vstrain)
         ang_strainvel_global = dot(self.Rp, dot(ang_strainvel_local, self.Rp.T))
 
         self.quad_forces[VP] = centrifugal + strainvel
         self.quad_forces[WP] = dot(
             (dot(wps, inertia_global) + 2*ang_strainvel_global), wp)
-        self.quad_stress[ :] = dot(S_global.T, centrifugal + strainvel)
+        #self.quad_stress[ :] = dot(S_global.T, centrifugal + strainvel)
+        self.quad_stress[ :] = self.modes.quad_stress(local_wp, self.vstrain)
 
     def calc_external_loading(self):
         # Gravity loads
@@ -1231,8 +1228,7 @@ def solve_system(system, tvals, outputs=None):
         if (it % nprint) == 0:
             sys.stdout.write('.'); sys.stdout.flush()
 
-    print 'done'
-    print '%.1f seconds elapsed' % (time.clock() - tstart)
+    print 'done (%.1f seconds)' % (time.clock() - tstart)
 
     return result
 

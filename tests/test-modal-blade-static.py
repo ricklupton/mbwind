@@ -11,113 +11,57 @@ from __future__ import division
 
 import numpy as np
 from scipy.linalg import eig
+import matplotlib.pyplot as plt
 
 import dynamics
-from dynamics import System, ModalElement
+from dynamics import System, ModalElement, solve_system
 from linearisation import LinearisedSystem, ModalRepresentation
-#import dynvis
+import dynvis
 
 dynamics.gravity = 0
 
 # Modal element using data from Bladed model
 print "Loading modes from 'demo_a.prj'..."
-modes = ModalRepresentation.from_Bladed('demo_a.prj')
+modes = ModalRepresentation.from_Bladed('demo_a_simplified.prj')
 el = ModalElement('el', modes)
 system = System(el)
-
-# Fix base
-print system.prescribed_accels
 
 # Linearise system and find modes - should match with original
 print "Linearising..."
 linsys = LinearisedSystem(system)
 w,v = eig(linsys.K, linsys.M)
+order = np.argsort(w)
+w = np.sqrt(np.real(w[order]))
+f = w/2/np.pi
+v = v[:,order]
 
+# Check that modes come out matching what went in
+assert np.allclose(modes.freqs, w), "Linearised freqs should match"
+ventries = np.nonzero(abs(v)>1e-2)[0]
+assert len(ventries) == len(w) and (ventries == np.arange(4)).all(), \
+    "Modes should be orthogonal"
 
-def calc_matrices(system, iz, vals, mat='M'):
-    f = system.B.shape[0]
-    z0 = zeros(f)
-    result = zeros((len(vals),f,f))
-    for i,v in enumerate(vals):
-        z0[iz] = v
-        linsys = LinearisedSystem(system, z0)
-        result[i] = getattr(linsys,mat)
-    return result
-
-def ani_matrix(mats, vals=None):
-    if vals is None: vals = arange(mats.shape[0])
-    import matplotlib.animation as animation
-    import matplotlib as mpl
-    fig = plt.figure()
-    fig.set_size_inches(5,5,forward=True)
-    ax = fig.add_subplot(111, aspect=1)
-    ax.grid()
-
-    norm = mpl.colors.Normalize(vmin=(mats-mats[0]).min(), vmax=(mats-mats[0]).max())
-    cmap = mpl.cm.get_cmap('coolwarm', 20)
-
-    def animate(i):
-        m = ax.matshow(mats[i]-mats[0], norm=norm, cmap=cmap)
-        ax.set_title(vals[i])
-        if i == 1: fig.colorbar(m)
-
-    ani = animation.FuncAnimation(fig, animate, range(len(vals)),
-        interval=1, blit=False, repeat=False)
-    return ani
-
-if False:
-    mats = calc_matrices(system, 1, linspace(-1,1))
-    ani_matrix(mats)
-
-def sim_both(a,b,a1,b1):
-    t = np.arange(0, 20, 0.05)
-    ylin = linsys.integrate(t, [a,b,0,0,0], [a1,b1,0,0,0])
+# Run a simluation
+def sim_both(q0=None, qd0=None):
+    if q0  is None: q0  = np.zeros_like(w)
+    if qd0 is None: qd0 = np.zeros_like(w)
+    
+    t = np.arange(0, 2, 0.005)
+    ylin = linsys.integrate(t, q0, qd0)
     system.q [:] = 0.0
     system.qd[:] = 0.0
-    system.q [system.iFreeDOF[0]] = a
-    system.q [system.iFreeDOF[1]] = b
-    system.qd[system.iFreeDOF[0]] = a1
-    system.qd[system.iFreeDOF[1]] = b1
+    system.q [system.iFreeDOF] = q0
+    system.qd[system.iFreeDOF] = qd0
     y = solve_system(system,t)
 
-    # pick out interesting strains
-    y = y[:,[0,7,8,15,22]]
-    ylin = ylin[:,:5]
+    ylin = ylin[:,:len(q0)]
     ax = plt.figure().add_subplot(111)
-    #ax.set_color_cycle(['b','r'])
+    ax.set_color_cycle(['r','g','b','c'])
     ax.plot(t,ylin,':',t,y,'--')
+    plt.legend(('Mode 1','Mode 2','Mode 3','Mode 4'))
     return t,y,ylin
-
-def plot_three(t,ynl,ylin,ymbc):
-    fig = plt.figure()
-    titles = ['Non-lin','Linear','MBC']
-    for i,y in enumerate((ynl,ylin,ymbc)):
-        ax = fig.add_subplot(2,3,1+i)
-        ax.set_color_cycle(['b','r'])
-        ax.plot(t,y[:,:2])
-        ax.set_title(titles[i])
-    for i,y in enumerate((ynl,ylin,ymbc)):
-        ax = fig.add_subplot(2,3,4+i)
-        ax.plot(t,y[:,2:])
-        ax.set_color_cycle(['r','g','b'])
-
-def sim_three(system,linsys,a,b,a1,b1):
-    t = np.arange(0, 20, 0.1)
-    mbcsys = linsys.multiblade_transform(1, slice(2,3), slice(3,4), slice(4,5))
-    ylin = linsys.integrate(t, [a,b,0,0,0], [a1,b1,0,0,0])
-    ymbc = mbcsys.integrate(t, [a,b,0,0,0], [a1,b1,0,0,0])
-    system.q [system.iFreeDOF[0]] = a
-    system.q [system.iFreeDOF[1]] = b
-    system.qd[system.iFreeDOF[0]] = a1
-    system.qd[system.iFreeDOF[1]] = b1
-    ynl = solve_system(system,t)
-
-    # pick out interesting strains
-    ynl = ynl[:,[0,7,8,15,22]]
-    ylin = ylin[:,:5]
-    ymbc = ymbc[:,:5]
-    plot_three(t,ynl,ylin,ymbc)
-    return t,ynl,ylin,ymbc
+    
+#t,y,ylin = sim_both([0.2,0.3,0.5,0])
 
 def simulate(system, t1, dt=0.05):
     t = np.arange(0, t1, dt)

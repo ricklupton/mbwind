@@ -16,11 +16,15 @@ from numpy import array, zeros, eye, dot, pi, cos, sin, trapz
 from numpy import newaxis as NA
 import scipy.linalg
 from scipy.misc import derivative
-from scipy.integrate import ode
+from scipy.integrate import ode, simps
 
 from dynamics import System, UniformBeam, skewmat
 
 from pybladed.model import Model, ParameterNotFound
+
+eps_ijk = zeros((3,3,3))
+eps_ijk[0,1,2] = eps_ijk[1,2,0] = eps_ijk[2,0,1] =  1
+eps_ijk[2,1,0] = eps_ijk[1,0,2] = eps_ijk[0,2,1] = -1
 
 def rotation_matrix_to_quaternions(R):
     q0 = 0.5 * np.sqrt(1 + R.trace())
@@ -165,8 +169,7 @@ class LinearisedSystem(object):
             if (it % nprint) == 0:
                 sys.stdout.write('.'); sys.stdout.flush()
 
-        print 'done'
-        print '%.1f seconds elapsed' % (time.clock() - tstart)
+        print 'done (%.1f seconds)' % (time.clock() - tstart)
 
         return result
 
@@ -273,8 +276,8 @@ class ModalRepresentation(object):
             \rho(s) \, ds
 
     """
-    def __init__(self, x, shapes, rotations, density, freqs,
-                 damping=None, gyration_radii=None):
+    def __init__(self, x, shapes, rotations, density, mass_axis,
+                 section_inertia, freqs, damping=None):
         r"""
         Setup modal representation for a 1-dimensional element.
 
@@ -291,16 +294,21 @@ class ModalRepresentation(object):
 
         density : array (`N_x`)
             Linear density distribution at points defined in `x`
+        
+        mass_axis : array(`N_x` x 2)
+            Y- and Z- coordinates of centre of mass at each point
+            
+        section_inertia : array(`N_x` x 3 x 3)
+            Inertia / linear mass of cross-sections, depending on shape:
+             * (`N_x` x 3 x 3): local inertia tensor
+             * (`N_x` x 2): two perpendicular moments of inertia
+             * (`N_x`): one moment of inertia, used for both directions
 
         freqs : array (`N_modes`)
             Array of modal frequencies
 
         damping : array (`N_modes`), default zeros
             Array of modal damping factors
-
-        gyration_radii : array (`N_x`) or (`N_x` x 2), default zeros
-            Array of radii of gyration of the cross-sections. If one column,
-            assume radii are equal in y- and z-directions.
 
         """
         assert len(x) == shapes.shape[0] == rotations.shape[0] == len(density)
@@ -309,10 +317,17 @@ class ModalRepresentation(object):
 
         if damping is None:
             damping = zeros(len(freqs))
-        if gyration_radii is None:
-            gyration_radii = zeros((len(x),2))
-        elif gyration_radii.ndim == 1:
-            gyration_radii = np.c_[ gyration_radii, gyration_radii ]
+            
+        if section_inertia.ndim != 3:
+            newsec = zeros((len(x),3,3))
+            if section_inertia.ndim == 2:
+                newsec[:,1,1] = section_inertia[:,0]
+                newsec[:,2,2] = section_inertia[:,1]
+            else:
+                newsec[:,1,1] = section_inertia
+                newsec[:,2,2] = section_inertia                
+            newsec[:,0,0] = newsec[:,1,1] + newsec[:,2,2]
+            section_inertia = newsec
 
         self.x = x
         self.shapes = shapes
@@ -320,42 +335,103 @@ class ModalRepresentation(object):
         self.freqs = freqs
         self.damping = damping
         self.density = density
+        self.section_inertia = section_inertia
 
         # Prepare integrands
-        xvec = zeros((len(x),3))
-        xvec[:,0] = x
-        Js = zeros((len(x),3,3))
+        X0 = np.c_[ x, mass_axis ]
+        J0 = zeros((len(x),3,3))
         S1 = zeros((len(x),3,3,len(freqs)))
+        T1 = zeros((len(x),3,3,len(freqs)))
         S2 = zeros((len(x),3,3,len(freqs),len(freqs)))
-        T1 = zeros((len(x),3,len(freqs)))
-        T2 = zeros((len(x),3,len(freqs),len(freqs)))
+        T2 = zeros((len(x),3,3,len(freqs),len(freqs)))
 
         for i in range(len(x)):
-            xskew = skewmat(xvec[i])
-            ky,kz = gyration_radii[i,:]
-            Js[i,:,:] = np.diag([
-                ky + kz,
-                ky + x[i]**2,
-                kz + x[i]**2
-            ])
-            T1[i,:,:] = -dot(xskew, shapes[i,:,:])
-            for j in range(len(freqs)):
-                jskew = skewmat(shapes[i,:,j])
-                S1[i,:,:,j] = -dot(xskew, jskew)
-                T2[i,:,:,j] = -dot(jskew, shapes[i,:,:])
-                for k in range(len(freqs)):
-                    kskew = skewmat(shapes[i,:,k])
-                    S2[i,:,:,j,k] = -dot(jskew, kskew)
-
+            
+            J0[i] = np.outer(X0[i], X0[i])  +  0*section_inertia[i]
+            
+            S1[i] = np.einsum('j,ip', X0[i], shapes[i])
+            S2[i] = np.einsum('ip,jr', shapes[i], shapes[i])
+            
+            T1[i,:,:,:] = np.einsum('inq,nj,qp', eps_ijk,
+                                section_inertia[i], rotations[i])
+            T2[i,:,:,:,:] = np.einsum('ist,jlm,ls,mp,tr', eps_ijk, eps_ijk,
+                                section_inertia[i], rotations[i], rotations[i])
+            
+#==============================================================================
+#             xskew = skewmat(xvec[i])
+#             ky,kz = gyration_radii[i,:]
+#             np.diag([
+#                 ky + kz,
+#                 ky + x[i]**2,
+#                 kz + x[i]**2
+#             ])
+#             T1[i,:,:] = -dot(xskew, shapes[i,:,:])
+#             for j in range(len(freqs)):
+#                 jskew = skewmat(shapes[i,:,j])
+#                 S1[i,:,:,j] = -dot(xskew, jskew)
+#                 T2[i,:,:,j] = -dot(jskew, shapes[i,:,:])
+#                 for k in range(len(freqs)):
+#                     kskew = skewmat(shapes[i,:,k])
+#                     S2[i,:,:,j,k] = -dot(jskew, kskew)
+#==============================================================================
+        
         # Calculate shape integrals
+        self.X0 = X0
         self.mass = trapz(         density,                x, axis=0)
-        self.I0   = trapz(xvec   * density[:,NA],          x, axis=0)
-        self.J0   = trapz(Js     * density[:,NA,NA],       x, axis=0)
+        self.I0   = trapz(X0     * density[:,NA],          x, axis=0)
+        self.J0   = simps(J0     * density[:,NA,NA],       x, axis=0)
         self.S    = trapz(shapes * density[:,NA,NA],       x, axis=0)
-        self.T1   = trapz(T1     * density[:,NA,NA],       x, axis=0)
-        self.T2   = trapz(T2     * density[:,NA,NA,NA],    x, axis=0)
         self.S1   = trapz(S1     * density[:,NA,NA,NA],    x, axis=0)
+        self.T1   = trapz(T1     * density[:,NA,NA,NA],    x, axis=0)
         self.S2   = trapz(S2     * density[:,NA,NA,NA,NA], x, axis=0)
+        self.T2   = trapz(T2     * density[:,NA,NA,NA,NA], x, axis=0)
+ 
+    def inertia_tensor(self, q):
+        """
+        Construct the inertia tensor corresponding to the modal coordinates
+        
+        .. math::
+            
+            I_{\theta\theta} = (\delta_{ij}J0_{kk} - J0_{ij})
+                + [ \delta_{ij}(2 S_{kkp}) - (S_{ijp} + S_{jip}) + (T_{ijp} + T_{jip})] \epsilon_p
+                + [ \delta_{ij}(S_{kkpr} + T_{kkpr}) - (S_ijpr + T_ijpr) ] \epsilon_p \epsilon_r
+
+        """
+        S1 = np.einsum('ijp,p', self.S1, q)
+        T1 = np.einsum('ijp,p', self.T1, q)
+        S2 = np.einsum('ijpr,p,r', self.S2, q, q)
+        T2 = np.einsum('ijpr,p,r', self.T2, q, q)
+
+        inertia0 = eye(3)*self.J0.trace() - self.J0
+        inertia1 = eye(3)*2*S1.trace() - (S1 + S1.T) + (T1 + T1.T)
+        inertia2 = eye(3)*(S2.trace() + T2.trace()) - (S2 + T2)
+        
+        return inertia0 + inertia1 + inertia2
+
+    def strain_strain(self):
+        A = np.einsum('mmpr',self.S2) + np.einsum('mmpr',self.T2)
+        return A
+    
+    def rotation_strain(self, q):
+        A = self.S1 - self.T1 + np.einsum('klpr,p', self.S2, q) + \
+                np.einsum('klrp,p', self.T2, q)
+        B = np.einsum('ikl,lkp', eps_ijk, A)
+        return B
+    
+    def inertia_vel(self, q, qd):
+        S1 = np.einsum('ijp,p', self.S1, qd)
+        T1 = np.einsum('ijp,p', self.T1, qd)
+        S2 = np.einsum('ijpr,p,r', self.S2, q, qd)
+        T2 = np.einsum('ijpr,p,r', self.T2, q, qd)
+        return (eye(3)*S1.trace() - S1 + T1 +
+                eye(3)*(S2 + T2).trace() - S2 - T2)
+    
+    def quad_stress(self, Wp, qd):
+        S1 = eye(3)[:,:,NA]*self.S1.trace() - self.S1
+        A = np.einsum('ijp,i,j', S1, Wp, Wp)
+        B = np.einsum('jkl,k,m,jlpm', eps_ijk, Wp, qd,
+                      (self.S2 - self.T2.transpose(0,1,3,2)))
+        return -A + 2*B
 
     def save(self, filename):
         np.savez(filename, x=self.x, shapes=self.shapes, freqs=self.freqs,
@@ -374,10 +450,13 @@ class ModalRepresentation(object):
         """Load modal data from Bladed .prj or .$pj file."""
         bmf = BladedModesReader(filename)
         shapes_rotations = bmf.data.transpose(2,0,1)
-        kgyr = np.ones_like(bmf.radii)
+        permute_axes = (2,0,1,5,3,4) #
+        shapes_rotations = shapes_rotations[:,permute_axes,:]
+        kgyr = np.zeros_like(bmf.radii)
         rep = ModalRepresentation(bmf.radii, shapes_rotations[:,:3,:],
                                   shapes_rotations[:,3:,:], bmf.density,
-                                  bmf.freqs, bmf.damping, kgyr)
+                                  zeros((len(bmf.radii),2)), kgyr,
+                                  bmf.freqs, bmf.damping)
         return rep
 
 import re
