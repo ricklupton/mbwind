@@ -9,7 +9,7 @@ from __future__ import division
 import numpy as np
 import matplotlib.pylab as plt
 import matplotlib.animation as animation
-from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d import Axes3D # analysis:ignore (enables 3d projection)
 
 def show(system, tt, yy, tvals, dof=None):
     fig = plt.figure()
@@ -18,14 +18,21 @@ def show(system, tt, yy, tvals, dof=None):
     ax.set_aspect(1,'datalim')
     ax.hold(True)
 
-    if dof is None: dof = system.iFreeDOF
+    if dof is None:
+        dof = system.iFreeDOF
     N = np.count_nonzero(dof)
+    q = yy[:,:N]
+    if yy.shape[1] >= 2*N:
+        qd = yy[:,N:2*N]
+    else:
+        qd = None
+    
     for t in tvals:
-        i = np.nonzero(t > tt)
+        i = np.nonzero(tt >= t)[0]
         if not len(i) > 0: break
-        system.q [dof] = yy[i[0],:N]
-        if yy.shape[1] >= 2*N:
-            system.qd[idof] = yy[i[0],N:2*N]
+        system.q[dof] = q[i[0]]
+        if qd is not None:
+            system.qd[dof] = qd[i[0]]
         system.update(t, False)
         system.first_element.plot_chain(ax)
 
