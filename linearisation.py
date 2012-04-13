@@ -26,6 +26,16 @@ eps_ijk = zeros((3,3,3))
 eps_ijk[0,1,2] = eps_ijk[1,2,0] = eps_ijk[2,0,1] =  1
 eps_ijk[2,1,0] = eps_ijk[1,0,2] = eps_ijk[0,2,1] = -1
 
+def qrot3(q):
+    q1,q2,q3 = q
+    q0 = np.sqrt(1.0 - q1**2 - q2**2 - q3**2)
+    assert not np.isnan(q0)
+    return array([
+        [1 - 2*(q2**2 + q3**2), 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2)    ],
+        [2*(q1*q2 + q0*q3),     1 - 2*(q1**2 + q3**2), 2*(q2*q3 - q0*q1)    ],
+        [2*(q1*q3 - q0*q2),     2*(q2*q3 + q0*q1),     1 - 2*(q1**2 + q2**2)],
+    ])
+
 def rotation_matrix_to_quaternions(R):
     q0 = 0.5 * np.sqrt(1 + R.trace())
     q1 =(R[2,1] - R[1,2]) / (4*q0)
@@ -367,6 +377,19 @@ class ModalRepresentation(object):
         self.S2   = simps(S2     * density[:,NA,NA,NA,NA], x, axis=0)
         self.T2   = simps(T2     * density[:,NA,NA,NA,NA], x, axis=0)
  
+    def X(self, q):
+        return self.X0 + np.einsum('hip,p', self.shapes, q)
+    
+    def Xdot(self, qd):
+        return np.einsum('hip,p', self.shapes, qd)
+ 
+    def R(self, q):
+        rotations = np.einsum('hip,p', self.rotations, q)
+        R = zeros((len(self.x),3,3))
+        for i in range(len(self.x)):
+            R[i] = qrot3(rotations[i]/2)
+        return R
+        
     def inertia_tensor(self, q):
         """
         Construct the inertia tensor corresponding to the modal coordinates
@@ -420,7 +443,7 @@ class ModalRepresentation(object):
         
         Returns a tuple (Q_r, Q_w, Q_e) of forces/moments/stresses.
         """
-        X = self.X0 + np.einsum('hip,p', self.shapes, q) # length x 3
+        X = self.X(q) # length x 3
         XcrossP = np.einsum('ijk,hj,hk->hi', eps_ijk, X, P)  # length x 3
         UTP = np.einsum('hip,hi->hp', self.shapes, P)
         Qr = -simps(P,       self.x, axis=0)

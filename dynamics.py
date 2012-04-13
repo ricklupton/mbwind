@@ -21,6 +21,10 @@ pyximport.install(setup_args={'include_dirs':[np.get_include()]})
 
 import assemble
 
+eps_ijk = zeros((3,3,3))
+eps_ijk[0,1,2] = eps_ijk[1,2,0] = eps_ijk[2,0,1] =  1
+eps_ijk[2,1,0] = eps_ijk[1,0,2] = eps_ijk[0,2,1] = -1
+
 
 def rotmat_x(theta):
     return array([
@@ -1056,7 +1060,7 @@ class ModalElement(Element):
     _nstrain = 6
     _nconstraints = 0
 
-    def __init__(self, name, modal_rep):
+    def __init__(self, name, modes, loading=None):
         '''
         General element represented by mode shapes. Assume no distal nodes.
 
@@ -1064,9 +1068,10 @@ class ModalElement(Element):
                        modal representation
 
         '''
-        self._nstrain = len(modal_rep.freqs)
+        self._nstrain = len(modes.freqs)
         Element.__init__(self, name)
-        self.modes = modal_rep
+        self.modes = modes
+        self.loading = loading
         self._initial_calcs()
 
     def _initial_calcs(self):
@@ -1077,6 +1082,23 @@ class ModalElement(Element):
         # Stiffness matrix
         self.stiffness = np.diag(np.diag(self.mass_ee) * self.modes.freqs**2)
         self.damping = np.zeros_like(self.stiffness) # XXX
+
+    def station_positions(self):
+        prox_pos = self.modes.X(self.xstrain)
+        global_pos = self.rp[None,:] + np.einsum('ij,hj', self.Rp, prox_pos)
+        return global_pos
+    
+    def station_rotations(self):
+        prox_rot = self.modes.R(self.xstrain)
+        global_rot = np.einsum('ij,hjk', self.Rp, prox_rot)
+        return global_rot
+    
+    def station_velocities(self):
+        prox_pos = self.modes.X(self.xstrain)
+        prox_vel = self.modes.Xdot(self.vstrain)
+        global_vel = self.vp[None,VP] + np.einsum('ij,hj', self.Rp, prox_vel) \
+            + np.einsum('ijk,j,kl,hl', eps_ijk, self.vp[WP], self.Rp, prox_pos)
+        return global_vel
 
     def shape(self):
         # proximal values
@@ -1138,7 +1160,6 @@ class ModalElement(Element):
         self.quad_forces[VP] = centrifugal + strainvel
         self.quad_forces[WP] = dot(
             (dot(wps, inertia_global) + 2*ang_strainvel_global), wp)
-        #self.quad_stress[ :] = dot(S_global.T, centrifugal + strainvel)
         self.quad_stress[ :] = self.modes.quad_stress(local_wp, self.vstrain)
 
     def calc_external_loading(self):
@@ -1147,8 +1168,23 @@ class ModalElement(Element):
 
         # Constitutive loading
         self.applied_stress[:] = dot(self.stiffness, self.xstrain) + \
-                                 dot(self.damping, dot(self.stiffness, self.vstrain))
-
+            dot(self.damping, dot(self.stiffness, self.vstrain))
+        
+        # External loading
+        if self.loading is not None:
+            # Positions and orientations of all stations
+            prox_rot = self.modes.R(self.xstrain)
+            global_pos = self.station_positions() #self.rp[None,:] + np.einsum('ij,hj', self.Rp, prox_pos)
+            global_rot = self.station_rotations() #np.einsum('ij,hjk', self.Rp, prox_rot)
+            global_vel = self.station_velocities()
+            P_station = self.loading(self.system.time, global_pos,
+                                     global_rot, global_vel)
+            # P is in local stations coords -- transform back to prox frame
+            P_prox = np.einsum('hji,hj->hi', prox_rot, P_station)
+            Fext,Mext,Sext = self.modes.distributed_loading(P_prox, self.xstrain)
+            self.applied_forces[VP] += Fext
+            self.applied_forces[WP] += Mext
+            self.applied_stress[:]  += Sext
 
 def rk4(derivs, y0, t):
     try:
