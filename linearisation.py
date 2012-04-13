@@ -346,8 +346,7 @@ class ModalRepresentation(object):
         T2 = zeros((len(x),3,3,len(freqs),len(freqs)))
 
         for i in range(len(x)):
-            
-            J0[i] = np.outer(X0[i], X0[i])  +  0*section_inertia[i]
+            J0[i] = np.outer(X0[i], X0[i])  +  section_inertia[i]
             
             S1[i] = np.einsum('j,ip', X0[i], shapes[i])
             S2[i] = np.einsum('ip,jr', shapes[i], shapes[i])
@@ -356,35 +355,17 @@ class ModalRepresentation(object):
                                 section_inertia[i], rotations[i])
             T2[i,:,:,:,:] = np.einsum('ist,jlm,ls,mp,tr', eps_ijk, eps_ijk,
                                 section_inertia[i], rotations[i], rotations[i])
-            
-#==============================================================================
-#             xskew = skewmat(xvec[i])
-#             ky,kz = gyration_radii[i,:]
-#             np.diag([
-#                 ky + kz,
-#                 ky + x[i]**2,
-#                 kz + x[i]**2
-#             ])
-#             T1[i,:,:] = -dot(xskew, shapes[i,:,:])
-#             for j in range(len(freqs)):
-#                 jskew = skewmat(shapes[i,:,j])
-#                 S1[i,:,:,j] = -dot(xskew, jskew)
-#                 T2[i,:,:,j] = -dot(jskew, shapes[i,:,:])
-#                 for k in range(len(freqs)):
-#                     kskew = skewmat(shapes[i,:,k])
-#                     S2[i,:,:,j,k] = -dot(jskew, kskew)
-#==============================================================================
-        
+
         # Calculate shape integrals
         self.X0 = X0
         self.mass = trapz(         density,                x, axis=0)
         self.I0   = trapz(X0     * density[:,NA],          x, axis=0)
         self.J0   = simps(J0     * density[:,NA,NA],       x, axis=0)
-        self.S    = trapz(shapes * density[:,NA,NA],       x, axis=0)
-        self.S1   = trapz(S1     * density[:,NA,NA,NA],    x, axis=0)
-        self.T1   = trapz(T1     * density[:,NA,NA,NA],    x, axis=0)
-        self.S2   = trapz(S2     * density[:,NA,NA,NA,NA], x, axis=0)
-        self.T2   = trapz(T2     * density[:,NA,NA,NA,NA], x, axis=0)
+        self.S    = simps(shapes * density[:,NA,NA],       x, axis=0)
+        self.S1   = simps(S1     * density[:,NA,NA,NA],    x, axis=0)
+        self.T1   = simps(T1     * density[:,NA,NA,NA],    x, axis=0)
+        self.S2   = simps(S2     * density[:,NA,NA,NA,NA], x, axis=0)
+        self.T2   = simps(T2     * density[:,NA,NA,NA,NA], x, axis=0)
  
     def inertia_tensor(self, q):
         """
@@ -432,6 +413,20 @@ class ModalRepresentation(object):
         B = np.einsum('jkl,k,m,jlpm', eps_ijk, Wp, qd,
                       (self.S2 - self.T2.transpose(0,1,3,2)))
         return -A + 2*B
+    
+    def distributed_loading(self, P, q):
+        """
+        Return the generalised forces corresponding to the distributed load P.
+        
+        Returns a tuple (Q_r, Q_w, Q_e) of forces/moments/stresses.
+        """
+        X = self.X0 + np.einsum('hip,p', self.shapes, q) # length x 3
+        XcrossP = np.einsum('ijk,hj,hk->hi', eps_ijk, X, P)  # length x 3
+        UTP = np.einsum('hip,hi->hp', self.shapes, P)
+        Qr = -simps(P,       self.x, axis=0)
+        Qw =  simps(XcrossP, self.x, axis=0)
+        Qe = -simps(UTP,     self.x, axis=0)
+        return Qr, Qw, Qe
 
     def save(self, filename):
         np.savez(filename, x=self.x, shapes=self.shapes, freqs=self.freqs,

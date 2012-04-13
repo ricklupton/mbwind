@@ -11,3 +11,5 @@
 
 *.un~
 
+# Bladed copies of .prj files (slightly XML)
+*.prx
