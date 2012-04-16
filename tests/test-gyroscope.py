@@ -24,7 +24,7 @@ if '..' not in sys.path: sys.path.insert(0,'..')
 import numpy as np
 
 from dynamics import (System, Hinge, UniformBeam, RigidBody,
-                      ModalElement, solve_system)
+                      ModalElement, solve_system, gravity)
 import dynvis
 import linearisation
 
@@ -123,9 +123,10 @@ class ModalGyroscope(Gyroscope):
             x             =x,
             shapes        =np.zeros((len(x),3,0)),
             rotations     =np.zeros((len(x),3,0)),
-            freqs         =np.zeros((0,)),
             density       =np.ones_like(x) * mass/length,
-            gyration_radii=np.ones_like(x) * radius**2 / 4,
+            mass_axis     =np.zeros((len(x),2)),
+            section_inertia=np.ones_like(x) * radius**2 / 4,
+            freqs         =np.zeros((0,)),
         )
 
         self.bearing = Hinge('bearing', [0,0,1])
@@ -142,9 +143,20 @@ class ModalGyroscope(Gyroscope):
         self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
 
 # Create 3 different models
-bg = BeamGyroscope(3.0, 1.0, 100.0)
-mg = ModalGyroscope(3.0, 1.0, 100.0)
-gg = Gyroscope(3.0, 1.0, 100.0)
+length = 3.0
+radius = 1.0
+mass = 100.0
+
+bg = BeamGyroscope(length, radius, mass)
+mg = ModalGyroscope(length, radius, mass)
+gg = Gyroscope(length, radius, mass)
+
+# Theory
+spin_inertia = mass * radius**2 / 2
+spin_velocity = 10
+torque = mass * gravity * length/2
+precession = torque / (spin_inertia * spin_velocity)
+nutation = 2 * spin_velocity
 
 # Want to test linearisation too?
 #bl = linearisation.LinearisedSystem(bg.system)
@@ -162,8 +174,8 @@ def test():
     print 'done.\n\n'
 
     print "Comparing to RigidBody results. Should have some theory too..."
-    print "ModalElement: ", np.allclose(gg.y, mg.y, atol=1e-3) and "ok" or "FAIL"
-    print "UniformBeam:  ", np.allclose(gg.y, bg.y, atol=1e-3) and "ok" or "FAIL"
+    print "ModalElement: ", np.allclose(gg.y, mg.y, atol=1e-2) and "ok" or "FAIL"
+    print "UniformBeam:  ", np.allclose(gg.y, bg.y, atol=1e-2) and "ok" or "FAIL"
 
 def showplots():
     gg.plot('RigidBody gyroscope 3m x 1m, 100kg, spinning at 10 rad/s')

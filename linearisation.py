@@ -401,41 +401,53 @@ class ModalRepresentation(object):
                 + [ \delta_{ij}(S_{kkpr} + T_{kkpr}) - (S_ijpr + T_ijpr) ] \epsilon_p \epsilon_r
 
         """
-        S1 = np.einsum('ijp,p', self.S1, q)
-        T1 = np.einsum('ijp,p', self.T1, q)
-        S2 = np.einsum('ijpr,p,r', self.S2, q, q)
-        T2 = np.einsum('ijpr,p,r', self.T2, q, q)
-
-        inertia0 = eye(3)*self.J0.trace() - self.J0
-        inertia1 = eye(3)*2*S1.trace() - (S1 + S1.T) + (T1 + T1.T)
-        inertia2 = eye(3)*(S2.trace() + T2.trace()) - (S2 + T2)
-        
-        return inertia0 + inertia1 + inertia2
+        inertia = eye(3)*self.J0.trace() - self.J0        
+        if len(self.freqs) > 0:
+            S1 = np.einsum('ijp,p', self.S1, q)
+            T1 = np.einsum('ijp,p', self.T1, q)
+            S2 = np.einsum('ijpr,p,r', self.S2, q, q)
+            T2 = np.einsum('ijpr,p,r', self.T2, q, q)
+            inertia += eye(3)*2*S1.trace() - (S1 + S1.T) + (T1 + T1.T)
+            inertia += eye(3)*(S2.trace() + T2.trace()) - (S2 + T2)
+        return inertia
 
     def strain_strain(self):
-        A = np.einsum('mmpr',self.S2) + np.einsum('mmpr',self.T2)
+        if len(self.freqs) > 0:
+            A = np.einsum('mmpr',self.S2) + np.einsum('mmpr',self.T2)
+        else:
+            A = np.zeros((0,0))
         return A
     
     def rotation_strain(self, q):
-        A = self.S1 - self.T1 + np.einsum('klpr,p', self.S2, q) + \
-                np.einsum('klrp,p', self.T2, q)
-        B = np.einsum('ikl,lkp', eps_ijk, A)
+        if len(self.freqs) > 0:
+            A = self.S1 - self.T1 + np.einsum('klpr,p', self.S2, q) + \
+                    np.einsum('klrp,p', self.T2, q)
+            B = np.einsum('ikl,lkp', eps_ijk, A)
+        else:
+            B = np.zeros((3,0))
         return B
     
     def inertia_vel(self, q, qd):
-        S1 = np.einsum('ijp,p', self.S1, qd)
-        T1 = np.einsum('ijp,p', self.T1, qd)
-        S2 = np.einsum('ijpr,p,r', self.S2, q, qd)
-        T2 = np.einsum('ijpr,p,r', self.T2, q, qd)
-        return (eye(3)*S1.trace() - S1 + T1 +
-                eye(3)*(S2 + T2).trace() - S2 - T2)
+        if len(self.freqs) > 0:
+            S1 = np.einsum('ijp,p', self.S1, qd)
+            T1 = np.einsum('ijp,p', self.T1, qd)
+            S2 = np.einsum('ijpr,p,r', self.S2, q, qd)
+            T2 = np.einsum('ijpr,p,r', self.T2, q, qd)
+            A = (eye(3)*S1.trace() - S1 + T1 +
+                 eye(3)*(S2 + T2).trace() - S2 - T2)
+        else:
+            A = zeros((3,3))
+        return A
     
     def quad_stress(self, Wp, qd):
-        S1 = eye(3)[:,:,NA]*self.S1.trace() - self.S1
-        A = np.einsum('ijp,i,j', S1, Wp, Wp)
-        B = np.einsum('jkl,k,m,jlpm', eps_ijk, Wp, qd,
-                      (self.S2 - self.T2.transpose(0,1,3,2)))
-        return -A + 2*B
+        if len(self.freqs) > 0:
+            S1 = eye(3)[:,:,NA]*self.S1.trace() - self.S1
+            A = np.einsum('ijp,i,j', S1, Wp, Wp)
+            B = np.einsum('jkl,k,m,jlpm', eps_ijk, Wp, qd,
+                          (self.S2 - self.T2.transpose(0,1,3,2)))
+            return -A + 2*B
+        else:
+            return np.zeros(0)
     
     def distributed_loading(self, P, q):
         """
@@ -446,9 +458,9 @@ class ModalRepresentation(object):
         X = self.X(q) # length x 3
         XcrossP = np.einsum('ijk,hj,hk->hi', eps_ijk, X, P)  # length x 3
         UTP = np.einsum('hip,hi->hp', self.shapes, P)
-        Qr = -simps(P,       self.x, axis=0)
-        Qw =  simps(XcrossP, self.x, axis=0)
-        Qe = -simps(UTP,     self.x, axis=0)
+        Qr = -trapz(P,       self.x, axis=0)
+        Qw =  trapz(XcrossP, self.x, axis=0)
+        Qe = -trapz(UTP,     self.x, axis=0)
         return Qr, Qw, Qe
 
     def save(self, filename):

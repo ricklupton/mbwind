@@ -30,7 +30,7 @@ class BladeLoading(object):
         """
         
         # XXX generalise
-        Cd = 2.0
+        Cd = 1.0
         diameter = 2.0
 
         force = zeros((len(self.x),3))
@@ -39,7 +39,8 @@ class BladeLoading(object):
         global_windvel = self.windfunc(np.clip(t, self.windfunc.x[0],
                                                self.windfunc.x[-1]))
         
-        for i in range(len(self.x)):
+        # In Bladed, last station has zero loading
+        for i in range(len(self.x)-1):
             r = pos[i]
             R = ori[i]
             v = vel[i]

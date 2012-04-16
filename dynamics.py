@@ -1072,16 +1072,14 @@ class ModalElement(Element):
         Element.__init__(self, name)
         self.modes = modes
         self.loading = loading
-        self._initial_calcs()
 
-    def _initial_calcs(self):
         # Set constant parts of mass matrix
         self.mass_vv[VP,VP] = self.modes.mass * eye(3)
         self.mass_ee[ :, :] = self.modes.strain_strain()
 
         # Stiffness matrix
-        self.stiffness = np.diag(np.diag(self.mass_ee) * self.modes.freqs**2)
-        self.damping = np.zeros_like(self.stiffness) # XXX
+        self.stiffness = np.diag(self.mass_ee) * self.modes.freqs**2
+        self.damping = 2 * self.modes.damping * self.stiffness / self.modes.freqs
 
     def station_positions(self):
         prox_pos = self.modes.X(self.xstrain)
@@ -1167,8 +1165,10 @@ class ModalElement(Element):
         self._set_gravity_force()
 
         # Constitutive loading
-        self.applied_stress[:] = dot(self.stiffness, self.xstrain) + \
-            dot(self.damping, dot(self.stiffness, self.vstrain))
+        self.applied_stress[:] = (
+            self.stiffness * self.xstrain +
+            self.damping   * self.vstrain
+        )
         
         # External loading
         if self.loading is not None:
