@@ -36,6 +36,24 @@ def show(system, tt, yy, tvals, dof=None):
         system.update(t, False)
         system.first_element.plot_chain(ax)
 
+def showsystem(system, view=None):
+    fig = plt.figure()
+    if view is None:
+        ax = fig.add_subplot(111,projection='3d', xlabel='x', ylabel='y', zlabel='z')
+        ax.plot([1,0,0,0,0],[0,0,1,0,0],[0,0,0,0,1], 'k-')
+        ax.set_aspect(1,'datalim')
+        ax.hold(True)
+        system.first_element.plot_chain(ax)
+    elif view in ('x','y','z'):
+        x,y = {'x': (1,2), 'y': (0,2), 'z': (0,1)}[view]
+        ax = fig.add_subplot(111, xlabel='XYZ'[x], ylabel='XYZ'[y])
+        ax.hold(True)
+        for el in system.iter_elements():
+            for data,opts in zip(el.shape(), el.shape_plot_options):
+                ax.plot(data[:,x], data[:,y], **opts)
+    else:
+        raise ValueError("view should be 'x', 'y', 'z', or None for 3d")
+
 def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, velocities=True, only_free=False):
     fig = plt.figure()
     fig.set_size_inches(10,10,forward=True)
