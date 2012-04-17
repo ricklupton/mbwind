@@ -12,6 +12,7 @@ import numpy as np
 from numpy import array, zeros, eye, dot, pi, cos, sin
 import numpy.linalg as LA
 import scipy.linalg
+import scipy.optimize
 #import matplotlib.pylab as plt
 from scipy.integrate import ode
 
@@ -205,6 +206,26 @@ class System(object):
         self.Sc = dot(S,c)
         self.Sb = 0*self.Sc
 
+    def find_equilibrium(self):
+        """
+        Solve static equalibrium problem, using currently set initial velocities
+        and accelerations.
+        """
+        def func(z):
+            # Update system and matrices
+            self.q[self.iFreeDOF] = z
+            self.update()
+            self.calc_projections()
+            # eval residue: external forces, quadratic terms and internal forces...
+            Q = self.rhs[self.iReal]
+            # ... and inertial loads
+            qdd = self.Sc # prescribed accelerations
+            ma = dot(self.mass[np.ix_(self.iReal,self.iReal)], qdd)
+            return dot(self.R.T, (Q - ma))
+        
+        q0 = scipy.optimize.fsolve(func, self.q[self.iFreeDOF])
+        self.q[self.iFreeDOF] = q0
+
     def eval_residue(self, z, zd, zdd, parts=False):
         self.q [self.iFreeDOF] = z
         self.qd[self.iFreeDOF] = zd
@@ -246,9 +267,9 @@ class System(object):
             self.mass[:] = 0.0
 
         # Update kinematics
-        rp = zeros(3)
-        Rp = eye(3)
-        vp = zeros(NQD)
+        rp = np.zeros(3)
+        Rp = np.eye(3)
+        vp = np.zeros(NQD)
         self.first_element.update(rp, Rp, vp, dynamics)
 
         if dynamics:
@@ -687,13 +708,14 @@ class RigidBody(Element):
     _nstrain = 0
     _nconstraints = 0
 
-    def __init__(self, name, mass, inertia, Xc=None):
+    def __init__(self, name, mass, inertia=None, Xc=None):
         '''
         Rigid body element with only one node.
         Defined by mass and inertia tensor.
         '''
         Element.__init__(self, name)
         if Xc is None: Xc = zeros(3)
+        if inertia is None: inertia = zeros((3,3))
         self.mass = mass
         self.inertia = inertia
         self.Xc = Xc
@@ -1160,6 +1182,19 @@ class ModalElement(Element):
             (dot(wps, inertia_global) + 2*ang_strainvel_global), wp)
         self.quad_stress[ :] = self.modes.quad_stress(local_wp, self.vstrain)
 
+    def _get_loading(self):
+        assert self.loading is not None
+        # Positions and orientations of all stations
+        prox_rot = self.modes.R(self.xstrain)
+        global_pos = self.station_positions() #self.rp[None,:] + np.einsum('ij,hj', self.Rp, prox_pos)
+        global_rot = self.station_rotations() #np.einsum('ij,hjk', self.Rp, prox_rot)
+        global_vel = self.station_velocities()
+        P_station = self.loading(self.system.time, global_pos,
+                                 global_rot, global_vel)
+        # P is in local stations coords -- transform back to prox frame
+        P_prox = np.einsum('hji,hj->hi', prox_rot, P_station)
+        return P_prox
+
     def calc_external_loading(self):
         # Gravity loads
         self._set_gravity_force()
@@ -1173,14 +1208,7 @@ class ModalElement(Element):
         # External loading
         if self.loading is not None:
             # Positions and orientations of all stations
-            prox_rot = self.modes.R(self.xstrain)
-            global_pos = self.station_positions() #self.rp[None,:] + np.einsum('ij,hj', self.Rp, prox_pos)
-            global_rot = self.station_rotations() #np.einsum('ij,hjk', self.Rp, prox_rot)
-            global_vel = self.station_velocities()
-            P_station = self.loading(self.system.time, global_pos,
-                                     global_rot, global_vel)
-            # P is in local stations coords -- transform back to prox frame
-            P_prox = np.einsum('hji,hj->hi', prox_rot, P_station)
+            P_prox = self._get_loading()
             Fext,Mext,Sext = self.modes.distributed_loading(P_prox, self.xstrain)
             self.applied_forces[VP] += Fext
             self.applied_forces[WP] += Mext
@@ -1223,6 +1251,8 @@ def solve_system(system, tvals, outputs=None):
     # By default, output DOFs
     if outputs is None:
         all_outputs = lambda s: s.q[iDOF]
+    elif outputs == 'vels':
+        all_outputs = lambda s: np.r_[ s.q[iDOF], s.qd[iDOF] ]
     else:
         all_outputs = lambda s: np.r_[ s.q[iDOF], outputs(s) ]
 
