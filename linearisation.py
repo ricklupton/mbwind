@@ -308,11 +308,10 @@ class ModalRepresentation(object):
         mass_axis : array(`N_x` x 2)
             Y- and Z- coordinates of centre of mass at each point
             
-        section_inertia : array(`N_x` x 3 x 3)
-            Inertia / linear mass of cross-sections, depending on shape:
-             * (`N_x` x 3 x 3): local inertia tensor
-             * (`N_x` x 2): two perpendicular moments of inertia
-             * (`N_x`): one moment of inertia, used for both directions
+        section_inertia : array (`N_x` x 2) or (`N_x`)
+            Radii of gyration of cross-sections, depending on shape:
+             * (`N_x` x 2): two perpendicular radii of gyration
+             * (`N_x`): one radius of gyration, used for both directions
 
         freqs : array (`N_modes`)
             Array of modal frequencies
@@ -328,16 +327,15 @@ class ModalRepresentation(object):
         if damping is None:
             damping = zeros(len(freqs))
             
-        if section_inertia.ndim != 3:
-            newsec = zeros((len(x),3,3))
-            if section_inertia.ndim == 2:
-                newsec[:,1,1] = section_inertia[:,0]
-                newsec[:,2,2] = section_inertia[:,1]
-            else:
-                newsec[:,1,1] = section_inertia
-                newsec[:,2,2] = section_inertia                
-            newsec[:,0,0] = newsec[:,1,1] + newsec[:,2,2]
-            section_inertia = newsec
+        
+        newsec = zeros((len(x),3,3))
+        if section_inertia.ndim == 1:
+            newsec[:,1,1] = section_inertia
+            newsec[:,2,2] = section_inertia
+        else:
+            newsec[:,1,1] = section_inertia[0]
+            newsec[:,2,2] = section_inertia[1]         
+        section_inertia = newsec
 
         self.x = x
         self.shapes = shapes

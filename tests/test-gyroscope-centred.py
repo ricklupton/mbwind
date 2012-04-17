@@ -2,7 +2,8 @@
 """
 Created on Tue 3 Apr 2012
 
-Test modelling of a gyroscope and precession/nutation.
+Test modelling of a gyroscope and precession/nutation, with the centre of 
+gravity located at the centre of the gymbals, and a mass at the end
 
 System consists of 3 hinges at origin about 3 axes to allow the gyroscope to
 spin, tilt in elevation and rotate in azimuth.
@@ -23,33 +24,37 @@ if '..' not in sys.path: sys.path.insert(0,'..')
 
 import numpy as np
 
-from dynamics import (System, Hinge, UniformBeam, RigidBody,
-                      ModalElement, solve_system, gravity)
+from dynamics import (System, Hinge, UniformBeam, RigidBody, RigidConnection,
+                      ModalElement, solve_system, gravity, rotmat_y)
 import dynvis
 import linearisation
 
 import matplotlib.pylab as plt
 
 class Gyroscope(object):
-    def __init__(self, length, radius, mass, spin):
+    def __init__(self, length, radius, mass, spin, endmass):
         self.length = length
         self.radius = radius
         self.mass = mass
         self.spin = spin
+        self.endmass = endmass
 
-        Jx = radius**2 / 2
-        Jyz = (3*radius**2 + length**2) / 12
-        Jyz_0 = Jyz + (length/2)**2 # parallel axis theorem
-        inertia = mass * np.diag([Jx, Jyz_0, Jyz_0])
+        Jz = radius**2 / 2
+        Jxy = (3*radius**2 + length**2) / 12
+        inertia = mass * np.diag([Jxy, Jxy, Jz])
 
         self.bearing = Hinge('bearing', [0,0,1])
         self.pivot   = Hinge('pivot',   [0,1,0])
-        self.axis    = Hinge('axis',    [1,0,0])
-        self.body    = RigidBody('body', mass, inertia, [length/2, 0, 0])
+        self.axis    = Hinge('axis',    [0,0,1])
+        self.body    = RigidBody('body', mass, inertia)
+        self.offset  = RigidConnection('offset', [0,0,length/2])
+        self.endbody = RigidBody('end', endmass)
 
         self.bearing.add_leaf(self.pivot)
         self.pivot.add_leaf(self.axis)
         self.axis.add_leaf(self.body)
+        self.pivot.add_leaf(self.offset)
+        self.offset.add_leaf(self.endbody)
         self.system = System(self.bearing)
 
         # Prescribed DOF accelerations
@@ -75,22 +80,27 @@ class Gyroscope(object):
                            (0,vs), (-l,l), (-l,l), velocities=False)
 
 class BeamGyroscope(Gyroscope):
-    def __init__(self, length, radius, mass, spin):
+    def __init__(self, length, radius, mass, spin, endmass):
         self.length = length
         self.radius = radius
         self.mass = mass
         self.spin = spin
+        self.endmass = endmass
         Jx = mass * radius**2 / 2
 
         self.bearing = Hinge('bearing', [0,0,1])
         self.pivot   = Hinge('pivot',   [0,1,0])
+        self.offset  = RigidConnection('offset', [-length/2,0,0])
         self.axis    = Hinge('axis',    [1,0,0])
         self.body    = UniformBeam('body', length, mass/length,
                                    1, 1, 1, Jx=Jx/2) # /2 because added to both ends
+        self.endbody = RigidBody('end', endmass)
 
         self.bearing.add_leaf(self.pivot)
-        self.pivot.add_leaf(self.axis)
+        self.pivot.add_leaf(self.offset)
+        self.offset.add_leaf(self.axis)
         self.axis.add_leaf(self.body)
+        self.offset.add_leaf(self.endbody)
         self.system = System(self.bearing)
 
         # Prescribed DOF accelerations
@@ -98,13 +108,14 @@ class BeamGyroscope(Gyroscope):
         self.system.prescribe(self.body.istrain, 0.0) # rigid beam
 
 class ModalGyroscope(Gyroscope):
-    def __init__(self, length, radius, mass, spin):
+    def __init__(self, length, radius, mass, spin, endmass):
         self.length = length
         self.radius = radius
         self.mass = mass
         self.spin = spin
+        self.endmass = endmass
 
-        x = np.linspace(0, length)
+        x = np.linspace(-length/2, length/2)
         modes = linearisation.ModalRepresentation(
             x             =x,
             shapes        =np.zeros((len(x),3,0)),
@@ -117,12 +128,16 @@ class ModalGyroscope(Gyroscope):
 
         self.bearing = Hinge('bearing', [0,0,1])
         self.pivot   = Hinge('pivot',   [0,1,0])
-        self.axis    = Hinge('axis',    [1,0,0])
+        self.axis    = Hinge('axis',    [0,0,1], rotmat_y(-np.pi/2))
         self.body    = ModalElement('body', modes)
+        self.offset  = RigidConnection('offset', [0,0,length/2])
+        self.endbody = RigidBody('end', endmass)
 
         self.bearing.add_leaf(self.pivot)
         self.pivot.add_leaf(self.axis)
         self.axis.add_leaf(self.body)
+        self.pivot.add_leaf(self.offset)
+        self.offset.add_leaf(self.endbody)
         self.system = System(self.bearing)
 
         # Prescribed DOF accelerations
@@ -132,21 +147,29 @@ class ModalGyroscope(Gyroscope):
 length = 3.0
 radius = 1.0
 mass = 100.0
-spin = 30.0
+spin = 20.0
+endmass = 0.5
 
-bg = BeamGyroscope(length, radius, mass, spin)
-mg = ModalGyroscope(length, radius, mass, spin)
-gg = Gyroscope(length, radius, mass, spin)
+#bg = BeamGyroscope(length, radius, mass, spin, endmass)
+#mg = ModalGyroscope(length, radius, mass, spin, endmass)
+#gg = Gyroscope(length, radius, mass, spin, endmass)
+
+elevation = np.radians(20)
 
 # Theory
 spin_inertia = mass * radius**2 / 2
-cross_inertia = mass * (3*radius**2 + length**2) / 12
-spin_velocity = 10
-torque = mass * gravity * length/2
-precession = torque / (spin_inertia * spin_velocity)
-nutation = cross_inertia * spin_velocity / spin_inertia
+cross_inertia = mass * ((3*radius**2 + length**2) / 12)
+torque = endmass * gravity * length/2 * np.sin(elevation)
+precession = torque / (spin_inertia * spin * np.sin(elevation))
+nutation = spin_inertia * spin / (cross_inertia * np.cos(elevation))
 
-# Want to test linearisation too?
+prec2 = (spin*spin_inertia*np.sin(elevation) - np.sqrt(
+            (spin*spin_inertia*np.sin(elevation))**2 - \
+            4*(cross_inertia-spin_inertia)*np.sin(elevation)*np.cos(elevation)*torque
+        )) / \
+        (2*(cross_inertia-spin_inertia)*np.sin(elevation)*np.cos(elevation))
+
+# Linearise?
 #bl = linearisation.LinearisedSystem(bg.system)
 #ml = linearisation.LinearisedSystem(mg.system)
 #gl = linearisation.LinearisedSystem(gg.system)
@@ -156,24 +179,20 @@ def test():
     print '--------------'
     print 'GYROSCOPE TEST'
     print '--------------'
-    gg.simulate()
-    mg.simulate()
-    bg.simulate()
+    gg.simulate(elevation)
+    mg.simulate(elevation)
+    bg.simulate(elevation)
     print 'done.\n\n'
 
     print "Comparing to RigidBody results. Should have some theory too..."
-    print "ModalElement: ", np.allclose(gg.y, mg.y, atol=1e-2) and "ok" or "FAIL"
-    print "UniformBeam:  ", np.allclose(gg.y, bg.y, atol=1e-2) and "ok" or "FAIL"
+    print "ModalElement: ", np.allclose(gg.y, mg.y, atol=1e-4) and "ok" or "FAIL"
+    print "UniformBeam:  ", np.allclose(gg.y, bg.y, atol=1e-4) and "ok" or "FAIL"
 
 def plotresults(gyro, title=None, velocity=False):
     # Theory
-    spin_inertia = gyro.mass * gyro.radius**2 / 2
-    cross_inertia = gyro.mass * (3*gyro.radius**2 + gyro.length**2) / 12
-    spin_velocity = gyro.spin
-    torque = gyro.mass * gravity * gyro.length/2
-    precession = torque / (spin_inertia * spin_velocity)
-    nutation = cross_inertia * spin_velocity / spin_inertia
-    nutamp = 0.1
+    nutamp = 0.0001
+    aznut = nutamp*nutation*np.cos(nutation*gyro.t)
+    elnut = nutamp*nutation*np.sin(nutation*gyro.t)
 
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
@@ -181,18 +200,19 @@ def plotresults(gyro, title=None, velocity=False):
     
     if velocity:
         ax1.plot(gyro.t, gyro.y[:,3], 'b',
-                 gyro.t, np.ones_like(gyro.t)*precession, 'b:')
+                 gyro.t, np.ones_like(gyro.t)*precession + aznut, 'b:')
         ax1.set_ylabel('Azimuth rate (rad/s)')
         ax2.plot(gyro.t, -gyro.y[:,4], 'r',
-                 gyro.t, -nutamp*np.sin(nutation*gyro.t),'r--')
+                 gyro.t, -elnut, 'r--')
         ax2.set_ylabel('Elevation rate (rad/s)')
     else:
         ax1.plot(gyro.t, np.degrees(gyro.y[:,0] % (2*np.pi)), 'b',
-                 gyro.t, np.degrees((gyro.t*precession) % (2*np.pi)), 'b:')
-        ax1.set_ylim((0,360))            
+                 gyro.t, np.degrees((gyro.t*precession + aznut) % (2*np.pi)), 'b:')
+        #ax1.set_ylim((0,360))            
         ax1.set_ylabel('Azimuth / deg')
-        ax2.plot(gyro.t, -np.degrees(gyro.y[:,1] % (2*np.pi)), 'r')
-        ax2.set_ylim((-90,10))
+        ax2.plot(gyro.t, np.degrees(gyro.y[:,1]), 'r',
+                 gyro.t, np.degrees(elevation-elnut-nutamp),'r--')
+        #ax2.set_ylim((80,90))
         ax2.set_ylabel('Elevation / deg')
     
     ax1.set_xlabel('Time / s')
@@ -201,9 +221,9 @@ def plotresults(gyro, title=None, velocity=False):
 
 
 def showplots(velocity=False):
-    gg.plot('RigidBody gyroscope 3m x 1m, 100kg, spinning at 10 rad/s', velocity)
-    mg.plot('ModalElement gyroscope 3m x 1m, 100kg, spinning at 10 rad/s', velocity)
-    bg.plot('UniformBeam gyroscope 3m x 1m, 100kg, spinning at 10 rad/s', velocity)
+    plotresults(gg, 'RigidBody gyroscope 3m x 1m, 100kg, spinning at 20 rad/s', velocity)
+    plotresults(mg, 'ModalElement gyroscope 3m x 1m, 100kg, spinning at 20 rad/s', velocity)
+    plotresults(bg, 'UniformBeam gyroscope 3m x 1m, 100kg, spinning at 20 rad/s', velocity)
     plt.show()
 
 if __name__ == '__main__':
