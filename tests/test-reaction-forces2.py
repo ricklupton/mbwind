@@ -66,12 +66,12 @@ def force_slider_prox(s):
   
 # Solver
 integ = Integrator(system, ('pos','vel','acc'))
-integ.add_force_output(slider.iprox, "slider prox")
-integ.add_force_output(link.iprox, "link prox")
-integ.add_force_output(body.iprox, "body prox")
-integ.add_custom_output(force_slider_prox, "correct slider prox")
-integ.add_custom_output(force_link_prox, "correct link prox")
-integ.add_custom_output(force_body_prox, "correct body prox")
+integ.add_force_output(slider.iprox)
+integ.add_force_output(link.iprox)
+integ.add_force_output(body.iprox)
+integ.add_custom_output(force_slider_prox, "correct ground")
+integ.add_custom_output(force_link_prox, "correct slider distal")
+integ.add_custom_output(force_body_prox, "correct link distal")
 
 def ani_xy(s,t,y):
     return dynvis.anim(s, t, y, (0,1), (-5,45), (-5,5), velocities=False)
@@ -88,37 +88,37 @@ def p():
     # reaction forces vs predictions - base of slider        
     ax = fig.add_subplot(321)
     ax.set_color_cycle(['r','g','b'])
-    ax.plot(t,y[:,3:6],t,y[:,21:24],'k--')
+    ax.plot(t,y[3][:3].T, t,y[6][:3].T,'k--')
     ax.set_title('Slider prox')
 
     # reaction forces vs predictions - base of slider moments
     ax = fig.add_subplot(322)
     ax.set_color_cycle(['r','g','b'])
-    ax.plot(t,y[:,6:9],t,y[:,24:27],'k--')
+    ax.plot(t,y[3][3:].T, t,y[6][3:].T,'k--')
     ax.set_title('- moments')
 
     # reaction forces vs predictions - base of link        
     ax = fig.add_subplot(323)
     ax.set_color_cycle(['r','g','b'])
-    ax.plot(t,y[:,9:12],t,y[:,27:30],'k--')
+    ax.plot(t,y[4][:3].T, t,y[7][:3].T,'k--')
     ax.set_title('Link prox - forces')
 
     # reaction forces vs predictions - base of link moments
     ax = fig.add_subplot(324)
     ax.set_color_cycle(['r','g','b'])
-    ax.plot(t,y[:,12:15],t,y[:,30:33],'k--')
+    ax.plot(t,y[4][3:].T, t,y[7][3:].T,'k--')
     ax.set_title('- moments')
     
     # reaction forces vs predictions - base of body        
     ax = fig.add_subplot(325)
     ax.set_color_cycle(['r','g','b'])
-    ax.plot(t,y[:,15:18],t,y[:,33:36],'k--')
+    ax.plot(t,y[5][:3].T, t,y[8][:3].T,'k--')
     ax.set_title('Body prox - forces')
 
     # reaction forces vs predictions - base of body moments
     ax = fig.add_subplot(326)
     ax.set_color_cycle(['r','g','b'])
-    ax.plot(t,y[:,18:21],t,y[:,36:39],'k--')
+    ax.plot(t,y[5][3:].T, t,y[8][3:].T,'k--')
     ax.set_title('- moments')
     
     ax.legend(('x','y','z'))
