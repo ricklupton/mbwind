@@ -304,10 +304,10 @@ class System(object):
         if dynamics:
             assemble.assemble(self.iter_elements(), self.mass, self.rhs)
 
-        # Set prescribed accelerations XXX shouldn't need to update twice!
-        self.calc_projections()
-        self.qdd[self.iReal] = self.Sc
-        self.first_element.update(rp, Rp, vp, ap, dynamics)
+            # Set prescribed accelerations XXX shouldn't need to update twice!
+            self.calc_projections()
+            self.qdd[self.iReal] = self.Sc
+            self.first_element.update(rp, Rp, vp, ap, dynamics)
 
         #if dynamics:
         #    Nq = len(self.state_elements)
@@ -1344,82 +1344,91 @@ class Integrator(object):
         self.integrator.set_integrator(method)
         
         # By default, output DOFs
+        idof = np.nonzero(self.system.iDOF)[0]
         if 'pos' in outputs:
-            self.add_position_output(self.system.iDOF)
+            for i in idof: self.add_position_output(i)
         if 'vel' in outputs:
-            self.add_velocity_output(self.system.iDOF)
+            for i in idof: self.add_velocity_output(i)
         if 'acc' in outputs:
-            self.add_acceleration_output(self.system.iDOF)
+            for i in idof: self.add_acceleration_output(i)
     
     def add_custom_output(self, output, label=None):
         self.custom_outputs.append(output)
         if label is None:
             label = "Other output {}".format(chr(ord('A')+self._custom_label_counter))
             self._custom_label_counter += 1
-        nout = len(output(self.system))
-        self.custom_labels.extend(["{} {}".format(label, i+1) for i in range(nout)])
+        self.custom_labels.append(label)
 
-    def _add_output(self, outputs, labels, ind, label=None, prefix=""):
+    def _add_output(self, outputs, labels, ind, label=None, prefix="", local=False):
         ind = np.atleast_1d(ind)
-        if ind.dtype == bool:
-            ind = np.nonzero(ind)[0]
-        for i,index in enumerate(ind):
-            outputs.append(index)
-            if label is None:
-                ilab = prefix + self._describe(index)
-            else:
-                ilab = "%s %d" % (label, i+1)
-            labels.append(ilab)
+        if local:
+            assert len(ind) == 6
+        outputs.append((ind,local))
+        if label is None:
+            label = prefix + self._describe(ind[0]) + (local and " [local]" or "")
+        labels.append(label)
             
+    def _get_output(self, q, ind, local):
+        output = q[ind]
+        if local:
+            assert len(output) == 6
+            el = self.system.state_elements[ind[0]]
+            F = dot(el.Rd.T, output[:3])
+            M = dot(el.Rd.T, output[3:])
+            output = np.r_[ F, M ]
+        return output
+        
     def outputs(self):
         outputs = []
-        if self.position_outputs:
-            outputs.append(self.system.q[self.position_outputs])
-        if self.velocity_outputs:
-            outputs.append(self.system.qd[self.velocity_outputs])
-        if self.acceleration_outputs:
-            outputs.append(self.system.qdd[self.acceleration_outputs])
-        if self.force_outputs:
-            outputs.append(self.system.joint_reactions[self.force_outputs])
+        for ind,local in self.position_outputs:
+            outputs.append(self._get_output(self.system.q, ind, local))
+        for ind,local in self.velocity_outputs:
+            outputs.append(self._get_output(self.system.qd, ind, local))
+        for ind,local in self.acceleration_outputs:
+            outputs.append(self._get_output(self.system.qdd, ind, local))
+        for ind,local in self.force_outputs:
+            outputs.append(self._get_output(self.system.joint_reactions, ind, local))
         for func in self.custom_outputs:
             outputs.append(func(self.system))
-        return np.r_[ tuple(outputs) ]
+        return outputs
     
     def labels(self):
         return (self.position_labels + self.velocity_labels +
                 self.acceleration_labels + self.force_labels+ self.custom_labels)
         
-    def add_position_output(self, ind, label=None):
+    def add_position_output(self, ind, label=None, local=False):
         self._add_output(self.position_outputs, self.position_labels,
-                         ind, label)
+                         ind, label, local=local)
     
-    def add_velocity_output(self, ind, label=None):
+    def add_velocity_output(self, ind, label=None, local=False):
         self._add_output(self.velocity_outputs, self.velocity_labels,
-                         ind, label, "d/dt ")
+                         ind, label, "d/dt ", local=local)
     
-    def add_acceleration_output(self, ind, label=None):
+    def add_acceleration_output(self, ind, label=None, local=False):
         self._add_output(self.acceleration_outputs, self.acceleration_labels,
-                         ind, label, "d2/dt2 ")
+                         ind, label, "d2/dt2 ", local=local)
                          
-    def add_force_output(self, ind, label=None):
+    def add_force_output(self, ind, label=None, local=False):
         self._add_output(self.force_outputs, self.force_labels,
-                         ind, label, "Load ")    
+                         ind, label, "Load ", local=local)    
     
     def _describe(self, ind):
         element = self.system.state_elements[ind]
         type_ = self.system.state_types[ind]
+        loads = ('Fx','Fy','Fz','Mx','My','Mz')
         if type_ == 'ground':
-            elind = ind
-            element = '<Ground>'
+            return 'ground node {}'.format(loads[ind])
         elif type_ == 'node':
-            elind = element.iprox.index(ind)
+            elind = element.idist.index(ind)
+            return '{!r} distal node #{} {}'.format(element, int(elind/6) + 1,
+                                                    loads[elind%6])
         elif type_ == 'strain':
             elind = element.istrain.index(ind)
+            return '{!r} strain #{}'.format(element, elind+1)
         elif type_ == 'constraint':
             elind = element.imult.index(ind)
-        else:
-            assert False
-        return " ".join((repr(element), type_, str(elind)))
+            return '{!r} constraint #{}'.format(element, elind+1)
+        assert False
                 
     def _func(self, ti, y):
         iDOF = self.system.iDOF
@@ -1447,10 +1456,12 @@ class Integrator(object):
         self.system.solve() # prescriptions?
         self.system.solve_reactions()
         
-        y0 = self.outputs()
+        initial_outputs = self.outputs()
         self.t = tvals
-        self.y = zeros((len(tvals), len(y0)))
-        self.y[0,:] = y0
+        self.y = []
+        for y0 in initial_outputs:
+            self.y.append(zeros((len(y0),len(tvals))))
+            self.y[-1][:,0] = y0
         
         iDOF = self.system.iDOF
         
@@ -1471,7 +1482,8 @@ class Integrator(object):
             self.system.update(t,False) # solve kinematics
             if self.force_outputs:
                 self.system.solve_reactions()
-            self.y[it,:] = self.outputs()
+            for y,out in zip(self.y, self.outputs()):
+                y[:,it] = out
             if nprint is not None and (it % nprint) == 0:
                 sys.stdout.write('.'); sys.stdout.flush()
         

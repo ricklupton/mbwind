@@ -79,11 +79,15 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, velocities=True, only_f
 
     if only_free: iDOF = system.iFreeDOF
     else: iDOF = system.iDOF
-    N = np.count_nonzero(iDOF)
+    iDOF = np.nonzero(iDOF)[0]
+    N = len(iDOF)
+    print iDOF, N
     def animate(i):
-        system.q[iDOF] = yy[i,:N]
+        for j,k in enumerate(iDOF):
+            system.q[k] = yy[j][0,i]
         if velocities:
-            system.qd[iDOF] = yy[i,N:]
+            for j,k in enumerate(iDOF):
+                system.qd[k] = yy[N+j][0,i]
         system.update(tt[i], False)
 
         for el,ellines in lines:
@@ -94,7 +98,7 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, velocities=True, only_f
 
         return [line for line in ellines for el,ellines in lines] + [time_text]
 
-    ani = animation.FuncAnimation(fig, animate, np.arange(1, yy.shape[0]),
+    ani = animation.FuncAnimation(fig, animate, np.arange(1, yy[0].shape[1]),
         interval=tt[1]-tt[0]*1000*1, blit=False, init_func=init, repeat=False)
     return ani
 
