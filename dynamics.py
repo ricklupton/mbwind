@@ -110,7 +110,15 @@ class System(object):
         self.time = 0.0
 
         # Prescribe ground node to be fixed by default
-        self.prescribed_accels = {i: 0.0 for i in range(6)}
+        # velocity and acceleration
+        # actually (-b,-c), where
+        #   b = -\phi_t, i.e. partial derivative of constraint wrt time
+        #   c = -\dot{\phi_t} - \dot{phi_q}\dot{q}
+        # assuming these constraints relate only to a single DOF, then the
+        # second term in c is zero, and c is just the time derivative of b.
+        # Either scalars of a callable can be supplied. The callable will be
+        # called with the current time at each step.
+        self.prescribed_dofs = {i: (0.0,0.0) for i in range(6)}
 
         self.iDOF = array([], dtype=bool)
 
@@ -165,7 +173,7 @@ class System(object):
         self.iDOF[self.states_by_type['strain']] = True
 
         # prescribed strains
-        ipres = list(self.prescribed_accels.keys())
+        ipres = list(self.prescribed_dofs.keys())
         self.iPrescribed[ipres] = True
 
         # real coords, node and strains
@@ -175,7 +183,7 @@ class System(object):
 
         # update B matrix
         indep_coords = [i for i in (self.states_by_type['ground'] + self.states_by_type['strain'])
-                          if i not in self.prescribed_accels]
+                          if i not in self.prescribed_dofs]
         B = zeros((len(indep_coords),len(self.qd)), dtype=bool)
         self.iFreeDOF = array(indep_coords)
         for iz,iq in enumerate(indep_coords):
@@ -185,26 +193,43 @@ class System(object):
 
 
     def get_constraints(self):
-        p = self.mass[np.ix_(~self.iReal,self.iReal)]
-        r = self.rhs[~self.iReal]
-        # add extra constraints for prescribed accelerations
+        """
+        Return constraint jacobian \Phi_q and the vectors b and c
+        """
+        # Constraints relating nodes defined by elements
+        # They don't vary partially with time, so b=0. c contains derivatives
+        # of constraint equations themselves.
+        P_nodal = self.mass[np.ix_(~self.iReal,self.iReal)]
+        c_nodal = self.rhs[~self.iReal]
+        b_nodal = np.zeros_like(c_nodal)
+        
+        # Add extra user-specified constraints for prescribed accelerations etc
+        # These are assumed to relate always to just one DOF.
         ipres_orig    = np.nonzero(self.iPrescribed)[0]
         ipres_reduced = np.nonzero(self.iPrescribed[self.iReal])[0]
-        pextra = np.zeros((len(ipres_orig), p.shape[1]))
-        rextra = np.zeros(len(ipres_orig))
-        for i in range(len(ipres_orig)): #,(idof,val) in enumerate(zip(ipres,self.prescribed_accels.values())):
-            pextra[i,ipres_reduced[i]] = 1
-            rextra[i] = self.prescribed_accels[ipres_orig[i]]
-        return np.r_[p,pextra], np.r_[r,rextra]
+        P_prescribed = np.zeros((len(ipres_orig), P_nodal.shape[1]))
+        c_prescribed = np.zeros(len(ipres_orig))
+        b_prescribed = np.zeros(len(ipres_orig))
+        for i in range(len(ipres_orig)):
+            b,c = self.prescribed_dofs[ipres_orig[i]]
+            if callable(c): c = c(self.time)
+            if callable(b): b = b(self.time)
+            P_prescribed[i,ipres_reduced[i]] = 1
+            c_prescribed[i] = c
+            b_prescribed[i] = b
+        
+        return (np.r_[P_nodal, P_prescribed],
+                np.r_[b_nodal, b_prescribed],
+                np.r_[c_nodal, c_prescribed])
 
     def calc_projections(self):
-        p,c = self.get_constraints()
-        SR = LA.inv(np.r_[p, self.B])
         f = self.B.shape[0]
-        S = SR[:,:-f]
+        P,b,c = self.get_constraints()
+        SR = LA.inv(np.r_[P, self.B])        
+        self.S = SR[:,:-f]
         self.R = SR[:,-f:]
-        self.Sc = dot(S,c)
-        self.Sb = 0*self.Sc
+        self.Sc = dot(self.S,c)
+        self.Sb = dot(self.S,b)
 
     def find_equilibrium(self):
         """
@@ -290,15 +315,20 @@ class System(object):
     def add_to_rhs(self, ind, vals):
         self.rhs[ind] += vals
 
-    def prescribe(self, ind, val):
+    def prescribe(self, ind, vel=0.0, acc=0.0):
         """
-        Prescribe the accelerations listed in ind to equal val.
-        They will be removed from the matrices when solving
+        Prescribe the DOFs listed in ind with the velocity and acceleration
+        constraints given.
+        
+        vel = -b = \phi_t, i.e. partial derivative of constraint wrt time
+        acc = -c = \dot{\phi_t} + \dot{phi_q}\dot{q}
+        
+        The specified DOFs will be removed from the matrices when solving.
         """
         for i in (np.iterable(ind) and ind or [ind]):
             if self.state_types[i] not in ('ground','strain'):
                 raise Exception('Only ground node and strains can be prescribed')
-            self.prescribed_accels[i] = val
+            self.prescribed_dofs[i] = (vel, acc)
         self._update_indices()
 
     def free(self, ind):
@@ -306,7 +336,7 @@ class System(object):
         Remove a prescription
         """
         for i in (np.iterable(ind) and ind or [ind]):
-            del self.prescribed_accels[i]
+            del self.prescribed_dofs[i]
         self._update_indices()
 
     def solve(self):
@@ -314,14 +344,16 @@ class System(object):
         Solve for free accelerations, taking account of any prescribed accelerations
         '''
 
+        self.calc_projections()
         self.qdd[:] = 0.0
-        for i,a in self.prescribed_accels.items():
-            self.qdd[i] = a
+        #for i,(vel,acc) in self.precribed_dofs.items():
+        #    self.qdd[i] = a
+        self.qdd[self.iReal] = self.Sc
+        #print self.Sc
 
         prescribed_acc_forces = dot(self.mass, self.qdd)
-        if np.any(np.nonzero(prescribed_acc_forces)):
-            assert False
-            print '* Prescribed acc forces:', np.nonzero(prescribed_acc_forces)
+        #if np.any(np.nonzero(prescribed_acc_forces)):
+        #    print '* Prescribed acc forces:', np.nonzero(prescribed_acc_forces)
 
         # remove prescribed acceleration entries from mass matrix and RHS
         # add the forces corresponding to prescribed accelerations back in
@@ -1241,60 +1273,159 @@ def rk4(derivs, y0, t):
         raise
     return yout
 
-def solve_system(system, tvals, outputs=None):
-    if not len(tvals) > 0:
-        return
+class Integrator(object):
+    """
+    Solve and integrate a system, keeping track of which outputs are required.
+    """
+    def __init__(self, system, outputs=('pos',), method='dopri5'):
+        self.system = system
+        self.t = np.zeros(0)
+        self.y = np.zeros((0,0))
+        
+        self.position_outputs = []
+        self.velocity_outputs = []
+        self.acceleration_outputs = []
+        self.force_outputs = []
+        self.custom_outputs = []
+        self.position_labels = []
+        self.velocity_labels = []
+        self.acceleration_labels = []
+        self.force_labels = []
+        self.custom_labels = []
+        
+        self.integrator = ode(self._func)
+        self.integrator.set_integrator(method)
+        
+        # By default, output DOFs
+        if 'pos' in outputs:
+            self.add_position_output(self.system.iDOF)
+        if 'vel' in outputs:
+            self.add_velocity_output(self.system.iDOF)
+        if 'acc' in outputs:
+            self.add_acceleration_output(self.system.iDOF)
+    
+    def add_custom_output(self, output, label=None):
+        self.custom_outputs.append(output)
+        if label is None:
+            label = "Other output {}".format(len(self.custom_outputs))
+        self.custom_labels.append(label)
 
-    iDOF = system.iDOF
-    nDOF = np.count_nonzero(iDOF)
-
-    # By default, output DOFs
-    if outputs is None:
-        all_outputs = lambda s: s.q[iDOF]
-    elif outputs == 'vels':
-        all_outputs = lambda s: np.r_[ s.q[iDOF], s.qd[iDOF] ]
-    else:
-        all_outputs = lambda s: np.r_[ s.q[iDOF], outputs(s) ]
-
-    def func(ti, y):
+    def _add_output(self, outputs, labels, ind, label=None, prefix=""):
+        ind = np.atleast_1d(ind)
+        if ind.dtype == bool:
+            ind = np.nonzero(ind)[0]
+        for i in ind:
+            outputs.append(i)
+            if label is None:
+                ilab = prefix + self._describe(i)
+            else:
+                ilab = "%s %d" % (label, i+1)
+            labels.append(ilab)
+            
+    def outputs(self):
+        outputs = []
+        if self.position_outputs:
+            outputs.append(self.system.q[self.position_outputs])
+        if self.velocity_outputs:
+            outputs.append(self.system.qd[self.velocity_outputs])
+        if self.acceleration_outputs:
+            outputs.append(self.system.qdd[self.acceleration_outputs])
+        for i in self.force_outputs:
+            el = self.system.state_elements[i]
+            iel = el.idist.index(i)
+            ma = dot(el.mass_vv, self.system.qdd[el.iprox+el.idist]) + dot(el.mass_ve, self.system.qdd[el.istrain])
+            outputs.append(ma[iel] - self.system.rhs[i])
+        for func in self.custom_outputs:
+            outputs.append(func(self.system))
+        return np.r_[ tuple(outputs) ]
+    
+    def labels(self):
+        return (self.position_labels + self.velocity_labels +
+                self.acceleration_labels + self.force_labels+ self.custom_labels)
+        
+    def add_position_output(self, ind, label=None):
+        self._add_output(self.position_outputs, self.position_labels,
+                         ind, label)
+    
+    def add_velocity_output(self, ind, label=None):
+        self._add_output(self.velocity_outputs, self.velocity_labels,
+                         ind, label, "d/dt ")
+    
+    def add_acceleration_output(self, ind, label=None):
+        self._add_output(self.acceleration_outputs, self.acceleration_labels,
+                         ind, label, "d2/dt2 ")
+                         
+    def add_force_output(self, ind, label=None):
+        self._add_output(self.force_outputs, self.force_labels,
+                         ind, label, "Load ")    
+    
+    def _describe(self, ind):
+        element = self.system.state_elements[ind]
+        type_ = self.system.state_types[ind]
+        if type_ == 'ground':
+            elind = ind
+            element = '<Ground>'
+        elif type_ == 'node':
+            elind = element.iprox.index(ind)
+        elif type_ == 'strain':
+            elind = element.istrain.index(ind)
+        elif type_ == 'constraint':
+            elind = element.imult.index(ind)
+        else:
+            assert False
+        return " ".join((repr(element), type_, str(elind)))
+                
+    def _func(self, ti, y):
+        iDOF = self.system.iDOF
+        nDOF = np.count_nonzero(iDOF)
+        
         # update system state with states and state rates
         # y constains [strains, d(strains)/dt]
-        system.q[iDOF]  = y[:nDOF]
-        system.qd[iDOF] = y[nDOF:]
-        system.update(ti)
+        self.system.q[iDOF]  = y[:nDOF]
+        self.system.qd[iDOF] = y[nDOF:]
+        self.system.update(ti) # kinematics and dynamics
 
         # solve system
-        system.solve()
+        self.system.solve()
 
         # new state vector is [strains_dot, strains_dotdot]
-        return np.r_[ system.qd[iDOF], system.qdd[iDOF] ]
+        return np.r_[ self.system.qd[iDOF], self.system.qdd[iDOF] ]
+    
+    def integrate(self, tvals, dt=None, nprint=20):
+        if not np.iterable(tvals):
+            assert dt is not None
+            tvals = np.arange(0, tvals, dt)
+        
+        # need this?
+        self.system.update(tvals[0])
+        
+        y0 = self.outputs()
+        self.t = tvals
+        self.y = zeros((len(tvals), len(y0)))
+        self.y[0,:] = y0
+        
+        iDOF = self.system.iDOF
+        
+        # Initial conditions
+        z0 = np.r_[ self.system.q[iDOF], self.system.qd[iDOF] ]
+        self.integrator.set_initial_value(z0, tvals[0])
+        
+        if nprint is not None:
+            print 'Running simulation:',
+            sys.stdout.flush()
+            tstart = time.clock()
+        
+        for it,t in enumerate(tvals[1:], start=1):
+            self.integrator.integrate(t)
+            if not self.integrator.successful():
+                print 'stopping'
+                break
+            self.system.update(t,False) # solve kinematics
+            self.y[it,:] = self.outputs()
+            if nprint is not None and (it % nprint) == 0:
+                sys.stdout.write('.'); sys.stdout.flush()
+        
+        if nprint is not None:
+            print 'done (%.1f seconds)' % (time.clock() - tstart)
 
-    system.update(tvals[0])
-
-    # Initial conditions
-    y0 = np.r_[ system.q[iDOF], system.qd[iDOF] ]
-
-    print 'Running simulation:',
-    sys.stdout.flush()
-    tstart = time.clock()
-
-    integrator = ode(func)
-    integrator.set_initial_value(y0, tvals[0])
-    integrator.set_integrator("dopri5")
-    result = -1 * zeros((len(tvals), len(all_outputs(system))))
-    result[0,:] = all_outputs(system)
-    nprint = 20
-    for it,t in enumerate(tvals[1:], start=1):
-        integrator.integrate(t)
-        if not integrator.successful():
-            print 'stopping'
-            break
-        system.update(t,False)
-        result[it,:] = all_outputs(system)
-        if (it % nprint) == 0:
-            sys.stdout.write('.'); sys.stdout.flush()
-
-    print 'done (%.1f seconds)' % (time.clock() - tstart)
-
-    return result
-
+        return self.t, self.y
