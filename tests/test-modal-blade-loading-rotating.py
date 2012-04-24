@@ -12,10 +12,11 @@ from __future__ import division
 import numpy as np
 from scipy.linalg import eig
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import matplotlib.gridspec as gridspec
 
 import dynamics
-from dynamics import System, ModalElement, solve_system, Hinge
+from dynamics import System, ModalElement, Integrator, Hinge
 from linearisation import ModalRepresentation
 from loading import BladeLoading
 import dynvis
@@ -51,18 +52,12 @@ system.qd[bearing.istrain] = rotorspeed
 
 system.find_equilibrium()
 
-# Define outputs
-def outputs(system):
-    defl = el.modes.X(el.xstrain)
-    loading = el._get_loading()
-    return np.r_[ defl[16,1], defl[16,2], defl[32,1], defl[32,2],
-                  loading[16,:], el.quad_forces, el.quad_stress ]
-
-# Run a simluation
-def simulate(system, t1=2.0, dt=0.005):
-    t = np.arange(0, t1, dt)
-    y = solve_system(system, t, outputs)
-    return t,y
+integ = Integrator(system, ())
+integ.add_position_output(bearing.istrain)
+integ.add_custom_output(lambda s: el.modes.X(el.xstrain)[(16,32),1:3].flatten(), 'defl')
+integ.add_custom_output(lambda s: el._get_loading()[16,:], 'loading')
+integ.add_custom_output(lambda s: el.quad_forces, 'quad_forces')
+integ.add_custom_output(lambda s: el.quad_stress, 'quad_stress')
 
 # Load Bladed data for comparison
 import pybladed.data
@@ -90,12 +85,12 @@ def doplot():
     fig = plt.figure()
     fig.set_size_inches(10,10,forward=True)
     gs = gridspec.GridSpec(7, 1)
-    
+
     fig.suptitle('Rotating blade with wind drag')
     ax1 = fig.add_subplot(gs[0:2,0])
-    ax1.plot(t, y[:,5], 'k', label='Mine')
+    ax1.plot(t, y[:,1], 'k', label='Mine')
     ax1.plot(t, bladed_defl[:len(t),0], 'k--', label='Bladed')
-    ax1.plot(t, y[:,7], 'b')
+    ax1.plot(t, y[:,3], 'b')
     ax1.plot(t, bladed_defl[:len(t),2], 'b--')
     ax1.set_ylabel('OOP Deflection / m')
     ax1.legend(frameon=False, loc='upper left')
@@ -103,12 +98,12 @@ def doplot():
     plt.setp(ax1.get_legend().get_texts(), fontsize='small')
 
     ax2 = fig.add_subplot(gs[2:4,0])
-    ax2.plot(t, y[:,6], 'k', label='Mine')
+    ax2.plot(t, y[:,2], 'k', label='Mine')
     ax2.plot(t, bladed_defl[:len(t),1], 'k--', label='Bladed')
-    ax2.plot(t, y[:,8], 'b')
+    ax2.plot(t, y[:,4], 'b')
     ax2.plot(t, bladed_defl[:len(t),3], 'b--')
     ax2.set_ylabel('IP Deflection / m')
-    
+
     ax3 = fig.add_subplot(gs[4:6,0])
     ax3.set_color_cycle(['r','g','b'])
     ax3.plot(wind_table[0], wind_table[2],'k:')
@@ -117,18 +112,70 @@ def doplot():
     ax3.set_xlim((0,3))
     ax3a = ax3.twinx()
     ax3a.set_color_cycle(['r','g'])
-    ax3a.plot(t, y[:,10:12], '-')
+    ax3a.plot(t, y[:,6:8], '-')
     ax3a.plot(t, bladed_defl[:len(t),5:7], '--x')
     ax3a.set_ylabel('Blade loading')
     ax3a.legend(('OOP','IP'),frameon=False,loc='lower right')
     ax3a.set_xlim((0,3))
     plt.setp(ax3a.get_legend().get_texts(), fontsize='small')
-    
+
     ax4 = fig.add_subplot(gs[6,0])
     ax4.plot(t, y[:,0], 'k', t, bladed_defl[:len(t),4], 'k--')
     ax4.set_xlabel('Time / s')
     ax4.set_ylabel('Rotor azimuth')
+
+def poster_plot():
+    fig = plt.figure()
+    fig.set_size_inches(260.0/25.4,240.0/25.4,forward=True)
+    fig.subplots_adjust(left=0.32, right=0.95, top=0.95)
+    gs = gridspec.GridSpec(7, 1)
     
+    plt.rc('font', size=20)
+    plt.rc('lines', linewidth=2)
+    labelrot = {'rotation': 'horizontal', 'multialignment': 'center'}
+
+    ax1 = fig.add_subplot(gs[3:5,0])
+    ax1.plot(t, y[:,3]*1e2, 'b', label='New code')
+    ax1.plot(t, bladed_defl[:len(t),2]*1e2, 'k--', label='Bladed')
+    ax1.set_ylabel('Out-of-plane\n(downwind)\ndeflection\n(cm)', labelpad=40, **labelrot)
+    ax1.legend(frameon=False, loc='lower right')
+    ax1.yaxis.set_major_locator(MaxNLocator(prune='lower',nbins=6))
+    #ax1.set_ylim((0,0.045))
+    plt.setp(ax1.get_legend().get_texts(), fontsize='small')
+    plt.setp(ax1, 'xticklabels', [])
+
+    ax2 = fig.add_subplot(gs[5:7,0])
+    ax2.plot(t, y[:,4]*1e2, 'b')
+    ax2.plot(t, bladed_defl[:len(t),3]*1e2, 'k--')
+    ax2.set_ylabel('Deflection in\nplane of rotation\n(cm)', labelpad=20, **labelrot)
+    ax2.set_xlabel('Time (s)')
+    ax2.yaxis.set_major_locator(MaxNLocator(prune='lower',nbins=6))
+
+    ax3 = fig.add_subplot(gs[0:1,0])
+    ax3.plot(wind_table[0], wind_table[2],'k')
+    ax3.set_ylabel('Wind speed\n(m/s)', labelpad=40, **labelrot)
+    ax3.set_ylim((0,25))
+    #ax3.yaxis.set_major_locator(MaxNLocator(prune='lower',nbins=3))
+    ax3.set_yticks([0,20])
+    plt.setp(ax3, 'xticklabels', [])
+    
+    ax3a = fig.add_subplot(gs[1:3,0])
+    ax3a.set_color_cycle(['r','g'])
+    ax3a.plot(t, y[:,6:8], '-')
+    ax3a.plot(t, bladed_defl[:len(t),5:7], 'k--')
+    ax3a.set_ylabel('Drag force\n(N/m)', labelpad=30, **labelrot)
+    ax3a.legend(('Out-of-plane','In-plane','Bladed'),frameon=False,loc='lower right')
+    ax3a.yaxis.set_major_locator(MaxNLocator(prune='lower',nbins=6))
+    plt.setp(ax3a.get_legend().get_texts(), fontsize='small')
+    plt.setp(ax3a, 'xticklabels', [])
+
+    #ax4 = fig.add_subplot(gs[6,0])
+    #ax4.plot(t, y[:,0], 'k', t, bladed_defl[:len(t),4], 'k--')
+    #ax4.set_xlabel('Time / s')
+    #ax4.set_ylabel('Rotor azimuth')
+    
+    fig.savefig('modal-blade-loading-rotating.pdf')
+
 if False:
-    t,y = simulate(system, 10, 0.05)
+    t,y = integ.integrate(10, 0.05)
 
