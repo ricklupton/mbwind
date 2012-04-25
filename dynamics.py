@@ -98,17 +98,115 @@ NQ = 12
 # number of generalised velocity coordinates: 3 spatial plus 3 angular velocity
 NQD = 6
 
+#class StateArray(object):
+#    def __init__(self):
+#        self.reset()
+#    
+#    def __getitem__(self, index):
+#        if self._array is None:
+#            raise RuntimeError("Need to call allocate() first")
+#        if index in self.index_map:
+#            print "Remapping {} to {}".format(index, self.index_map[index])
+#            index = self.index_map[index]
+#        return self._array[index]
+#    
+#    def __setitem__(self, index, value):
+#        if self._array is None:
+#            raise RuntimeError("Need to call allocate() first")
+#        if index in self.index_map:
+#            print "Remapping {} to {}".format(index, self.index_map[index])
+#            index = self.index_map[index]
+#        self._array[index] = value
+#    
+#    def allocate(self):
+#        if self._array not is None:
+#            raise RuntimeError("Already allocated")
+#        N = len(self.elements)
+#        self._array = np.array(N)
+#    
+#    def reset(self):
+#        self.owners = []
+#        self.types = []
+#        self.index_map = {}
+#        self._array = None
+#    
+#    def new_states(self, owner, type_, num):
+#        if self._array is None:
+#            raise RuntimeError("Already allocated, call reset()")
+#        self.owners.extend( [owner]*num )
+#        self.types.extend ( [type_]*num )
+
+class StateArray(object):
+    def __init__(self):
+        self.reset()
+    
+    def indices(self, index):
+        if isinstance(index, basestring):
+            index = self.named_indices[index]
+        return index
+        
+    def __getitem__(self, index):
+        if self._array is None:
+            raise RuntimeError("Need to call allocate() first")
+        return self._array[self.indices(index)]
+    
+    def __setitem__(self, index, value):
+        if self._array is None:
+            raise RuntimeError("Need to call allocate() first")
+        self._array[self.indices(index)] = value
+    
+    def __len__(self):
+        return len(self.owners)
+    
+    def allocate(self):
+        if self._array is not None:
+            raise RuntimeError("Already allocated")
+        self._array = np.zeros(len(self))
+    
+    def reset(self):
+        self.owners = []
+        self.types = []
+        self.named_indices = {}
+        self._array = None
+    
+    def new_states(self, owner, type_, num, name=None):
+        if self._array is not None:
+            raise RuntimeError("Already allocated, call reset()")
+        self.owners.extend( [owner]*num )
+        self.types.extend ( [type_]*num )
+        if name is not None:
+            if name in self.named_indices:
+                raise KeyError("{} already exists".format(name))
+            N = len(self.owners)
+            self.named_indices[name] = slice(N-num, N)
+        
+    def indices_by_type(self, types):
+        "Return all states of the given type"
+        if not isinstance(types, (list,tuple)):
+            types = (types,)
+        return [i for i,t in enumerate(self.types) if t in types]
+    
+    def get_type(self, index):
+        types = self.types[self.indices(index)]
+        if not all([t == types[0] for t in types]):
+            raise ValueError("index refers to different types")
+        return types[0]
+
 class System(object):
     def __init__(self, first_element=None):
-        self.mass = array([]) # mass matrix
-        self.q = array([])
-        self.qd = array([])
-        self.qdd = array([])
-        self.joint_reactions = array([])
+        # State vectors
+        self.q = StateArray()
+        self.qd = StateArray()
+        self.qdd = StateArray()
+        # Joint reaction forces (ON prox node)
+        self.joint_reactions = StateArray()
+        
+        # System LHS matrix and RHS vector
+        self.lhs = array([]) 
+        self.rhs = array([])
+        
+        # Bookkeeping
         self.first_element = first_element
-        self.state_elements = []
-        self.state_types = []
-        self.states_by_type = defaultdict(list)
         self.time = 0.0
 
         # Prescribe ground node to be fixed by default
@@ -127,9 +225,10 @@ class System(object):
         if first_element is not None:
             self.init(first_element)
 
-    def print_states(self):
-        for i,(el,type_) in enumerate(zip(self.state_elements,
-                                          self.state_types)):
+    def print_states(self, q=False):
+        if q: states = self.q
+        else: states = self.qd
+        for i,(el,type_) in enumerate(zip(states.owners, states.types)):
             print '{:<5}{:<20}{:<20}'.format(i,el, type_)
 
     def iter_elements(self):
@@ -140,52 +239,72 @@ class System(object):
     def init(self, first_element):
         self.first_element = first_element
 
-        # Reset state book-keeping
-        self.state_elements = []
-        self.state_types = []
-        self.states_by_type = defaultdict(list)
-
+        # Reset state vectors
+        for states in (self.q, self.qd, self.qdd, self.joint_reactions):
+            states.reset()
+        self._node_counter = 0
+        
         # Set up first node
-        ground_ind = self.request_new_states(NQD, None, 'ground')
+        ground_ind = self._new_states(None, 'ground', NQD, NQ, 'ground')
 
         # Set up first element to use first node as its proximal node, and set up
         # all its children (who will call request_new_states)
         self.first_element.setup_chain(self, ground_ind)
 
         # Now number of states is known, can size matrices and vectors
-        Nq = len(self.state_elements)
-        #Nnodal = len(self.states_by_type['node'] + self.states_by_type['ground'])
-        self.q    = zeros(Nq)
-        self.qd   = zeros(Nq)
-        self.qdd  = zeros(Nq)
-        self.rhs  = zeros(Nq)
-        #self.mass = sparse.coo_matrix((Nq,Nq))
-        self.mass = zeros((Nq,Nq))
-
-        self.joint_reactions = zeros(Nq)
+        for states in (self.q, self.qd, self.qdd, self.joint_reactions):
+            states.allocate()
+        N = len(self.qd)
+        self.rhs  = zeros(N)
+        self.lhs = zeros((N,N))
         
-        self.iDOF = zeros(Nq, dtype=bool)
-        self.iPrescribed = zeros(Nq, dtype=bool)
+        self.iDOF = zeros(N, dtype=bool)
+        self.iPrescribed = zeros(N, dtype=bool)
         self._update_indices()
+        
+        # Give elements a chance to finish setting up (make views into global vectors)
+        for element in self.iter_elements():
+            element.finish_setup()
+
+    ##################################################################
+    ###   Book-keeping   #############################################
+    ##################################################################
+    def _new_states(self, elem, type_, num, num_q, name):
+        # Nodes have different number of entries in q vector than qd and qdd
+        self.q  .new_states(elem, type_, num_q, name)
+        self.qd .new_states(elem, type_, num  , name)
+        self.qdd.new_states(elem, type_, num  , name)
+        self.joint_reactions.new_states(elem, type_, num, name)
+        return name
+    
+    def request_new_node(self, elem):
+        name = 'node-{}'.format(self._node_counter)
+        self._node_counter += 1
+        return self._new_states(elem, 'node', NQD, NQ, name)
+    
+    def request_new_strains(self, elem, num):
+        name = elem.name + '-strains'
+        return self._new_states(elem, 'strain', num, num, name)
+    
+    def request_new_constraints(self, elem, num):
+        # make identifier for these states
+        name = elem.name + '-constraints'
+        return self._new_states(elem, 'constraint', num, num, name)
 
     def _update_indices(self):
-        self.iDOF[:] = False
         self.iPrescribed[:] = False
-
-        # degrees of freedom are all strains...
-        self.iDOF[self.states_by_type['strain']] = True
 
         # prescribed strains
         ipres = list(self.prescribed_dofs.keys())
         self.iPrescribed[ipres] = True
 
         # real coords, node and strains
-        ir = self.states_by_type['ground'] + self.states_by_type['node'] + self.states_by_type['strain']
+        ir = self.qd.indices_by_type(('ground', 'node', 'strain'))
         self.iReal = zeros(len(self.qd), dtype=bool)
         self.iReal[ir] = True
 
         # update B matrix
-        indep_coords = [i for i in (self.states_by_type['ground'] + self.states_by_type['strain'])
+        indep_coords = [i for i in self.qd.indices_by_type(('ground', 'strain'))
                           if i not in self.prescribed_dofs]
         B = zeros((len(indep_coords),len(self.qd)), dtype=bool)
         self.iFreeDOF = array(indep_coords)
@@ -226,6 +345,12 @@ class System(object):
                 np.r_[c_nodal, c_prescribed])
 
     def calc_projections(self):
+        """
+        Calculate the projection matrices S and R which map from indep. to all coords
+        
+        qd  = R zd  +  S b
+        qdd = R zdd +  S c
+        """
         f,n = self.B.shape
         P,b,c = self.get_constraints()
         SR = LA.inv(np.r_[P, self.B])        
@@ -233,6 +358,96 @@ class System(object):
         self.R = SR[:,n-f:]
         self.Sc = dot(self.S,c)
         self.Sb = dot(self.S,b)
+
+    def update_kinematics(self, time=None, calculate_matrices=True):
+        if time is not None:
+            self.time = time
+
+        # Update prescribed strains
+        for i,(b,c) in self.prescribed_dofs.items():
+            if callable(b): b = b(time)
+            if callable(c): c = c(time)            
+            self.qd [i] = b
+            self.qdd[i] = c
+
+        # Reset mass and constraint matrices if updating
+        if calculate_matrices:
+            self.lhs[:] = 0.0
+            self.rhs[:] = 0.0            
+
+        # Update kinematics
+        r0 = self.q[:3]
+        R0 = self.q[3:12].reshape((3,3))
+        r0[:] = 0.0
+        R0[:,:] = eye(3)
+        for element in self.iter_elements():
+            element.update(calculate_matrices)
+        
+        # Assemble mass matrices, constraint matrices and RHS vectors
+        if calculate_matrices:
+            assemble.assemble(self.iter_elements(), self.lhs, self.rhs)
+
+    def prescribe(self, ind, vel=0.0, acc=0.0):
+        """
+        Prescribe the DOFs listed in ind with the velocity and acceleration
+        constraints given.
+        
+        vel = -b = \phi_t, i.e. partial derivative of constraint wrt time
+        acc = -c = \dot{\phi_t} + \dot{phi_q}\dot{q}
+        
+        The specified DOFs will be removed from the matrices when solving.
+        """
+        ind = self.qd.indices(ind)
+        for i in range(ind.start, ind.stop):
+            if self.qd.types[i] not in ('ground','strain'):
+                raise Exception('Only ground node and strains can be prescribed')
+            self.prescribed_dofs[i] = (vel, acc)
+        self._update_indices()
+
+    def free(self, ind):
+        """
+        Remove a prescription
+        """
+        for i in self.qd.indices(ind):
+            del self.prescribed_dofs[i]
+        self._update_indices()
+
+    def solve_accelerations(self):
+        '''
+        Solve for free accelerations, taking account of any prescribed accelerations
+        '''
+
+        #self.calc_projections()
+        #self.qdd[:] = 0.0
+        #for i,(vel,acc) in self.precribed_dofs.items():
+        #    self.qdd[i] = a
+        #self.qdd[self.iReal] = self.Sc
+        #print self.Sc
+
+        prescribed_acc_forces = dot(self.lhs, self.qdd)
+        #if np.any(np.nonzero(prescribed_acc_forces)):
+        #    print '* Prescribed acc forces:', np.nonzero(prescribed_acc_forces)
+
+        # remove prescribed acceleration entries from mass matrix and RHS
+        # add the forces corresponding to prescribed accelerations back in
+        M = self.lhs[~self.iPrescribed,:][:,~self.iPrescribed]
+        b = (self.rhs - prescribed_acc_forces)[~self.iPrescribed]
+
+        # solve system for accelerations
+        a = LA.solve(M, b)
+        
+        new_qdd = self.qdd._array.copy()
+        new_qdd[~self.iPrescribed] = a
+        return new_qdd
+    
+    def solve_reactions(self):
+        """
+        Iterate backwards down tree solving for joint reaction forces.
+        Assumes the motion has been solved, i.e. used q, qd, and qdd
+        """
+        self.joint_reactions[:] = 0.0
+        for elem in reversed(list(self.iter_elements())):
+            elem.iter_reactions()
 
     def find_equilibrium(self):
         """
@@ -272,115 +487,6 @@ class System(object):
             }
         else:
             return dot(Mr, zdd) - Qr + dot(RtM, self.Sc)
-
-    def request_new_states(self, num, elem, type):
-        #print 'element %s requesting %d new "%s" states' % (elem, num, type)
-        n0 = len(self.state_elements)
-        self.state_elements.extend([elem]*num)
-        self.state_types.extend([type]*num)
-        indices = range(n0, len(self.state_elements))
-        self.states_by_type[type].extend(indices)
-        return indices
-
-    def update(self, time=None, dynamics=True):
-        if time is not None:
-            self.time = time
-
-        # Reset mass and constraint matrices if updating
-        if dynamics:
-            self.rhs[:]  = 0.0
-            #self._mass_i = []
-            #self._mass_j = []
-            #self._mass_v = []
-            self.mass[:] = 0.0
-
-        # Update kinematics
-        rp = np.zeros(3)
-        Rp = np.eye(3)
-        vp = np.zeros(NQD)
-        ap = np.zeros(NQD)
-        self.first_element.update(rp, Rp, vp, ap, dynamics)
-        
-        if dynamics:
-            assemble.assemble(self.iter_elements(), self.mass, self.rhs)
-
-            # Set prescribed accelerations XXX shouldn't need to update twice!
-            self.calc_projections()
-            self.qdd[self.iReal] = self.Sc
-            self.first_element.update(rp, Rp, vp, ap, dynamics)
-
-        #if dynamics:
-        #    Nq = len(self.state_elements)
-        #    self.mass = sparse.coo_matrix( (self._mass_v, (self._mass_i,self._mass_j)),
-        #                                   shape=(Nq,Nq) ).tocsr()
-
-    def add_to_matrix(self, xind, yind, vals):
-        #self._mass_i.extend(xind)
-        #self._mass_j.extend(yind)
-        #self._mass_v.extend(vals.tolist())
-        for iv,xi in enumerate(xind):
-            self.mass[xi,yind] += vals[iv,:]
-
-    def add_to_rhs(self, ind, vals):
-        self.rhs[ind] += vals
-
-    def prescribe(self, ind, vel=0.0, acc=0.0):
-        """
-        Prescribe the DOFs listed in ind with the velocity and acceleration
-        constraints given.
-        
-        vel = -b = \phi_t, i.e. partial derivative of constraint wrt time
-        acc = -c = \dot{\phi_t} + \dot{phi_q}\dot{q}
-        
-        The specified DOFs will be removed from the matrices when solving.
-        """
-        for i in (np.iterable(ind) and ind or [ind]):
-            if self.state_types[i] not in ('ground','strain'):
-                raise Exception('Only ground node and strains can be prescribed')
-            self.prescribed_dofs[i] = (vel, acc)
-        self._update_indices()
-
-    def free(self, ind):
-        """
-        Remove a prescription
-        """
-        for i in (np.iterable(ind) and ind or [ind]):
-            del self.prescribed_dofs[i]
-        self._update_indices()
-
-    def solve(self):
-        '''
-        Solve for free accelerations, taking account of any prescribed accelerations
-        '''
-
-        self.calc_projections()
-        self.qdd[:] = 0.0
-        #for i,(vel,acc) in self.precribed_dofs.items():
-        #    self.qdd[i] = a
-        self.qdd[self.iReal] = self.Sc
-        #print self.Sc
-
-        prescribed_acc_forces = dot(self.mass, self.qdd)
-        #if np.any(np.nonzero(prescribed_acc_forces)):
-        #    print '* Prescribed acc forces:', np.nonzero(prescribed_acc_forces)
-
-        # remove prescribed acceleration entries from mass matrix and RHS
-        # add the forces corresponding to prescribed accelerations back in
-        M = self.mass[~self.iPrescribed,:][:,~self.iPrescribed]
-        b = (self.rhs - prescribed_acc_forces)[~self.iPrescribed]
-
-        # solve system for accelerations
-        a = LA.solve(M, b)
-        self.qdd[~self.iPrescribed] = a
-    
-    def solve_reactions(self):
-        """
-        Iterate backwards down tree solving for joint reaction forces.
-        Assumes the motion has been solved, i.e. used q, qd, and qdd
-        """
-        self.joint_reactions[:] = 0.0
-        for elem in reversed(list(self.iter_elements())):
-            elem.iter_reactions()
 
 
 gravity = 9.81
@@ -433,6 +539,20 @@ class Element(object):
     def __repr__(self):
         return '<%s "%s">' % (self.__class__.__name__, self.name)
 
+    def _ind(self, i):
+        ind = self.system.qd.indices(i)
+        return range(ind.start, ind.stop)
+    def _iprox(self):
+        return self._ind(self.iprox)
+    def _idist(self):
+        if self.idist:
+            return self._ind(self.idist[0])
+        return []
+    def _istrain(self):
+        return self._ind(self.istrain)
+    def _imult(self):
+        return self._ind(self.imult)
+
     def add_leaf(self, elem, distnode=0):
         self.children[distnode].append(elem)
 
@@ -450,29 +570,44 @@ class Element(object):
             for child in node_children:
                 child.plot_chain(ax)
 
-    def setup_chain(self, sys, prox_indices):
-        assert len(prox_indices) == NQD # number of nodal coordinates
-        self.system = sys
+    def setup_chain(self, system, prox_indices):
+        self.system = system
         self.iprox = prox_indices
 
         # Request new states for constraint multipliers
-        self.imult = sys.request_new_states(self._nconstraints, self, 'constraint')
+        self.imult = system.request_new_constraints(self, self._nconstraints)
 
         # Request new states for internal strains
-        self.istrain = sys.request_new_states(self._nstrain, self, 'strain')
+        self.istrain = system.request_new_strains(self, self._nstrain)
 
         # Request new states for distal node coordinates
-        idist = [sys.request_new_states(NQD, self, 'node') for i in range(self._ndistal)]
-        # Just keep a flat list of distal nodal indices
-        self.idist = [i for sublist in idist for i in sublist]
-
+        self.idist = [system.request_new_node(self) for i in range(self._ndistal)]
+        
         # Pass onto children for each distal node
-        for inode,node_children in zip(idist,self.children):
+        for inode,node_children in zip(self.idist,self.children):
             for child in node_children:
-                child.setup_chain(sys, inode)
+                child.setup_chain(system, inode)
+        
+    def finish_setup(self):
+        system = self.system
+        
+        # Setup views into global arrays
+        self.rp = system.q[self.iprox][:3]
+        self.Rp = system.q[self.iprox][3:].reshape((3,3))
+        self.vp = system.qd[self.iprox]
+        self.ap = system.qdd[self.iprox]
+        self.xstrain = system.q[self.istrain]
+        self.vstrain = system.qd[self.istrain]
+        self.astrain = system.qdd[self.istrain]
+        
+        assert len(self.idist) <= 1
+        for idist in self.idist:
+            self.rd = system.q[idist][:3]
+            self.Rd = system.q[idist][3:].reshape((3,3))
+            self.vd = system.qd[idist]
+            self.ad = system.qdd[idist]
 
-    def _inodes(self): return self.iprox + self.idist
-    def _imass(self):  return self._inodes() + self.istrain
+        
 
     def _check_ranges(self):
         pass
@@ -480,55 +615,27 @@ class Element(object):
     def calc_external_loading(self):
         self._set_gravity_force()
 
-    def update(self, rp, Rp, vp, ap, matrices=True):
-        # proximal values
-        self.rp = rp
-        self.Rp = Rp
-        self.vp = vp
-        self.ap = ap
-
-        # strain rates and accelerations
+    def update(self, calculate_matrices=True):
+        
+        # check all strains are within range (e.g. wrap round)
         self._check_ranges()
-        self.xstrain = self.system.q[self.istrain]
-        self.vstrain = self.system.qd[self.istrain]
-        self.astrain = self.system.qdd[self.istrain]
-
+        
         # Calculate kinematic transforms
         self.calc_kinematics()
 
         # find distal node values in terms of proximal node values
         if self._ndistal > 0:
-            self.rd,self.Rd = self.distal_pos()
-            self.vd = dot(self.F_vp, self.vp     ) + \
-                      dot(self.F_ve, self.vstrain)
-            self.ad = dot(self.F_vp, self.ap     ) + \
-                      dot(self.F_ve, self.astrain) + self.F_v2
-
-            # Save back to system state vector
-            #self.system.q[self.idist] = self.xd
-            #self.system.qd[self.idist] = self.vd
+            self.calc_distal_pos()
+            self.vd[:] = dot(self.F_vp, self.vp     ) + \
+                         dot(self.F_ve, self.vstrain)
+            self.ad[:] = dot(self.F_vp, self.ap     ) + \
+                         dot(self.F_ve, self.astrain) + self.F_v2
 
         # Update mass and constraint matrices
-        if matrices:
+        if calculate_matrices:
             # Calculate
             self.calc_mass()
             self.calc_external_loading()
-
-            # Add to mass matrix
-            #self.system.add_to_matrix(self._imass(), self._imass(), self._mass_matrix         )
-            #self.system.add_to_matrix(self.imult,    self._imass(), self._constraint_matrix   )
-            #self.system.add_to_matrix(self._imass(), self.imult,    self._constraint_matrix.T )
-
-            # Add to RHS
-            #self.system.add_to_rhs(self._inodes(), self._applied_forces)
-            #self.system.add_to_rhs(self.istrain,  -self._applied_stresses)
-            #self.system.add_to_rhs(self._imass(),  self._quadratic_forces)
-            #self.system.add_to_rhs(self.imult,     self.F_v2)
-
-        # Pass onto children for each distal node
-        for node_children in self.children:
-            for child in node_children:
-                child.update(self.rd, self.Rd, self.vd, self.ad, matrices)
     
     def iter_reactions(self):
         """
@@ -540,24 +647,24 @@ class Element(object):
         elem = -dot(self.mass_vv, a_nodal) + -dot(self.mass_ve, self.astrain) +\
                        -self.quad_forces + self.applied_forces
          
-        # forces acting ON distal nodes
-        distal_forces = elem[6:] - self.system.joint_reactions[self.idist]
+        
         
         # calculate forces acting ON proximal nodes:
         #   Fprox + elem_forces_on_prox + sum of distal_forces = 0
         Fprox = -elem[0:3].copy()
         Mprox = -elem[3:6].copy()
-        for i in range(self._ndistal):
-            iforce  = slice(  6*i, 3+6*i)
-            imoment = slice(3+6*i, 6+6*i)
+        for i,dist in enumerate(self.idist):
+            # forces acting ON distal nodes
+            distal_forces = elem[6+6*i:12+6*i] - self.system.joint_reactions[dist]
             relcross = skewmat(self.rd[3*i:3*i+3] - self.rp)
-            Fprox += -distal_forces[iforce]
-            Mprox += -distal_forces[imoment]-dot(relcross,distal_forces[iforce])
+            Fprox += -distal_forces[:3]
+            Mprox += -distal_forces[3:]-dot(relcross,distal_forces[:3])
         
         #if self.name == 'offset':
         #    print self.ad, self.system.qdd[self.idist]
         
-        self.system.joint_reactions[self.iprox] += np.r_[ Fprox, Mprox ]
+        self.system.joint_reactions[self.system.qd.named_indices[self.iprox]] \
+            += np.r_[ Fprox, Mprox ]
 
     def _set_gravity_force(self):
         # include gravity by default
@@ -593,23 +700,20 @@ class Hinge(Element):
 
     def _check_ranges(self):
         return
-        xstrain = self.system.get_state(self.istrain, 0)
-        if xstrain[0] > 2*pi:
+        if self.xstrain[0] > 2*pi:
             print 'Wrapping downwards'
-            xstrain[0] -= 2*pi
-            self.system.set_state(self.istrain, xstrain, 0)
-        if xstrain[0] < 2*pi:
+            self.xstrain[0] -= 2*pi
+        if self.xstrain[0] < 2*pi:
             print 'Wrapping upwards'
-            xstrain[0] += 2*pi
-            self.system.set_state(self.istrain, xstrain, 0)
+            self.xstrain[0] += 2*pi
 
-
-    def distal_pos(self):
+    def calc_distal_pos(self):
         vs = skewmat(self.hinge_axis)
         th = self.xstrain[0]
         Rn = np.eye(3) + vs*np.sin(th) + 2*dot(vs,vs)*np.sin(th/2)**2
         Rc = self.post_transform
-        return self.rp, dot(self.Rp, dot(Rn, Rc))
+        self.rd[:] = self.rp
+        self.Rd[:,:] = dot(self.Rp, dot(Rn, Rc))
 
     def calc_kinematics(self):
         """
@@ -654,9 +758,10 @@ class PrismaticJoint(Element):
             post_transform = np.eye(3)
         self.post_transform = post_transform
 
-    def distal_pos(self):
+    def calc_distal_pos(self):
         n = dot(self.Rp, self.axis) # axis in global frame
-        return self.rp + self.xstrain[0]*n, dot(self.Rp, self.post_transform)
+        self.rd[:] = self.rp + self.xstrain[0]*n
+        self.Rd[:,:] = dot(self.Rp, self.post_transform)
 
     def calc_kinematics(self):
         """
@@ -700,14 +805,14 @@ class FreeJoint(Element):
         # Constant parts of transformation matrices
         self.F_ve = eye(6)
 
-    def distal_pos(self):
-        rd = self.rp + self.xstrain[0:3]
+    def calc_distal_pos(self):
         Rd = dot( dot(rotmat_z(self.xstrain[3]),
                       rotmat_y(self.xstrain[4])),
                       rotmat_x(self.xstrain[5]))
         if self.post_transform is not None:
             Rd = dot(Rd, self.post_transform)
-        return rd, Rd
+        self.rd[:] = self.rp + self.xstrain[0:3]
+        self.Rd[:,:] = Rd
 
     def calc_kinematics(self):
         """
@@ -758,10 +863,9 @@ class RigidConnection(Element):
         self.offset = offset
         self.rotation = rotation
 
-    def distal_pos(self):
-        rd = self.rp + dot(self.Rp, self.offset)
-        Rd = dot(self.Rp, self.rotation)
-        return rd, Rd
+    def calc_distal_pos(self):
+        self.rd[:] = self.rp + dot(self.Rp, self.offset)
+        self.Rd[:,:] = dot(self.Rp, self.rotation)
 
     def calc_kinematics(self):
         """
@@ -832,12 +936,6 @@ class RigidBody(Element):
         ## QUADRATIC FORCES ## (remaining terms)
         self.quad_forces[VP] = self.mass * dot(dot(wps,wps), xc)
         self.quad_forces[WP] = dot(wps, dot(Jp, self.vp[3:]))
-
-class ElementLoading(object):
-    '''
-    Define the loading applied to an element, e.g. wind drag loading on a beam
-    '''
-    pass
 
 # Slices to refer to parts of matrices
 VP = slice(0,3)
@@ -973,12 +1071,11 @@ class UniformBeam(Element):
         B = self._beam_qfuncs(s)
         return qrot3(dot(B, xstrain))
 
-    def distal_pos(self):
+    def calc_distal_pos(self):
         X  = array([self.length,0,0]) + self.xstrain[0:3]
         R  = qrot3(0.5*self.xstrain[3:6])
-        rd = self.rp + dot(self.Rp,X)
-        Rd = dot(self.Rp, R)
-        return rd, Rd
+        self.rd[:] = self.rp + dot(self.Rp,X)
+        self.Rd[:,:] = dot(self.Rp, R)
 
     def calc_kinematics(self):
         """
@@ -1326,6 +1423,134 @@ def rk4(derivs, y0, t):
         raise
     return yout
 
+class Output(object):
+    transformable = True
+    state_types = None
+    
+    def __init__(self, name, deriv=0, local=False):
+        assert deriv in (0,1,2)
+        self.name = name
+        self.deriv = deriv
+        self.local = local        
+    
+    def __call__(self, system):
+        q = self._get_state_vector(system)
+        if self.state_type is not None:
+            assert q.get_type(self.name) in self.state_types
+        output = q[self.name]
+        
+        if self.local:
+            if self.deriv == 0:
+                raise NotImplemented("What does that mean?")
+            else:
+                assert len(output) == NQD
+                R = system.q[self.name][3:].reshape((3,3))
+                v = dot(R.T, output[:3])
+                w = dot(R.T, output[3:])
+                output = np.r_[ v, w ]
+                
+        return output
+    
+class NodeOutput(object):
+    def __init__(self, state_name, deriv=0, local=False, label=None):
+        assert deriv in (0,1,2)
+        self.state_name = state_name
+        self.deriv = deriv
+        self.local = local      
+        self.label = label
+    
+    def __str__(self):
+        if self.label is not None:
+            return self.label
+        s = "node <{}>".format(self.state_name)
+        if self.deriv == 1: s = "d/dt " + s
+        if self.deriv == 2: s = "d2/dt2 " + s
+        if self.local: s += " [local]"
+        return s
+        
+    def __call__(self, system):
+        if   self.deriv == 0: q = system.q
+        elif self.deriv == 1: q = system.qd
+        elif self.deriv == 2: q = system.qdd
+        assert q.get_type(self.state_name) in ('node','ground')
+        output = q[self.state_name]
+        
+        if self.local:
+            if self.deriv == 0:
+                raise NotImplemented("What does that mean?")
+            else:
+                assert len(output) == NQD
+                R = system.q[self.state_name][3:].reshape((3,3))
+                v = dot(R.T, output[:3])
+                w = dot(R.T, output[3:])
+                output = np.r_[ v, w ]
+                
+        return output
+
+class StrainOutput(object):
+    def __init__(self, state_name, deriv=0, label=None):
+        assert deriv in (0,1,2)
+        self.state_name = state_name
+        self.deriv = deriv
+        self.label = label
+    
+    def __str__(self):
+        if self.label is not None:
+            return self.label
+        s = "strain <{}>".format(self.state_name)
+        if self.deriv == 1: s = "d/dt " + s
+        if self.deriv == 2: s = "d2/dt2 " + s
+        return s
+        
+    def __call__(self, system):
+        if   self.deriv == 0: q = system.q
+        elif self.deriv == 1: q = system.qd
+        elif self.deriv == 2: q = system.qdd
+        assert q.get_type(self.state_name) in ('strain')
+        output = q[self.state_name]
+        return output
+
+class LoadOutput(object):
+    def __init__(self, state_name, local=False, label=None):
+        self.state_name = state_name
+        self.local = local      
+        self.label = label
+    
+    def __str__(self):
+        if self.label is not None:
+            return self.label
+        s = "reaction load on <{}>".format(self.state_name)
+        if self.local: s += " [local]"
+        return s
+        
+    def __call__(self, system):
+        assert system.joint_reactions.get_type(self.state_name) in ('node','ground')
+        output = system.joint_reactions[self.state_name]
+        
+        if self.local:
+            assert len(output) == NQD
+            R = system.q[self.state_name][3:].reshape((3,3))
+            v = dot(R.T, output[:3])
+            w = dot(R.T, output[3:])
+            output = np.r_[ v, w ]
+                
+        return output
+        
+class CustomOutput(object):
+    transformable = False
+    
+    def __init__(self, func, label=None):
+        self.func = func
+        self.label = label
+        
+    def __str__(self):
+        if self.label is not None:
+            return self.label
+        return "Custom output <{}>".format(self.func)
+        
+    def __call__(self, system):
+        return np.atleast_1d(self.func(system))
+
 class Integrator(object):
     """
     Solve and integrate a system, keeping track of which outputs are required.
@@ -1333,133 +1558,37 @@ class Integrator(object):
     def __init__(self, system, outputs=('pos',), method='dopri5'):
         self.system = system
         self.t = np.zeros(0)
-        self.y = np.zeros((0,0))
-        
-        self.position_outputs = []
-        self.velocity_outputs = []
-        self.acceleration_outputs = []
-        self.force_outputs = []
-        self.custom_outputs = []
-        self.position_labels = []
-        self.velocity_labels = []
-        self.acceleration_labels = []
-        self.force_labels = []
-        self.custom_labels = []
-        self._custom_label_counter = 0
-        
-        self.integrator = ode(self._func)
-        self.integrator.set_integrator(method)
+        self.y = []
+        self.method = method
         
         # By default, output DOFs
-        idof = np.nonzero(self.system.iDOF)[0]
+        self._outputs = []
+        idof = self.system.qd.indices_by_type('strain')
         if 'pos' in outputs:
-            for i in idof: self.add_position_output(i)
+            for i in idof: self.add_output(StrainOutput(i, deriv=0))
         if 'vel' in outputs:
-            for i in idof: self.add_velocity_output(i)
+            for i in idof: self.add_output(StrainOutput(i, deriv=1))
         if 'acc' in outputs:
-            for i in idof: self.add_acceleration_output(i)
+            for i in idof: self.add_output(StrainOutput(i, deriv=2))
     
-    def add_custom_output(self, output, label=None):
-        self.custom_outputs.append(output)
-        if label is None:
-            label = "Other output {}".format(chr(ord('A')+self._custom_label_counter))
-            self._custom_label_counter += 1
-        self.custom_labels.append(label)
-
-    def _add_output(self, outputs, labels, ind, label=None, prefix="", local=False):
-        ind = np.atleast_1d(ind)
-        if local:
-            assert len(ind) == 6
-        outputs.append((ind,local))
-        if label is None:
-            label = prefix + self._describe(ind[0]) + (local and " [local]" or "")
-        labels.append(label)
-            
-    def _get_output(self, q, ind, local):
-        output = q[ind]
-        if local:
-            assert len(output) == 6
-            el = self.system.state_elements[ind[0]]
-            F = dot(el.Rd.T, output[:3])
-            M = dot(el.Rd.T, output[3:])
-            output = np.r_[ F, M ]
-        return output
+    def add_output(self, output):
+        self._outputs.append(output)
         
     def outputs(self):
-        outputs = []
-        for ind,local in self.position_outputs:
-            outputs.append(self._get_output(self.system.q, ind, local))
-        for ind,local in self.velocity_outputs:
-            outputs.append(self._get_output(self.system.qd, ind, local))
-        for ind,local in self.acceleration_outputs:
-            outputs.append(self._get_output(self.system.qdd, ind, local))
-        for ind,local in self.force_outputs:
-            outputs.append(self._get_output(self.system.joint_reactions, ind, local))
-        for func in self.custom_outputs:
-            outputs.append(np.atleast_1d(func(self.system)))
-        return outputs
+        return [output(self.system) for output in self._outputs]
     
     def labels(self):
-        return (self.position_labels + self.velocity_labels +
-                self.acceleration_labels + self.force_labels+ self.custom_labels)
+        return [str(output) for output in self._outputs]
         
-    def add_position_output(self, ind, label=None, local=False):
-        self._add_output(self.position_outputs, self.position_labels,
-                         ind, label, local=local)
     
-    def add_velocity_output(self, ind, label=None, local=False):
-        self._add_output(self.velocity_outputs, self.velocity_labels,
-                         ind, label, "d/dt ", local=local)
-    
-    def add_acceleration_output(self, ind, label=None, local=False):
-        self._add_output(self.acceleration_outputs, self.acceleration_labels,
-                         ind, label, "d2/dt2 ", local=local)
-                         
-    def add_force_output(self, ind, label=None, local=False):
-        self._add_output(self.force_outputs, self.force_labels,
-                         ind, label, "Load ", local=local)    
-    
-    def _describe(self, ind):
-        element = self.system.state_elements[ind]
-        type_ = self.system.state_types[ind]
-        if type_ == 'ground':
-            return 'ground node'
-        elif type_ == 'node':
-            elind = element.idist.index(ind)
-            return '{!r} distal node #{}'.format(element, int(elind/6) + 1)
-        elif type_ == 'strain':
-            elind = element.istrain.index(ind)
-            return '{!r} strain #{}'.format(element, elind+1)
-        elif type_ == 'constraint':
-            elind = element.imult.index(ind)
-            return '{!r} constraint #{}'.format(element, elind+1)
-        assert False
-                
-    def _func(self, ti, y):
-        iDOF = self.system.iDOF
-        nDOF = np.count_nonzero(iDOF)
-        
-        # update system state with states and state rates
-        # y constains [strains, d(strains)/dt]
-        self.system.q[iDOF]  = y[:nDOF]
-        self.system.qd[iDOF] = y[nDOF:]
-        self.system.update(ti) # kinematics and dynamics
-
-        # solve system
-        self.system.solve()
-        
-        # new state vector is [strains_dot, strains_dotdot]
-        return np.r_[ self.system.qd[iDOF], self.system.qdd[iDOF] ]
     
     def integrate(self, tvals, dt=None, nprint=20):
         if not np.iterable(tvals):
             assert dt is not None
             tvals = np.arange(0, tvals, dt)
         
-        # need this?
-        self.system.update(tvals[0]) # work out kinematics
-        self.system.solve() # prescriptions?
-        self.system.update(tvals[0], False)
+        # prepare for first outputs
+        self.system.update_kinematics(tvals[0]) # work out kinematics
         self.system.solve_reactions()
         
         initial_outputs = self.outputs()
@@ -1469,11 +1598,30 @@ class Integrator(object):
             self.y.append(zeros((len(y0),len(tvals))))
             self.y[-1][:,0] = y0
         
-        iDOF = self.system.iDOF
-        
+        iDOF_q  = self.system.q.indices_by_type('strain')
+        iDOF_qd = self.system.qd.indices_by_type('strain')
+        assert len(iDOF_q) == len(iDOF_qd)
+        nDOF = len(iDOF_q)
+                
+        # Gradient function
+        def _func(ti, yi):
+            # update system state with states and state rates
+            # y constains [strains, d(strains)/dt]
+            self.system.q [iDOF_q]  = yi[:nDOF]
+            self.system.qd[iDOF_qd] = yi[nDOF:]
+            self.system.update_kinematics(ti) # kinematics and dynamics
+    
+            # solve system
+            new_qdd = self.system.solve_accelerations()
+            
+            # new state vector is [strains_dot, strains_dotdot]
+            return np.r_[ self.system.qd[iDOF_qd], new_qdd[iDOF_qd] ]
+
         # Initial conditions
-        z0 = np.r_[ self.system.q[iDOF], self.system.qd[iDOF] ]
-        self.integrator.set_initial_value(z0, tvals[0])
+        integrator = ode(_func)
+        integrator.set_integrator(self.method)
+        z0 = np.r_[ self.system.q[iDOF_q], self.system.qd[iDOF_qd] ]
+        integrator.set_initial_value(z0, tvals[0])        
         
         if nprint is not None:
             print 'Running simulation:',
@@ -1481,13 +1629,20 @@ class Integrator(object):
             tstart = time.clock()
         
         for it,t in enumerate(tvals[1:], start=1):
-            self.integrator.integrate(t)
-            if not self.integrator.successful():
+            integrator.integrate(t)
+            if not integrator.successful():
                 print 'stopping'
                 break
-            self.system.update(t,False) # solve kinematics
-            if self.force_outputs:
-                self.system.solve_reactions()
+            
+            # Update kinematics with new timestep's strains and strain rates,
+            # and calculate reaction forces
+            assert np.all(self.system.q[iDOF_q] == integrator.y[:nDOF])
+            self.system.q [iDOF_q]  = integrator.y[:nDOF]
+            self.system.qd[iDOF_qd] = integrator.y[nDOF:]
+            self.system.update_kinematics(t) #XXX , calculate_matrices=False) # don't need mass
+            self.system.solve_reactions()
+            
+            # Save outputs
             for y,out in zip(self.y, self.outputs()):
                 y[:,it] = out
             if nprint is not None and (it % nprint) == 0:

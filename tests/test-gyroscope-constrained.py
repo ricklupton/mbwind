@@ -63,7 +63,7 @@ class Gyroscope(object):
 
     def applied_torque(self, s):
         # applied torque about y axis, Q2
-        elevation = s.q[self.pivot.istrain[0]]
+        elevation = s.q[self.pivot.istrain][0]
         return self.endmass * dynamics.gravity * self.length/2 * np.sin(elevation)
     
     def thetadotdot(self, s):
@@ -73,8 +73,8 @@ class Gyroscope(object):
     
     def gyro_torque(self, s):
         # gyroscopic sideways torque, Q1
-        spin = s.qd[self.axis.istrain[0]] # spin speed
-        thetadot = s.qd[self.pivot.istrain[0]]
+        spin = s.qd[self.axis.istrain][0] # spin speed
+        thetadot = s.qd[self.pivot.istrain][0]
         return self.C * spin * thetadot
         
     def simulate(self, xpivot=0.0, spin=10.0, t1=1.5, dt=0.01):
@@ -83,23 +83,23 @@ class Gyroscope(object):
         self.system.qd[:] = 0.0
 
         # initial conditions
-        self.system.q [self.pivot.istrain[0]] = xpivot # initial elevation
-        self.system.qd[self.axis .istrain[0]] = spin # initial rotation speed
+        self.system.q [self.pivot.istrain][0] = xpivot # initial elevation
+        self.system.qd[self.axis .istrain][0] = spin # initial rotation speed
 
         # setup integrator
         #self.integ = Integrator(self.system, ('pos','vel','acc'))
         self.integ = Integrator(self.system, ())
         for istrain in (self.pivot.istrain, self.axis.istrain):
-            self.integ.add_position_output(istrain)
-            self.integ.add_velocity_output(istrain)
-            self.integ.add_acceleration_output(istrain)
-        self.integ.add_force_output(self.pivot.idist)
-        self.integ.add_force_output(self.pivot.idist, local=True)
-        self.integ.add_force_output(self.body.iprox)
-        self.integ.add_force_output(self.endbody.iprox)
-        self.integ.add_custom_output(self.applied_torque, "Q2")
-        self.integ.add_custom_output(self.thetadotdot, "thetadotdot")
-        self.integ.add_custom_output(self.gyro_torque, "Q1")
+            self.integ.add_output(dynamics.StrainOutput(istrain, deriv=0))
+            self.integ.add_output(dynamics.StrainOutput(istrain, deriv=1))
+            self.integ.add_output(dynamics.StrainOutput(istrain, deriv=2))
+        self.integ.add_output(dynamics.LoadOutput(self.pivot.idist[0]))
+        self.integ.add_output(dynamics.LoadOutput(self.pivot.idist[0], local=True))
+        self.integ.add_output(dynamics.LoadOutput(self.body.iprox))
+        self.integ.add_output(dynamics.LoadOutput(self.endbody.iprox))
+        self.integ.add_output(dynamics.CustomOutput(self.applied_torque, "Q2"))
+        self.integ.add_output(dynamics.CustomOutput(self.thetadotdot, "thetadotdot"))
+        self.integ.add_output(dynamics.CustomOutput(self.gyro_torque, "Q1"))
 
         # simulate
         if t1 > 0:
