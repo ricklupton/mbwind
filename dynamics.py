@@ -535,21 +535,29 @@ class Element(object):
         Calculate reaction forces on proximal node, based on current nodal
         accelerations, and distal reaction forces
         """
+        # inertial and applied forces acting ON all element nodes
         a_nodal = np.r_[ self.ap, self.ad ]
         elem = -dot(self.mass_vv, a_nodal) + -dot(self.mass_ve, self.astrain) +\
                        -self.quad_forces + self.applied_forces
          
+        # forces acting ON distal nodes
         distal_forces = elem[6:] - self.system.joint_reactions[self.idist]
-        Fprox = elem[0:3].copy()
-        Mprox = elem[3:6].copy()
+        
+        # calculate forces acting ON proximal nodes:
+        #   Fprox + elem_forces_on_prox + sum of distal_forces = 0
+        Fprox = -elem[0:3].copy()
+        Mprox = -elem[3:6].copy()
         for i in range(self._ndistal):
             iforce  = slice(  6*i, 3+6*i)
             imoment = slice(3+6*i, 6+6*i)
             relcross = skewmat(self.rd[3*i:3*i+3] - self.rp)
-            Fprox += distal_forces[iforce]
-            Mprox += distal_forces[imoment]+dot(relcross,distal_forces[iforce])
+            Fprox += -distal_forces[iforce]
+            Mprox += -distal_forces[imoment]-dot(relcross,distal_forces[iforce])
         
-        self.system.joint_reactions[self.iprox] += -np.r_[ Fprox, Mprox  ]
+        #if self.name == 'offset':
+        #    print self.ad, self.system.qdd[self.idist]
+        
+        self.system.joint_reactions[self.iprox] += np.r_[ Fprox, Mprox ]
 
     def _set_gravity_force(self):
         # include gravity by default
@@ -806,7 +814,7 @@ class RigidBody(Element):
         ]
 
     shape_plot_options = [
-        {'marker': 'x', 'ms': 4, 'c': 'y'},
+        {'marker': 'x', 'ms': 10, 'c': 'y', 'mew': 3},
     ]
 
     def calc_mass(self):
@@ -824,7 +832,6 @@ class RigidBody(Element):
         ## QUADRATIC FORCES ## (remaining terms)
         self.quad_forces[VP] = self.mass * dot(dot(wps,wps), xc)
         self.quad_forces[WP] = dot(wps, dot(Jp, self.vp[3:]))
-
 
 class ElementLoading(object):
     '''
@@ -1389,7 +1396,7 @@ class Integrator(object):
         for ind,local in self.force_outputs:
             outputs.append(self._get_output(self.system.joint_reactions, ind, local))
         for func in self.custom_outputs:
-            outputs.append(func(self.system))
+            outputs.append(np.atleast_1d(func(self.system)))
         return outputs
     
     def labels(self):
@@ -1415,13 +1422,11 @@ class Integrator(object):
     def _describe(self, ind):
         element = self.system.state_elements[ind]
         type_ = self.system.state_types[ind]
-        loads = ('Fx','Fy','Fz','Mx','My','Mz')
         if type_ == 'ground':
-            return 'ground node {}'.format(loads[ind])
+            return 'ground node'
         elif type_ == 'node':
             elind = element.idist.index(ind)
-            return '{!r} distal node #{} {}'.format(element, int(elind/6) + 1,
-                                                    loads[elind%6])
+            return '{!r} distal node #{}'.format(element, int(elind/6) + 1)
         elif type_ == 'strain':
             elind = element.istrain.index(ind)
             return '{!r} strain #{}'.format(element, elind+1)
@@ -1442,7 +1447,7 @@ class Integrator(object):
 
         # solve system
         self.system.solve()
-
+        
         # new state vector is [strains_dot, strains_dotdot]
         return np.r_[ self.system.qd[iDOF], self.system.qdd[iDOF] ]
     
@@ -1454,6 +1459,7 @@ class Integrator(object):
         # need this?
         self.system.update(tvals[0]) # work out kinematics
         self.system.solve() # prescriptions?
+        self.system.update(tvals[0], False)
         self.system.solve_reactions()
         
         initial_outputs = self.outputs()
