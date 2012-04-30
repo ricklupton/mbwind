@@ -97,6 +97,13 @@ class LinearisedSystem(object):
             self.C[:,iz] = derivative(zd_func,  0, args=(iz,))
             self.M[:,iz] = derivative(zdd_func, 0, args=(iz,))
 
+    def modes(self):
+        w,v = scipy.linalg.eig(self.K,self.M)
+        order = np.argsort(w)
+        w = np.sqrt(np.real(w[order]))
+        v = v[:,order]
+        return w,v
+
     def state_space(self):
         f = self.M.shape[0]
         A = np.r_[
@@ -374,6 +381,16 @@ class ModalRepresentation(object):
         self.T1   = simps(T1     * density[:,NA,NA,NA],    x, axis=0)
         self.S2   = simps(S2     * density[:,NA,NA,NA,NA], x, axis=0)
         self.T2   = simps(T2     * density[:,NA,NA,NA,NA], x, axis=0)
+        
+        # describe mode shapes
+        # XXX: only knows about bending modes
+        self.mode_descriptions = []
+        order = {0: 0, 1: 0, 2: 0}
+        for p in range(len(freqs)):
+            direction = np.argmax(self.shapes[-1,:,p])
+            order[direction] += 1
+            self.mode_descriptions.append('Bending towards {} mode {}'.format(
+                'XYZ'[direction], order[direction]))
  
     def X(self, q):
         return self.X0 + np.einsum('hip,p', self.shapes, q)
@@ -437,13 +454,21 @@ class ModalRepresentation(object):
             A = zeros((3,3))
         return A
     
-    def quad_stress(self, Wp, qd):
+    def quad_stress(self, q, qd, Wp):
         if len(self.freqs) > 0:
-            S1 = eye(3)[:,:,NA]*self.S1.trace() - self.S1
-            A = np.einsum('ijp,i,j', S1, Wp, Wp)
-            B = np.einsum('jkl,k,m,jlpm', eps_ijk, Wp, qd,
-                          (self.S2 - self.T2.transpose(0,1,3,2)))
-            return -A + 2*B
+            A1 = self.S1 - self.T1
+            A2 = np.einsum('ijpr,r', self.S2, q) + \
+                 np.einsum('ijrp,r', self.T2, q)
+            
+            # depending on angular velocity
+            C = np.einsum('ijp,i,j', A1 + A2, Wp, Wp) - \
+                dot(Wp,Wp) * (A1+A2).trace()
+            
+            # depending on strain velocity
+            B2 = self.S2 - self.T2.swapaxes(2,3)
+            D = 2 * np.einsum('ijk,j,l,ikpl', eps_ijk, Wp, qd, B2)
+            
+            return C + D
         else:
             return np.zeros(0)
     

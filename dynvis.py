@@ -54,7 +54,7 @@ def showsystem(system, view=None):
     else:
         raise ValueError("view should be 'x', 'y', 'z', or None for 3d")
 
-def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, velocities=True, only_free=False):
+def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, only_free=False):
     fig = plt.figure()
     fig.set_size_inches(10,10,forward=True)
     ax = fig.add_subplot(111, aspect=1, xlim=lim1,ylim=lim2)
@@ -77,17 +77,15 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, velocities=True, only_f
         time_text.set_text('')
         return [line for line in ellines for el,ellines in lines] + [time_text]
 
-    if only_free: iDOF = system.iFreeDOF
-    else: iDOF = system.iDOF
-    iDOF = np.nonzero(iDOF)[0]
+    if only_free:
+        iDOF = system.q.dofs.subset
+    else:
+        iDOF = system.q.indices_by_type('strain')
     N = len(iDOF)
     print iDOF, N
     def animate(i):
         for j,k in enumerate(iDOF):
-            system.q[k] = yy[j][0,i]
-        if velocities:
-            for j,k in enumerate(iDOF):
-                system.qd[k] = yy[N+j][0,i]
+            system.q[k] = yy[j][i,0]
         system.update(tt[i], False)
 
         for el,ellines in lines:

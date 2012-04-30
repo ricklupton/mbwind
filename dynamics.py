@@ -7,6 +7,7 @@ Created on Wed Feb 22 17:24:13 2012
 
 from __future__ import division
 import time, sys
+import operator
 from collections import defaultdict
 import numpy as np
 from numpy import array, zeros, eye, dot, pi, cos, sin
@@ -14,7 +15,7 @@ import numpy.linalg as LA
 import scipy.linalg
 import scipy.optimize
 #import matplotlib.pylab as plt
-from scipy.integrate import ode
+from scipy.integrate import ode, simps
 
 
 import pyximport
@@ -136,6 +137,21 @@ NQD = 6
 #        self.owners.extend( [owner]*num )
 #        self.types.extend ( [type_]*num )
 
+
+class ArrayProxy(object):
+    """Delegate getitem and setitem to a reduced part of the target array"""
+    def __init__(self, target, subset=None):
+        if subset is None:
+            subset = range(len(target))
+        self.subset = subset
+        self._target = target
+    
+    def __getitem__(self, index):
+        return self._target[self.subset[index]]
+    
+    def __setitem__(self, index, value):
+        self._target[self.subset[index]] = value
+
 class StateArray(object):
     def __init__(self):
         self.reset()
@@ -143,6 +159,8 @@ class StateArray(object):
     def indices(self, index):
         if isinstance(index, basestring):
             index = self.named_indices[index]
+        if isinstance(index, int):
+            index = slice(index, index+1)
         return index
         
     def __getitem__(self, index):
@@ -162,13 +180,15 @@ class StateArray(object):
         if self._array is not None:
             raise RuntimeError("Already allocated")
         self._array = np.zeros(len(self))
+        self.dofs = ArrayProxy(self._array, [])
     
     def reset(self):
         self.owners = []
         self.types = []
         self.named_indices = {}
+        self.dofs = ArrayProxy([])
         self._array = None
-    
+        
     def new_states(self, owner, type_, num, name=None):
         if self._array is not None:
             raise RuntimeError("Already allocated, call reset()")
@@ -181,16 +201,30 @@ class StateArray(object):
             self.named_indices[name] = slice(N-num, N)
         
     def indices_by_type(self, types):
-        "Return all states of the given type"
+        "Return all state indices of the given type"
         if not isinstance(types, (list,tuple)):
             types = (types,)
         return [i for i,t in enumerate(self.types) if t in types]
+    
+    def names_by_type(self, types):
+        "Return all named states of the given type"
+        if not isinstance(types, (list,tuple)):
+            types = (types,)
+        return [name for name,ind in sorted(self.named_indices.iteritems(), key=operator.itemgetter(1))
+                if self.get_type(name) in types]
+    
+    def by_type(self, types):
+        "Return all elements of the given type"
+        index = self.indices_by_type(types)
+        return self._array[index]
     
     def get_type(self, index):
         types = self.types[self.indices(index)]
         if not all([t == types[0] for t in types]):
             raise ValueError("index refers to different types")
-        return types[0]
+        if types:
+            return types[0]
+        return None
 
 class System(object):
     def __init__(self, first_element=None):
@@ -220,21 +254,28 @@ class System(object):
         # called with the current time at each step.
         self.prescribed_dofs = {i: (0.0,0.0) for i in range(6)}
 
-        self.iDOF = array([], dtype=bool)
-
         if first_element is not None:
             self.init(first_element)
 
     def print_states(self, q=False):
         if q: states = self.q
         else: states = self.qd
+        print '     Element             Type                Prescribed'
+        print '-------------------------------------------------------'
         for i,(el,type_) in enumerate(zip(states.owners, states.types)):
-            print '{:<5}{:<20}{:<20}'.format(i,el, type_)
+            prescribed = (i in self.prescribed_dofs) and '*' or ' '
+            print '{:<5}{:<20}{:<20} {}'.format(i,el, type_, prescribed)
 
     def iter_elements(self):
         yield self.first_element
         for el in self.first_element.iter_leaves():
             yield el
+
+    def print_info(self):
+        print 'System:\n'
+        for element in self.iter_elements():
+            element.print_info()
+            print
 
     def init(self, first_element):
         self.first_element = first_element
@@ -258,7 +299,6 @@ class System(object):
         self.rhs  = zeros(N)
         self.lhs = zeros((N,N))
         
-        self.iDOF = zeros(N, dtype=bool)
         self.iPrescribed = zeros(N, dtype=bool)
         self._update_indices()
         
@@ -292,6 +332,11 @@ class System(object):
         return self._new_states(elem, 'constraint', num, num, name)
 
     def _update_indices(self):
+        # Keep track of which are the free DOFs in state arrays
+        for states in (self.q, self.qd, self.qdd, self.joint_reactions):
+            states.dofs.subset = [i for i in states.indices_by_type('strain')
+                                  if i not in self.prescribed_dofs]
+        
         self.iPrescribed[:] = False
 
         # prescribed strains
@@ -304,15 +349,11 @@ class System(object):
         self.iReal[ir] = True
 
         # update B matrix
-        indep_coords = [i for i in self.qd.indices_by_type(('ground', 'strain'))
-                          if i not in self.prescribed_dofs]
+        indep_coords = self.qd.dofs.subset
         B = zeros((len(indep_coords),len(self.qd)), dtype=bool)
-        self.iFreeDOF = array(indep_coords)
         for iz,iq in enumerate(indep_coords):
             B[iz,iq] = True
         self.B = B[:,self.iReal]
-
-
 
     def get_constraints(self):
         """
@@ -321,7 +362,7 @@ class System(object):
         # Constraints relating nodes defined by elements
         # They don't vary partially with time, so b=0. c contains derivatives
         # of constraint equations themselves.
-        P_nodal = self.mass[np.ix_(~self.iReal,self.iReal)] # rows:constraints, columns:coords
+        P_nodal = self.lhs[np.ix_(~self.iReal,self.iReal)] # rows:constraints, columns:coords
         c_nodal = self.rhs[~self.iReal]
         b_nodal = np.zeros_like(c_nodal)
         
@@ -336,6 +377,9 @@ class System(object):
             b,c = self.prescribed_dofs[ipres_orig[i]]
             if callable(c): c = c(self.time)
             if callable(b): b = b(self.time)
+            if c is None or b is None:
+                raise Exception("Cannot calculate constraints if a prescribed"\
+                    " DOF is None")
             P_prescribed[i,ipres_reduced[i]] = 1
             c_prescribed[i] = c
             b_prescribed[i] = b
@@ -365,10 +409,16 @@ class System(object):
 
         # Update prescribed strains
         for i,(b,c) in self.prescribed_dofs.items():
-            if callable(b): b = b(time)
-            if callable(c): c = c(time)            
-            self.qd [i] = b
-            self.qdd[i] = c
+            if callable(b): b = b(self.time)
+            if callable(c): c = c(self.time)
+            if b is not None:
+                self.qd[i] = b
+            else:
+                pass # leave it for the integration
+            if c is not None:
+                self.qdd[i] = c
+            else:
+                self.qdd[i] = 0.0
 
         # Reset mass and constraint matrices if updating
         if calculate_matrices:
@@ -387,7 +437,7 @@ class System(object):
         if calculate_matrices:
             assemble.assemble(self.iter_elements(), self.lhs, self.rhs)
 
-    def prescribe(self, ind, vel=0.0, acc=0.0):
+    def prescribe(self, ind, part=None, vel=None, acc=None):
         """
         Prescribe the DOFs listed in ind with the velocity and acceleration
         constraints given.
@@ -397,12 +447,23 @@ class System(object):
         
         The specified DOFs will be removed from the matrices when solving.
         """
-        ind = self.qd.indices(ind)
-        for i in range(ind.start, ind.stop):
+        ind_slice = self.qd.indices(ind)
+        ind_range = range(ind_slice.start, ind_slice.stop)
+        if part is not None:
+            ind_range = ind_range[part]
+        for i in ind_range:
             if self.qd.types[i] not in ('ground','strain'):
                 raise Exception('Only ground node and strains can be prescribed')
             self.prescribed_dofs[i] = (vel, acc)
         self._update_indices()
+        
+        # XXX messy
+        ind_slice = self.q.indices(ind)
+        ind_range = range(ind_slice.start, ind_slice.stop)
+        if part is not None:
+            ind_range = ind_range[part]
+        for i in ind_range:
+            self.q.dofs.subset.remove(i)
 
     def free(self, ind):
         """
@@ -424,7 +485,7 @@ class System(object):
         #self.qdd[self.iReal] = self.Sc
         #print self.Sc
 
-        prescribed_acc_forces = dot(self.lhs, self.qdd)
+        prescribed_acc_forces = dot(self.lhs, self.qdd._array)
         #if np.any(np.nonzero(prescribed_acc_forces)):
         #    print '* Prescribed acc forces:', np.nonzero(prescribed_acc_forces)
 
@@ -456,7 +517,7 @@ class System(object):
         """
         def func(z):
             # Update system and matrices
-            self.q[self.iFreeDOF] = z
+            self.q.dofs[:] = z
             self.update()
             self.calc_projections()
             # eval residue: external forces, quadratic terms and internal forces...
@@ -466,19 +527,19 @@ class System(object):
             ma = dot(self.mass[np.ix_(self.iReal,self.iReal)], qdd)
             return dot(self.R.T, (Q - ma))
         
-        q0 = scipy.optimize.fsolve(func, self.q[self.iFreeDOF])
-        self.q[self.iFreeDOF] = q0
+        q0 = scipy.optimize.fsolve(func, self.q.dofs[:])
+        self.q.dofs[:] = q0
 
     def eval_residue(self, z, zd, zdd, parts=False):
-        self.q [self.iFreeDOF] = z
-        self.qd[self.iFreeDOF] = zd
-        self.update()
+        self.q.dofs[:] = z
+        self.qd.dofs[:] = zd
+        self.update_kinematics()
         self.calc_projections()
 
-        RtM = dot(self.R.T, self.mass[np.ix_(self.iReal,self.iReal)])
+        RtM = dot(self.R.T, self.lhs[np.ix_(self.iReal,self.iReal)])
         Mr = dot(RtM,self.R)
         Qr = dot(self.R.T,self.rhs[self.iReal])
-
+        
         if parts:
             return {
                 'M':   dot(Mr, zdd),
@@ -488,6 +549,16 @@ class System(object):
         else:
             return dot(Mr, zdd) - Qr + dot(RtM, self.Sc)
 
+
+class ReducedSystem(object):
+    def __init__(self, full_system):
+        full_system.calc_projections()
+        full_M = full_system.lhs[np.ix_(full_system.iReal,full_system.iReal)]
+        full_Q = full_system.rhs[full_system.iReal]
+        R = full_system.R
+        
+        self.M = dot(R.T, dot(full_M, R))
+        self.Q = dot(R.T, (full_Q - dot(full_M, full_system.Sc)))
 
 gravity = 9.81
 
@@ -569,6 +640,16 @@ class Element(object):
         for node_children in self.children:
             for child in node_children:
                 child.plot_chain(ax)
+        
+    def print_info(self):
+        print '{!r}:'.format(self)
+        print '    prox node: {}'.format(self.iprox)
+        if self._nstrain:
+            print '    strains: {} ({})'.format(self._nstrain, self.istrain)
+        if self._nconstraints:
+            print '    constraints: {} ({})'.format(self._nconstraints, self.imult)
+        if self._ndistal:
+            print '    distal nodes: {}'.format(', '.join(self.idist))
 
     def setup_chain(self, system, prox_indices):
         self.system = system
@@ -660,8 +741,8 @@ class Element(object):
             Fprox += -distal_forces[:3]
             Mprox += -distal_forces[3:]-dot(relcross,distal_forces[:3])
         
-        #if self.name == 'offset':
-        #    print self.ad, self.system.qdd[self.idist]
+        #if self.name == 'blade':
+        #    print self.station_velocities()[-1] #, self.system.qdd[self.idist]
         
         self.system.joint_reactions[self.system.qd.named_indices[self.iprox]] \
             += np.r_[ Fprox, Mprox ]
@@ -1362,7 +1443,144 @@ class ModalElement(Element):
         self.quad_forces[VP] = centrifugal + strainvel
         self.quad_forces[WP] = dot(
             (dot(wps, inertia_global) + 2*ang_strainvel_global), wp)
-        self.quad_stress[ :] = self.modes.quad_stress(local_wp, self.vstrain)
+        self.quad_stress[ :] = self.modes.quad_stress(self.xstrain, self.vstrain, local_wp)
+
+    def _get_loading(self):
+        assert self.loading is not None
+        # Positions and orientations of all stations
+        prox_rot = self.modes.R(self.xstrain)
+        global_pos = self.station_positions() #self.rp[None,:] + np.einsum('ij,hj', self.Rp, prox_pos)
+        global_rot = self.station_rotations() #np.einsum('ij,hjk', self.Rp, prox_rot)
+        global_vel = self.station_velocities()
+        P_station = self.loading(self.system.time, global_pos,
+                                 global_rot, global_vel)
+        # P is in local stations coords -- transform back to prox frame
+        P_prox = np.einsum('hji,hj->hi', prox_rot, P_station)
+        return P_prox
+
+    def calc_external_loading(self):
+        # Gravity loads
+        self._set_gravity_force()
+
+        # Constitutive loading
+        self.applied_stress[:] = (
+            self.stiffness * self.xstrain +
+            self.damping   * self.vstrain
+        )
+        
+        # External loading
+        if self.loading is not None:
+            # Positions and orientations of all stations
+            P_prox = self._get_loading()
+            Fext,Mext,Sext = self.modes.distributed_loading(P_prox, self.xstrain)
+            self.applied_forces[VP] += Fext
+            self.applied_forces[WP] += Mext
+            self.applied_stress[:]  += Sext
+
+class DirectModalElement(Element):
+    _ndistal = 0
+    _nstrain = 0
+    _nconstraints = 0
+
+    def __init__(self, name, modes, loading=None):
+        '''
+        General element represented by mode shapes. Assume no distal nodes.
+        Don't do anything fancy, directly integrate the density distribution
+        each time its required -- use as a check on the more efficient modal
+        element which uses precalculated shape integrals.
+
+         - modes : ModalRepresentation instance describing the mode shapes
+
+        '''
+        self._nstrain = len(modes.freqs)
+        Element.__init__(self, name)
+        self.modes = modes
+        self.loading = loading
+
+        # Calculate mass matrix initially
+        self.calc_mass()
+
+        # Stiffness matrix
+        self.stiffness = np.diag(self.mass_ee) * self.modes.freqs**2
+        self.damping = 2 * self.modes.damping * self.stiffness / self.modes.freqs
+
+    def station_positions(self):
+        prox_pos = self.modes.X(self.xstrain)
+        global_pos = self.rp[None,:] + np.einsum('ij,hj', self.Rp, prox_pos)
+        return global_pos
+    
+    def station_rotations(self):
+        prox_rot = self.modes.R(self.xstrain)
+        global_rot = np.einsum('ij,hjk', self.Rp, prox_rot)
+        return global_rot
+    
+    def station_velocities(self):
+        prox_pos = self.modes.X(self.xstrain)
+        prox_vel = self.modes.Xdot(self.vstrain)
+        global_vel = self.vp[None,VP] + np.einsum('ij,hj', self.Rp, prox_vel) \
+            + np.einsum('ijk,j,kl,hl', eps_ijk, self.vp[WP], self.Rp, prox_pos)
+        return global_vel
+
+    def shape(self):
+        # proximal values
+        X0 = self.modes.X0
+        defl = dot(self.modes.shapes, self.xstrain)
+        shape = [dot(self.Rp, (X0[i]+defl[i])) for i in range(X0.shape[0])]
+        return [
+            self.rp + array(shape),
+            np.r_[ [self.rp], [self.rp + dot(self.Rp, X0[-1])], [shape[-1]] ]
+        ]
+
+    shape_plot_options = [
+        {'c': 'g', 'marker': 'o', 'lw': 2, 'ms': 1},
+        {'c': 'k', 'lw': 2, 'alpha': 0.3},
+    ]
+
+    def calc_mass(self):
+        # angular velocity skew matrix
+        wp = self.vp[WP]
+        wps = skewmat(wp)
+        
+        # Rp * shapes
+        RU = np.einsum('ij,hjp', self.Rp, self.modes.shapes)
+        
+        # station local positions and global positions
+        X = self.modes.X(self.xstrain)
+        x = np.einsum('ij,hj', self.Rp, X)
+
+        M = np.zeros((len(self.modes.x),6+len(self.modes.freqs),6+len(self.modes.freqs)))
+        g = np.zeros((len(self.modes.x),6+len(self.modes.freqs)))
+
+        # Step through stations and work out integrands
+        for i in range(M.shape[0]):
+            xs = skewmat(x[i])
+            G = dot(wps, dot(wps, x[i]) + 2*dot(RU[i], self.vstrain))
+            
+            M[i,VP,VP] =  np.eye(3)
+            M[i,WP,WP] = -dot(xs, xs)
+            M[i,6:,6:] = dot(RU[i].T, RU[i])
+            
+            M[i,VP,WP] = -xs
+            M[i,WP,VP] =  xs
+            M[i,VP,6:] = RU[i]
+            M[i,6:,VP] = RU[i].T
+            M[i,WP,6:] = dot(xs, RU[i])
+            M[i,6:,WP] = dot(xs, RU[i]).T
+            
+            g[i,VP] = G
+            g[i,WP] = dot(xs, G)
+            g[i,6:] = dot(RU[i].T, G)
+
+        # Integrate
+        Mint = simps(M * self.modes.density[:,None,None], self.modes.x, axis=0)
+        gint = simps(g * self.modes.density[:,None],      self.modes.x, axis=0)
+        
+        # Save
+        self.mass_vv[:,:] = Mint[:6,:6]
+        self.mass_ve[:,:] = Mint[:6,6:]
+        self.mass_ee[:,:] = Mint[6:,6:]
+        self.quad_forces[:] = gint[:6]
+        self.quad_stress[:] = gint[6:]
 
     def _get_loading(self):
         assert self.loading is not None
@@ -1423,34 +1641,10 @@ def rk4(derivs, y0, t):
         raise
     return yout
 
-class Output(object):
-    transformable = True
-    state_types = None
-    
-    def __init__(self, name, deriv=0, local=False):
-        assert deriv in (0,1,2)
-        self.name = name
-        self.deriv = deriv
-        self.local = local        
-    
-    def __call__(self, system):
-        q = self._get_state_vector(system)
-        if self.state_type is not None:
-            assert q.get_type(self.name) in self.state_types
-        output = q[self.name]
-        
-        if self.local:
-            if self.deriv == 0:
-                raise NotImplemented("What does that mean?")
-            else:
-                assert len(output) == NQD
-                R = system.q[self.name][3:].reshape((3,3))
-                v = dot(R.T, output[:3])
-                w = dot(R.T, output[3:])
-                output = np.r_[ v, w ]
-                
-        return output
-    
+##################
+###  Outputs   ###
+##################
+
 class NodeOutput(object):
     def __init__(self, state_name, deriv=0, local=False, label=None):
         assert deriv in (0,1,2)
@@ -1530,6 +1724,8 @@ class LoadOutput(object):
         if self.local:
             assert len(output) == NQD
             R = system.q[self.state_name][3:].reshape((3,3))
+            #print '{} transforming to local coords:'.format(self)
+            #print R
             v = dot(R.T, output[:3])
             w = dot(R.T, output[3:])
             output = np.r_[ v, w ]
@@ -1563,7 +1759,7 @@ class Integrator(object):
         
         # By default, output DOFs
         self._outputs = []
-        idof = self.system.qd.indices_by_type('strain')
+        idof = self.system.qd.names_by_type('strain')
         if 'pos' in outputs:
             for i in idof: self.add_output(StrainOutput(i, deriv=0))
         if 'vel' in outputs:
@@ -1590,13 +1786,13 @@ class Integrator(object):
         # prepare for first outputs
         self.system.update_kinematics(tvals[0]) # work out kinematics
         self.system.solve_reactions()
-        
+                
         initial_outputs = self.outputs()
         self.t = tvals
         self.y = []
         for y0 in initial_outputs:
-            self.y.append(zeros((len(y0),len(tvals))))
-            self.y[-1][:,0] = y0
+            self.y.append(zeros((len(tvals),len(y0))))
+            self.y[-1][0] = y0
         
         iDOF_q  = self.system.q.indices_by_type('strain')
         iDOF_qd = self.system.qd.indices_by_type('strain')
@@ -1613,6 +1809,8 @@ class Integrator(object):
     
             # solve system
             new_qdd = self.system.solve_accelerations()
+            
+            #print self.system.qdd[iDOF_qd][2]
             
             # new state vector is [strains_dot, strains_dotdot]
             return np.r_[ self.system.qd[iDOF_qd], new_qdd[iDOF_qd] ]
@@ -1634,17 +1832,20 @@ class Integrator(object):
                 print 'stopping'
                 break
             
+            #print self.system.qd['hinge_oop-strains'][0], '\t', integrator.y[11]
+            
             # Update kinematics with new timestep's strains and strain rates,
             # and calculate reaction forces
             assert np.all(self.system.q[iDOF_q] == integrator.y[:nDOF])
+            assert np.all(self.system.qd[iDOF_qd] == integrator.y[nDOF:])
             self.system.q [iDOF_q]  = integrator.y[:nDOF]
             self.system.qd[iDOF_qd] = integrator.y[nDOF:]
-            self.system.update_kinematics(t) #XXX , calculate_matrices=False) # don't need mass
+            #self.system.update_kinematics(t) #XXX , calculate_matrices=False) # don't need mass
             self.system.solve_reactions()
             
             # Save outputs
             for y,out in zip(self.y, self.outputs()):
-                y[:,it] = out
+                y[it] = out
             if nprint is not None and (it % nprint) == 0:
                 sys.stdout.write('.'); sys.stdout.flush()
         
