@@ -24,7 +24,7 @@ class RotatingBeam(object):
         self.disc = RigidConnection('disc', [r,0,0])
         self.hinge_ip  = Hinge('hinge_ip',  [0,0,1])
         self.hinge_oop = Hinge('hinge_oop', [0,1,0])
-        self.beam = EulerBeam('beam', l, mass/l, 1, 1, 1)
+        self.beam = UniformBeam('beam', l, mass/l, 1, 1, 1)
 
         self.bearing.add_leaf(self.disc)
         self.disc.add_leaf(self.hinge_ip)
@@ -36,8 +36,8 @@ class RotatingBeam(object):
         #hinge_oop.stiffness = 1e3
 
         # Prescribed DOF accelerations
-        self.system.prescribe(self.beam.istrain, 0.0)    # rigid beam
-        self.system.prescribe(self.bearing.istrain, 0.0) # constant rotational speed
+        self.system.prescribe(self.beam.istrain, acc=0.0)    # rigid beam
+        self.system.prescribe(self.bearing.istrain, acc=0.0) # constant rotational speed
 
     def init(self, rotspeed, ip0, oop0):
         # reset
@@ -45,14 +45,20 @@ class RotatingBeam(object):
         self.system.qd[:] = 0.0
 
         # initial conditions
-        self.system.qd[self.bearing.istrain[0]] = rotspeed # initial rotational speed
-        self.system.qd[self.hinge_oop.istrain[0]] = oop0    # initial OOP angle
-        self.system.qd[self.hinge_ip .istrain[0]] = ip0     # initial IP angle
-
+        self.system.qd[self.hinge_oop.istrain][0] = oop0    # initial OOP angle
+        self.system.qd[self.hinge_ip .istrain][0] = ip0     # initial IP angle
+        
+        # prescribed values
+        self.system.prescribe(self.bearing.istrain, vel=rotspeed) # constant rotational speed
+        
+        # setup integrator
+        self.integ = Integrator(self.system, ('pos','vel'))
+        self.integ.add_output(dynamics.LoadOutput(self.hinge_oop.iprox, local=True))
+        self.integ.add_output(dynamics.NodeOutput(self.beam.idist[0]))
+        
     def simulate(self, t1, dt=0.05):
-        t = np.arange(0, t1, dt)
-        y = solve_system(self.system, t)
-        return t,y
+        self.t, self.y = self.integ.integrate(t1, dt)
+        return self.t, self.y
 
 def ani_xy(s,t,y):
     return dynvis.anim(s, t, y, (0,1), (-3,3), (-3,3), velocities=False)
@@ -74,6 +80,9 @@ mass = 100
 
 rb = RotatingBeam(rdisc,lpend,mass)
 system = rb.system
+
+#rb.init(pi, 0.0, 0.1)
+#t,y=rb.simulate(20)
 
 def test(r,l,m,speeds):
     PHI = 1
@@ -119,7 +128,7 @@ def test_geom(m,speed,radii,lengths):
         rb = RotatingBeam(r, l, m)
         rb.init(speed, 0.4, 0.0)
         t1,y1 = rb.simulate(sim_period*2.5, dt=2.5*sim_period/300)
-        ip.append(2*pi/measure_period(t1,y1[:,PHI]))
+        ip.append(2*pi/measure_period(t1,y1[PHI][:,0]))
 
         # out-of-plane
         expected_w = speed*np.sqrt(1+r/l)
@@ -128,11 +137,11 @@ def test_geom(m,speed,radii,lengths):
         rb = RotatingBeam(r, l, m)
         rb.init(speed, 0.0, 0.4)
         t2,y2 = rb.simulate(sim_period*2.5, dt=2.5*sim_period/300)
-        oop.append(2*pi/measure_period(t2,y2[:,PSI]))
+        oop.append(2*pi/measure_period(t2,y2[PSI][:,0]))
 
     return array([ip,oop]), t1,y1,t2,y2
 
-if False:
+if True:
     rads = array([0.0,0.1,0.3,0.5,1.0,1.0,2.0,3.0,9.0])
     lens = array([1.0,1.0,1.0,1.0,1.0,0.5,0.5,0.5,0.5])
     gamma = rads/lens
