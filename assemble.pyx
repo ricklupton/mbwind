@@ -21,7 +21,7 @@ def assemble(elements, np.ndarray[double, ndim=2] mass, np.ndarray[double, ndim=
         el_f = el.applied_forces
         el_g = el.quad_forces
         for I,i in enumerate(inode):
-            rhs[i] += el_g[I] + el_f[I]
+            rhs[i] += -el_g[I] + el_f[I]
             
             # Node-node
             for J,j in enumerate(inode):
@@ -36,7 +36,7 @@ def assemble(elements, np.ndarray[double, ndim=2] mass, np.ndarray[double, ndim=
         el_f = el.applied_stress
         el_g = el.quad_stress
         for I,i in enumerate(istrain):
-            rhs[i] += el_g[I] - el_f[I]
+            rhs[i] += -el_g[I] - el_f[I]
             for J,j in enumerate(istrain):
                 mass[i,j] += el_mee[I,J]
             
