@@ -59,7 +59,7 @@ class Gyroscope(object):
         self.system = System(self.pivot)
 
         # Prescribed DOF accelerations
-        self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
+        self.system.prescribe(self.axis, acc=0.0) # constant rotational speed
 
     def applied_torque(self, s):
         # applied torque about y axis, Q2
@@ -148,7 +148,7 @@ class LumpedGyroscope(Gyroscope):
         self.system = System(self.pivot)
 
         # Prescribed DOF accelerations
-        self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
+        self.system.prescribe(self.axis, acc=0.0) # constant rotational speed
 
 class BeamGyroscope(Gyroscope):
     def __init__(self, length, radius, mass, endmass):
@@ -179,8 +179,8 @@ class BeamGyroscope(Gyroscope):
         self.system = System(self.pivot)
 
         # Prescribed DOF accelerations
-        self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
-        self.system.prescribe(self.body.istrain, 0.0) # rigid beam
+        self.system.prescribe(self.axis, acc=0.0) # constant rotational speed
+        self.system.prescribe(self.body, acc=0.0) # rigid beam
 
 class ModalGyroscope(Gyroscope):
     def __init__(self, length, radius, mass, endmass):
@@ -218,7 +218,7 @@ class ModalGyroscope(Gyroscope):
         self.system = System(self.pivot)
 
         # Prescribed DOF accelerations
-        self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
+        self.system.prescribe(self.axis, acc=0.0) # constant rotational speed
 
 # Create 3 different models
 length = 3.0
@@ -227,10 +227,10 @@ mass = 100.0
 spin = 20.0
 endmass = 0.5
 
-bg = BeamGyroscope(length, radius, mass, endmass)
-mg = ModalGyroscope(length, radius, mass, endmass)
-gg = Gyroscope(length, radius, mass, endmass)
-lg = LumpedGyroscope(length, radius, mass, endmass)
+#bg = BeamGyroscope(length, radius, mass, endmass)
+#mg = ModalGyroscope(length, radius, mass, endmass)
+#gg = Gyroscope(length, radius, mass, endmass)
+#lg = LumpedGyroscope(length, radius, mass, endmass)
 
 elevation = np.radians(20)
 
@@ -262,15 +262,15 @@ def p(gyro):
     fig = plt.figure()
     
     ax = fig.add_subplot(221)
-    ax.plot(t, -y[6][4].T, t, y[10].T, 'k--') ### NB applied torque is -ve reaction torque
+    ax.plot(t, -y[6][:,4], t, y[10], 'k--') ### NB applied torque is -ve reaction torque
     ax.set_title('Applied torque $Q_2$')
     
     ax = fig.add_subplot(222)
-    ax.plot(t, y[4].T, t, y[11].T, 'k--')
+    ax.plot(t, y[4], t, y[11], 'k--')
     ax.set_title(r'$\ddot\theta$')
     
     ax = fig.add_subplot(223)
-    ax.plot(t, y[7][3].T, t, y[12].T, 'k--')
+    ax.plot(t, y[7][:,3], t, y[12], 'k--')
     ax.set_title(r'Gyro torque $Q_1$')
     
 def p2(gyro1, gyro2):

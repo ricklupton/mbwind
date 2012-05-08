@@ -2,8 +2,10 @@
 """
 Created on Tue 3 Apr 2012
 
-Test modelling of a gyroscope and precession/nutation, with the centre of 
-gravity located at the centre of the gymbals, and a mass at the end
+Test modelling of a gyroscope and precession/nutation, with the centre of
+gravity located at the centre of the gymbals, and a mass at the end.
+
+Aim for steady precession.
 
 System consists of 3 hinges at origin about 3 axes to allow the gyroscope to
 spin, tilt in elevation and rotate in azimuth.
@@ -24,8 +26,9 @@ if '..' not in sys.path: sys.path.insert(0,'..')
 
 import numpy as np
 
+import dynamics
 from dynamics import (System, Hinge, UniformBeam, RigidBody, RigidConnection,
-                      ModalElement, solve_system, gravity, rotmat_y)
+                      ModalElement, Integrator, gravity, rotmat_y)
 import dynvis
 import linearisation
 
@@ -58,21 +61,32 @@ class Gyroscope(object):
         self.system = System(self.bearing)
 
         # Prescribed DOF accelerations
-        self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
+        self.system.prescribe(self.axis, acc=0.0) # constant rotational speed
 
-    def simulate(self, xpivot=0.0, vpivot=0.0, t1=1.5, dt=0.01):
+    def simulate(self, xpivot=0.0, vprec=0.0, t1=10, dt=0.05):
         # reset
         self.system.q [:] = 0.0
         self.system.qd[:] = 0.0
 
         # initial conditions
-        self.system.q [self.pivot.istrain[0]] = xpivot # initial elevation
-        self.system.qd[self.pivot.istrain[0]] = vpivot # initial elevation spd
-        self.system.qd[self.axis .istrain[0]] = self.spin # initial rotation speed
+        self.system.q [self.pivot.istrain][0] = xpivot # initial elevation
+        self.system.qd[self.bearing.istrain][0] = vprec # initial azimuth spd
+        self.system.qd[self.axis.istrain][0] = self.spin # initial rotation speed
+
+        self.integ = Integrator(self.system, ('pos','vel'))
+        self.integ.add_output(dynamics.LoadOutput(self.axis.iprox))
+        self.integ.add_output(dynamics.LoadOutput(self.pivot.iprox))
+        self.integ.add_output(dynamics.LoadOutput(self.bearing.iprox))
+        #integ.add_output(dynamics.CustomOutput(
+        #    lambda s: np.dot(self.axis.mass_vv, self.system.qdd[el.iprox+el.idist]) + \
+        #              np.dot(el.mass_ve, self.system.qdd[el.istrain])))
 
         # simulate
-        self.t = np.arange(0, t1, dt)
-        self.y = solve_system(self.system, self.t, outputs='vels')
+        if t1 > 0:
+            self.t, self.y = self.integ.integrate(t1, dt)
+            for i,lab in enumerate(self.integ.labels()):
+                print "%2d  %s" % (i,lab)
+            return self.t, self.y
 
     def ani(self, vs=1):
         l = self.length * 1.1
@@ -104,8 +118,8 @@ class BeamGyroscope(Gyroscope):
         self.system = System(self.bearing)
 
         # Prescribed DOF accelerations
-        self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
-        self.system.prescribe(self.body.istrain, 0.0) # rigid beam
+        self.system.prescribe(self.axis, acc=0.0) # constant rotational speed
+        self.system.prescribe(self.body, acc=0.0) # rigid beam
 
 class ModalGyroscope(Gyroscope):
     def __init__(self, length, radius, mass, spin, endmass):
@@ -141,18 +155,18 @@ class ModalGyroscope(Gyroscope):
         self.system = System(self.bearing)
 
         # Prescribed DOF accelerations
-        self.system.prescribe(self.axis.istrain, 0.0) # constant rotational speed
+        self.system.prescribe(self.axis, acc=0.0) # constant rotational speed
 
 # Create 3 different models
-length = 3.0
+length = 7.0
 radius = 1.0
 mass = 100.0
 spin = 20.0
 endmass = 0.5
 
-#bg = BeamGyroscope(length, radius, mass, spin, endmass)
-#mg = ModalGyroscope(length, radius, mass, spin, endmass)
-#gg = Gyroscope(length, radius, mass, spin, endmass)
+bg = BeamGyroscope(length, radius, mass, spin, endmass)
+mg = ModalGyroscope(length, radius, mass, spin, endmass)
+gg = Gyroscope(length, radius, mass, spin, endmass)
 
 elevation = np.radians(20)
 
@@ -163,59 +177,55 @@ torque = endmass * gravity * length/2 * np.sin(elevation)
 precession = torque / (spin_inertia * spin * np.sin(elevation))
 nutation = spin_inertia * spin / (cross_inertia * np.cos(elevation))
 
-prec2 = (spin*spin_inertia*np.sin(elevation) - np.sqrt(
-            (spin*spin_inertia*np.sin(elevation))**2 - \
-            4*(cross_inertia-spin_inertia)*np.sin(elevation)*np.cos(elevation)*torque
-        )) / \
-        (2*(cross_inertia-spin_inertia)*np.sin(elevation)*np.cos(elevation))
-
-# Linearise?
-#bl = linearisation.LinearisedSystem(bg.system)
-#ml = linearisation.LinearisedSystem(mg.system)
-#gl = linearisation.LinearisedSystem(gg.system)
+#gg.simulate(elevation, 0.00245, t1=5)
 
 def test():
     # Run simulations
     print '--------------'
     print 'GYROSCOPE TEST'
     print '--------------'
-    gg.simulate(elevation)
-    mg.simulate(elevation)
-    bg.simulate(elevation)
+    rate = 0.00245
+    gg.simulate(elevation, rate)
+    mg.simulate(elevation, rate)
+    bg.simulate(elevation, rate)
     print 'done.\n\n'
 
+    atol = 1e-4
+    mok = np.allclose(gg.y[0], mg.y[0], atol=atol) and np.allclose(gg.y[1], mg.y[1], atol=atol)
+    bok = np.allclose(gg.y[0], bg.y[0], atol=atol) and np.allclose(gg.y[1], bg.y[1], atol=atol)
+
     print "Comparing to RigidBody results. Should have some theory too..."
-    print "ModalElement: ", np.allclose(gg.y, mg.y, atol=1e-4) and "ok" or "FAIL"
-    print "UniformBeam:  ", np.allclose(gg.y, bg.y, atol=1e-4) and "ok" or "FAIL"
+    print "ModalElement: ", mok and "ok" or "FAIL"
+    print "UniformBeam:  ", bok and "ok" or "FAIL"
 
-def plotresults(gyro, title=None, velocity=False):
-    # Theory
-    nutamp = 0.0001
-    aznut = nutamp*nutation*np.cos(nutation*gyro.t)
-    elnut = nutamp*nutation*np.sin(nutation*gyro.t)
-
+def plotresults(gyro, title=None):
     fig = plt.figure()
-    ax1 = fig.add_subplot(111)
+    ax1 = fig.add_subplot(211)
     ax2 = ax1.twinx()
+
+    ax1.plot(gyro.t, np.degrees(gyro.y[0] % (2*np.pi)), 'b',
+             gyro.t, np.degrees((gyro.t*precession) % (2*np.pi)), 'b:')
+    #ax1.set_ylim((0,360))
+    ax1.set_ylabel('Azimuth (deg)')
+    ax1.yaxis.label.set_color('blue')
+    ax2.plot(gyro.t, np.degrees(gyro.y[1]), 'r',
+             gyro.t, np.ones_like(gyro.t)*np.degrees(elevation),'r--')
+    ax2.set_ylim((15,25))
+    ax2.set_ylabel('Elevation (deg)')
+    ax2.yaxis.label.set_color('red')
+
+    ax3 = fig.add_subplot(212)
+    ax4 = ax3.twinx()
     
-    if velocity:
-        ax1.plot(gyro.t, gyro.y[:,3], 'b',
-                 gyro.t, np.ones_like(gyro.t)*precession + aznut, 'b:')
-        ax1.set_ylabel('Azimuth rate (rad/s)')
-        ax2.plot(gyro.t, -gyro.y[:,4], 'r',
-                 gyro.t, -elnut, 'r--')
-        ax2.set_ylabel('Elevation rate (rad/s)')
-    else:
-        ax1.plot(gyro.t, np.degrees(gyro.y[:,0] % (2*np.pi)), 'b',
-                 gyro.t, np.degrees((gyro.t*precession + aznut) % (2*np.pi)), 'b:')
-        #ax1.set_ylim((0,360))            
-        ax1.set_ylabel('Azimuth / deg')
-        ax2.plot(gyro.t, np.degrees(gyro.y[:,1]), 'r',
-                 gyro.t, np.degrees(elevation-elnut-nutamp),'r--')
-        #ax2.set_ylim((80,90))
-        ax2.set_ylabel('Elevation / deg')
-    
-    ax1.set_xlabel('Time / s')
+    ax3.set_color_cycle(['r','g','b'])
+    ax3.plot(gyro.t, gyro.y[6][:,:3], '--')
+    ax3.set_ylabel('Base forces [--]')
+    ax4.set_color_cycle(['r','g','b'])
+    ax4.plot(gyro.t, gyro.y[6][:,3:], '-')
+    ax4.set_ylabel('Base moments [-]')
+    ax4.legend(('x','y','z'))
+
+    ax3.set_xlabel('Time / s')
     if title is not None:
         ax1.set_title(title)
 
