@@ -38,7 +38,7 @@ class Rotor(object):
         root1 = RigidConnection('root1', root_length*np.dot(Rhb1,[0,0,1]), dot(Rhb1,Ry))
         root2 = RigidConnection('root2', root_length*np.dot(Rhb2,[0,0,1]), dot(Rhb2,Ry))
         root3 = RigidConnection('root3', root_length*np.dot(Rhb3,[0,0,1]), dot(Rhb3,Ry))
-        self.blade1 = DirectModalElement('blade1', self.modes)
+        self.blade1 = ModalElement('blade1', self.modes)
         self.blade2 = ModalElement('blade2', self.modes)
         self.blade3 = ModalElement('blade3', self.modes)
         
@@ -51,7 +51,7 @@ class Rotor(object):
         self.system = System(self.bearing)
 
         # Prescribed DOF accelerations - constant rotor speed
-        self.system.prescribe(self.bearing, acc=0.0)
+        self.system.prescribe(self.bearing.istrain, vel=0.0, acc=0.0)
         
         # setup integrator
         self.integ = Integrator(self.system, ('pos','vel'))
@@ -75,12 +75,10 @@ class Rotor(object):
             self.system.q[self.blade1.istrain] = qm0
             self.system.q[self.blade2.istrain] = qm0
             self.system.q[self.blade3.istrain] = qm0
-        self.system.qd[self.bearing.istrain][0] = spin
+        self.system.prescribe(self.bearing.istrain, vel=spin, acc=0.0)
         
         # simulate
         self.t,self.y = self.integ.integrate(t1, dt)
-        for i,lab in enumerate(self.integ.labels()):
-            print "%2d  %s" % (i,lab)
         return self.t, self.y
     
     def lin(self, qm0=None, spin=10.0):
@@ -95,7 +93,7 @@ class Rotor(object):
             self.system.q[self.blade3.istrain] = qm0
         else:
             qm0 = np.zeros(self.blade1._nstrain * 3)
-        self.system.prescribe(self.bearing, vel=spin, acc=0.0)
+        self.system.prescribe(self.bearing.istrain, vel=spin, acc=0.0)
         
         linsys = linearisation.LinearisedSystem(self.system, qm0)
         return linsys
@@ -110,7 +108,6 @@ dynamics.gravity = 0
 # Create model
 bladed_file = '/bladed/uniform_blade_2modes.prj'
 rotor = Rotor(bladed_file, 0)
-#t,y2 = rotor.simulate([0.2, 0.0], spin=10, t1=1, dt=0.01)
 
 def measure_period(t,y):
     t_cross = t[np.nonzero(np.diff(y>=0))]
@@ -162,8 +159,8 @@ def plotfreqs(speeds, freqs):
     ax.legend(loc='upper left')
 
 ##### Test frequencies from time-domain results, with two root lengths ######
-if True:
-    speeds = [0, 1, 5, 10, 15, 20]
+if False:
+    speeds = [0, 1, 5, 10, 20, 40]
     rotor0 = Rotor(bladed_file, 0)
     freqs0,t,y = test_speeds(speeds)
     rotor10 = Rotor(bladed_file, 10)
