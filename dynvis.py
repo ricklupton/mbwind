@@ -84,9 +84,15 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, only_free=False):
     N = len(iDOF)
     print iDOF, N
     def animate(i):
-        for j,k in enumerate(iDOF):
-            system.q[k] = yy[j][i,0]
-        system.update(tt[i], False)
+        j = 0
+        jj = 0
+        for k in iDOF:
+            if jj >= yy[j].shape[1]:
+                jj = 0
+                j += 1
+            system.q[k] = yy[j][i,jj]
+            jj += 1
+        system.update_kinematics(tt[i], False)
 
         for el,ellines in lines:
             linedata = el.shape()
@@ -96,7 +102,7 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, only_free=False):
 
         return [line for line in ellines for el,ellines in lines] + [time_text]
 
-    ani = animation.FuncAnimation(fig, animate, np.arange(1, yy[0].shape[1]),
+    ani = animation.FuncAnimation(fig, animate, np.arange(1, yy[0].shape[0]),
         interval=tt[1]-tt[0]*1000*1, blit=False, init_func=init, repeat=False)
     return ani
 
