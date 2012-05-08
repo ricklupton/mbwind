@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 import dynamics
-from dynamics import System, ModalElement, solve_system
+from dynamics import System, ModalElement, Integrator
 from linearisation import LinearisedSystem, ModalRepresentation
 from loading import BladeLoading
 import dynvis
@@ -46,16 +46,12 @@ system = System(el)
 el0 = ModalElement('el0', modes0, loading)
 system0 = System(el0)
 
-# Define outputs
-def outputs(system):
-    tippos = system.first_element.station_positions()
-    return np.r_[ tippos[16,1], tippos[32,1] ]
+integ = Integrator(system)
+integ0 = Integrator(system0)
+integ.add_output(el.output_positions(stations=[16,32]))
+integ0.add_output(el0.output_positions(stations=[16,32]))
 
-# Run a simluation
-def simulate(system, t1=2.0, dt=0.005):
-    t = np.arange(0, t1, dt)
-    y = solve_system(system, t, outputs)
-    return t,y
+#def simulate(system, t1=2.0, dt=0.005):
 
 # Load Bladed data for comparison
 import pybladed.data
@@ -96,11 +92,11 @@ def doplot():
     
     fig.suptitle('Blade deflection at midspan and tip')
     ax1 = fig.add_subplot(gs[0:2,0])
-    ax1.plot(t, y[:,4], 'k', label='Mine (damped)')
-    ax1.plot(t, y[:,5], 'k')
+    ax1.plot(t, y[1][:,0,1], 'k', label='Mine (damped)')
+    ax1.plot(t, y[1][:,1,1])
     ax1.plot(t, bladed_defl[:len(t),0], 'b:', label='Bladed (damped)')
     ax1.plot(t, bladed_defl[:len(t),1], 'b:')
-    ax1.plot(t0, y0[:,4:], 'k', t0, bladed_defl0[:len(t0),0], 'b:', t0, bladed_defl0[:len(t0),1], 'b:')
+    ax1.plot(t0, y0[1][:,:,1], 'k', t0, bladed_defl0[:len(t0),0], 'b:', t0, bladed_defl0[:len(t0),1], 'b:')
     ax1.set_ylabel('Deflection / m')
     ax1.legend(frameon=False)
     ax1.set_ylim((0,0.045))
@@ -115,6 +111,6 @@ def doplot():
     plt.setp(ax2.get_legend().get_texts(), fontsize='small')
     
 if False:
-    t,y = simulate(system, 10, 0.05)
-    t0,y0 = simulate(system0, 10, 0.05)
+    t,y = integ.integrate(10, 0.05)
+    t0,y0 = integ0.integrate(10, 0.05)
 
