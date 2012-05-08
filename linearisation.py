@@ -293,8 +293,8 @@ class ModalRepresentation(object):
             \rho(s) \, ds
 
     """
-    def __init__(self, x, shapes, rotations, density, mass_axis,
-                 section_inertia, freqs, damping=None):
+    def __init__(self, x, shapes, rotations, density, freqs, mass_axis=None,
+                 section_inertia=None, damping=None):
         r"""
         Setup modal representation for a 1-dimensional element.
 
@@ -333,10 +333,14 @@ class ModalRepresentation(object):
 
         if damping is None:
             damping = zeros(len(freqs))
-            
+        
+        if mass_axis is None:
+            mass_axis = zeros((len(x),2))
         
         newsec = zeros((len(x),3,3))
-        if section_inertia.ndim == 1:
+        if section_inertia is None:
+            pass
+        elif section_inertia.ndim == 1:
             newsec[:,1,1] = section_inertia
             newsec[:,2,2] = section_inertia
         else:
@@ -351,6 +355,7 @@ class ModalRepresentation(object):
         self.damping = damping
         self.density = density
         self.section_inertia = section_inertia
+        self.mass_axis = mass_axis
 
         # Prepare integrands
         X0 = np.c_[ x, mass_axis ]
@@ -359,6 +364,8 @@ class ModalRepresentation(object):
         T1 = zeros((len(x),3,3,len(freqs)))
         S2 = zeros((len(x),3,3,len(freqs),len(freqs)))
         T2 = zeros((len(x),3,3,len(freqs),len(freqs)))
+        H2 = zeros((len(x),3,len(freqs),len(freqs)))
+        H3 = zeros((len(x),3,len(freqs),len(freqs),len(freqs)))
 
         for i in range(len(x)):
             J0[i] = np.outer(X0[i], X0[i])  +  section_inertia[i]
@@ -370,17 +377,38 @@ class ModalRepresentation(object):
                                 section_inertia[i], rotations[i])
             T2[i,:,:,:,:] = np.einsum('ist,jlm,ls,mp,tr', eps_ijk, eps_ijk,
                                 section_inertia[i], rotations[i], rotations[i])
+            
+            H2[i,:,:,:  ] = np.einsum('p,q,j ->jpq',  rotations[i,1], rotations[i,1], X0[i]) + \
+                            np.einsum('p,q,j ->jpq',  rotations[i,2], rotations[i,2], X0[i])
+            H3[i,:,:,:,:] = np.einsum('p,q,jr->jpqr', rotations[i,1], rotations[i,1], shapes[i]) + \
+                            np.einsum('p,q,jr->jpqr', rotations[i,2], rotations[i,2], shapes[i])
 
         # Calculate shape integrals
         self.X0 = X0
         self.mass = trapz(         density,                x, axis=0)
-        self.I0   = trapz(X0     * density[:,NA],          x, axis=0)
-        self.J0   = simps(J0     * density[:,NA,NA],       x, axis=0)
-        self.S    = simps(shapes * density[:,NA,NA],       x, axis=0)
-        self.S1   = simps(S1     * density[:,NA,NA,NA],    x, axis=0)
-        self.T1   = simps(T1     * density[:,NA,NA,NA],    x, axis=0)
-        self.S2   = simps(S2     * density[:,NA,NA,NA,NA], x, axis=0)
-        self.T2   = simps(T2     * density[:,NA,NA,NA,NA], x, axis=0)
+        self.I00  = trapz(X0     * density[:,NA],          x, axis=0)
+        self.J00  = simps(J0     * density[:,NA,NA],       x, axis=0)
+        self.S    = trapz(shapes * density[:,NA,NA],       x, axis=0)
+        self.S1   = trapz(S1     * density[:,NA,NA,NA],    x, axis=0)
+        self.T1   = trapz(T1     * density[:,NA,NA,NA],    x, axis=0)
+        self.S2   = trapz(S2     * density[:,NA,NA,NA,NA], x, axis=0)
+        self.T2   = trapz(T2     * density[:,NA,NA,NA,NA], x, axis=0)
+        self.H2   = trapz(H2     * density[:,NA,NA,NA],    x, axis=0)
+        self.H3   = trapz(H3     * density[:,NA,NA,NA,NA], x, axis=0)
+        
+        self.I0 = zeros(3)
+        self.J0 = zeros((3,3)) # XXX neglecting non-straight mass axis
+        for i in range(len(x)-1):
+            rho1 = density[i]
+            rho2 = density[i+1]
+            x1,y1,z1 = X0[i]
+            x2,y2,z2 = X0[i+1]
+            self.I0[0] += ( (2*rho2+rho1)*x2**3 + (2*rho1+rho2)*x1**3 -
+                             3*rho1*x2*x1**2 - 3*rho2*x1*x2**2 ) / (6*(x2-x1))
+            self.I0[1] += (rho1*y1 + rho2*y2 - (rho1*y2+rho2*y1)/2) * (x2-x1)/3
+            self.I0[2] += (rho1*z1 + rho2*z2 - (rho1*z2+rho2*z1)/2) * (x2-x1)/3
+            self.J0[0,0] += ( (rho1+3*rho2)*x2**4 + (rho2+3*rho1)*x1**4
+                            - 4*x1*x2*(rho1*x1**2 + rho2*x2**2) ) /(12*(x2-x1))
         
         # describe mode shapes
         # XXX: only knows about bending modes
@@ -459,10 +487,11 @@ class ModalRepresentation(object):
             A1 = self.S1 - self.T1
             A2 = np.einsum('ijpr,r', self.S2, q) + \
                  np.einsum('ijrp,r', self.T2, q)
+            H = np.einsum('pr,r', self.H2[0], q)
             
             # depending on angular velocity
-            C = np.einsum('ijp,i,j', A1 + A2, Wp, Wp) - \
-                dot(Wp,Wp) * (A1+A2).trace()
+            C = np.einsum('ijp,i,j', A1+A2, Wp, Wp) - \
+                dot(Wp,Wp) * ((A1+A2).trace() + 0*H)
             
             # depending on strain velocity
             B2 = self.S2 - self.T2.swapaxes(2,3)
@@ -485,34 +514,68 @@ class ModalRepresentation(object):
         Qw =  trapz(XcrossP, self.x, axis=0)
         Qe = -trapz(UTP,     self.x, axis=0)
         return Qr, Qw, Qe
+    
+    def geometric_stiffness(self, N):
+        """
+        Calculate the geometric stiffening matrix corresponding to an applied
+        force N.
+        """
+        # loop through SEGMENTS
+        Nmode = len(self.freqs)
+        Nstns = len(self.x)
+        kG = zeros((Nmode,Nmode))
+        for i in range(Nstns-1):
+            dx = self.x[i+1] - self.x[i]
+            for p in range(Nmode):
+                slope_p = self.shapes[i+1,:,p] - self.shapes[i,:,p]
+                for q in range(Nmode):
+                    slope_q = self.shapes[i+1,:,q] - self.shapes[i,:,q]
+                    intN = trapz(N[i:i+2], self.x[i:i+2], axis=0)
+                    kG[p,q] += dot(slope_p,slope_q)/dx**2 * intN
+        return kG
+                    
 
     def save(self, filename):
         np.savez(filename, x=self.x, shapes=self.shapes, freqs=self.freqs,
                  rotations=self.rotations, density=self.density)
 
-    @classmethod
-    def from_file(self, filename):
+    @staticmethod
+    def from_file(filename):
         if not filename.lower().endswith('.npz'):
             filename += '.npz'
         npz = np.load(filename)
         return ModalRepresentation(npz['x'], npz['shapes'], npz['rotations'],
                                    npz['freqs'], npz['density'])
 
-    @classmethod
-    def from_Bladed(self, filename):
+    @staticmethod
+    def from_Bladed(filename):
         """Load modal data from Bladed .prj or .$pj file."""
         bmf = BladedModesReader(filename)
         shapes_rotations = bmf.data.transpose(2,0,1)
         permute_axes = (2,0,1,5,3,4) #
         shapes_rotations = shapes_rotations[:,permute_axes,:]
         kgyr = np.zeros_like(bmf.radii)
+        #mass_axis = bmf.mass_axis
         rep = ModalRepresentation(bmf.radii, shapes_rotations[:,:3,:],
                                   shapes_rotations[:,3:,:], bmf.density,
-                                  zeros((len(bmf.radii),2)), kgyr,
-                                  bmf.freqs, bmf.damping)
+                                  bmf.freqs, section_inertia=kgyr,
+                                  damping=bmf.damping) #, mass_axis=mass_axis)
         return rep
 
 import re
+
+class BladedModule(object):
+    def __init__(self, prj, module):
+        self.module = module
+        pattern = ""
+        pattern = r"""
+            ^[ \t]*MSTART[ \t]+{modname}\b.*\n  # MSTART as 1st word then modname
+            (?:(?![ \t]*MEND).*\n)*?            # 1+ lines not starting MEND (few as poss)
+        """.format(modname=self.module)
+        pattern += r'''
+        ^[ \t]*{kw}[ \t](.*)     # "kw" as 1st word, catch value in group
+        '''.format(kw=self.keyword)
+        self.regex = re.compile(pattern, re.M+re.I+re.X)
 
 class BladedModesReader(object):
     def __init__(self, filename):
@@ -535,6 +598,9 @@ class BladedModesReader(object):
         # Blade station radii
         self.radii = model.get_param(('BGEOMMB','RJ')).split(',')
         self.radii = array(map(float, self.radii[::2])) # values duplicated for split station
+
+        # Mass axis coordinates
+        #mass_axis = model.get_param(('BGEOMMB','')).split(',')
 
         try:
             module = model.get_module('RMODE')
