@@ -19,7 +19,7 @@ from blade import Blade
 from loading import BladeLoading
 import dynvis
 
-dynamics.gravity = 0
+dynamics.OPT_GRAVITY = False
 
 bladed_path = '/bladed/blade_nrel/parked'
 

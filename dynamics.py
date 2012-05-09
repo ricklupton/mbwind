@@ -30,6 +30,12 @@ eps_ijk[2,1,0] = eps_ijk[1,0,2] = eps_ijk[0,2,1] = -1
 ##  OPTIONS  ##############
 ###########################
 
+# Gravity?
+OPT_GRAVITY = True
+
+# Include centrifugal stiffening in modal elements?
+OPT_GEOMETRIC_STIFFNESS = True
+
 # Calculate blade loads in section coordinates?
 # Otherwise, calculate in undeflected position.
 # Bladed seems to use undeflected position
@@ -107,45 +113,6 @@ def euler_param_E(q):
 NQ = 12
 # number of generalised velocity coordinates: 3 spatial plus 3 angular velocity
 NQD = 6
-
-#class StateArray(object):
-#    def __init__(self):
-#        self.reset()
-#    
-#    def __getitem__(self, index):
-#        if self._array is None:
-#            raise RuntimeError("Need to call allocate() first")
-#        if index in self.index_map:
-#            print "Remapping {} to {}".format(index, self.index_map[index])
-#            index = self.index_map[index]
-#        return self._array[index]
-#    
-#    def __setitem__(self, index, value):
-#        if self._array is None:
-#            raise RuntimeError("Need to call allocate() first")
-#        if index in self.index_map:
-#            print "Remapping {} to {}".format(index, self.index_map[index])
-#            index = self.index_map[index]
-#        self._array[index] = value
-#    
-#    def allocate(self):
-#        if self._array not is None:
-#            raise RuntimeError("Already allocated")
-#        N = len(self.elements)
-#        self._array = np.array(N)
-#    
-#    def reset(self):
-#        self.owners = []
-#        self.types = []
-#        self.index_map = {}
-#        self._array = None
-#    
-#    def new_states(self, owner, type_, num):
-#        if self._array is None:
-#            raise RuntimeError("Already allocated, call reset()")
-#        self.owners.extend( [owner]*num )
-#        self.types.extend ( [type_]*num )
-
 
 class ArrayProxy(object):
     """Delegate getitem and setitem to a reduced part of the target array"""
@@ -742,9 +709,11 @@ class Element(object):
             += np.r_[ Fprox, Mprox ]
 
     def _set_gravity_force(self):
-        # include gravity by default
-        gravacc = np.tile([0, 0, -gravity, 0, 0, 0], 1 + self._ndistal)
-        self.applied_forces = dot(self.mass_vv, gravacc)
+        if OPT_GRAVITY:
+            gravacc = np.tile([0, 0, -gravity, 0, 0, 0], 1 + self._ndistal)
+            self.applied_forces = dot(self.mass_vv, gravacc)
+        else:
+            self.applied_forces[:] = 0
 
     def calc_kinematics(self):
         """
@@ -1354,6 +1323,10 @@ class ModalElement(Element):
         # Stiffness matrix
         self.stiffness = np.diag(self.mass_ee) * self.modes.freqs**2
         self.damping = 2 * self.modes.damping * self.stiffness / self.modes.freqs
+        
+        # Cached geometric stiffness
+        self.kG = None
+        self.kG_w = None
 
     def station_positions(self):
         prox_pos = self.modes.X(self.xstrain)
@@ -1462,7 +1435,7 @@ class ModalElement(Element):
     def calc_external_loading(self):
         # Gravity loads
         self._set_gravity_force()
-
+        
         # Constitutive loading
         self.applied_stress[:] = (
             self.stiffness * self.xstrain +
@@ -1470,11 +1443,18 @@ class ModalElement(Element):
         )
         
         # Geometric stiffness
-        local_wp = np.sum(dot(self.Rp.T, self.vp[WP])**2)
-        #centrifugal_force = self.modes.density * self.modes.x * local_wp**2
-        #kG = self.modes.geometric_stiffness(centrifugal_force)
-        #print dot(kG, self.xstrain)
-        #self.applied_stress[:] += dot(kG, self.xstrain)
+        if OPT_GEOMETRIC_STIFFNESS:
+            local_wp_sq = np.sum(dot(self.Rp.T, self.vp[WP])[1:]**2)
+            if self.kG is None or abs(local_wp_sq/self.kG_w-1) > 0.01:
+                print 'Recalculating geometric stiffness'
+                centrifugal_force = local_wp_sq * self.modes.I0_dist[:,0]
+                self.kG = self.modes.geometric_stiffness(centrifugal_force)
+                self.kG_w = local_wp_sq
+            self.applied_stress[:] += dot(self.kG, self.xstrain)
+        
+        #print self.mass_ve
+        
+        
         
         # External loading
         if self.loading is not None:
@@ -1488,9 +1468,9 @@ class ModalElement(Element):
     # Declare some standard custom outputs
     def output_deflections(self, stations=(-1,)):
         def f(system):
-            X = self.modes.X(self.xstrain)[stations]
-            X[:,0] -= self.modes.x[stations]
-            return X
+            X = self.modes.X(self.xstrain)
+            X[:,0] -= self.modes.x
+            return X[stations]
         return CustomOutput(f, label="{} deflections".format(self.name))
     
     def output_positions(self, stations=(-1,)):

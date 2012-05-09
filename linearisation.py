@@ -398,24 +398,27 @@ class ModalRepresentation(object):
         
         self.I0 = zeros(3)
         self.J0 = zeros((3,3)) # XXX neglecting non-straight mass axis
-        for i in range(len(x)-1):
+        self.I0_dist = zeros((len(x),3))
+        for i in range(len(x)-2,-1,-1):
             rho1 = density[i]
             rho2 = density[i+1]
             x1,y1,z1 = X0[i]
             x2,y2,z2 = X0[i+1]
-            self.I0[0] += ( (2*rho2+rho1)*x2**3 + (2*rho1+rho2)*x1**3 -
-                             3*rho1*x2*x1**2 - 3*rho2*x1*x2**2 ) / (6*(x2-x1))
-            self.I0[1] += (rho1*y1 + rho2*y2 - (rho1*y2+rho2*y1)/2) * (x2-x1)/3
-            self.I0[2] += (rho1*z1 + rho2*z2 - (rho1*z2+rho2*z1)/2) * (x2-x1)/3
+            Ix = ( (2*rho2+rho1)*x2**3 + (2*rho1+rho2)*x1**3 -
+                   3*rho1*x2*x1**2 - 3*rho2*x1*x2**2 ) / (6*(x2-x1))
+            Iy = (rho1*y1 + rho2*y2 - (rho1*y2+rho2*y1)/2) * (x2-x1)/3
+            Iz = (rho1*z1 + rho2*z2 - (rho1*z2+rho2*z1)/2) * (x2-x1)/3
+            self.I0_dist[i,:] = self.I0_dist[i+1,:] + [Ix,Iy,Iz]
             self.J0[0,0] += ( (rho1+3*rho2)*x2**4 + (rho2+3*rho1)*x1**4
                             - 4*x1*x2*(rho1*x1**2 + rho2*x2**2) ) /(12*(x2-x1))
+        self.I0 = self.I0_dist[0]
         
         # describe mode shapes
         # XXX: only knows about bending modes
         self.mode_descriptions = []
         order = {0: 0, 1: 0, 2: 0}
         for p in range(len(freqs)):
-            direction = np.argmax(self.shapes[-1,:,p])
+            direction = np.argmax(np.abs(self.shapes[-1,:,p]))
             order[direction] += 1
             self.mode_descriptions.append('Bending towards {} mode {}'.format(
                 'XYZ'[direction], order[direction]))
@@ -521,17 +524,28 @@ class ModalRepresentation(object):
         force N.
         """
         # loop through SEGMENTS
-        Nmode = len(self.freqs)
-        Nstns = len(self.x)
-        kG = zeros((Nmode,Nmode))
-        for i in range(Nstns-1):
-            dx = self.x[i+1] - self.x[i]
-            for p in range(Nmode):
-                slope_p = self.shapes[i+1,:,p] - self.shapes[i,:,p]
-                for q in range(Nmode):
-                    slope_q = self.shapes[i+1,:,q] - self.shapes[i,:,q]
-                    intN = trapz(N[i:i+2], self.x[i:i+2], axis=0)
-                    kG[p,q] += dot(slope_p,slope_q)/dx**2 * intN
+        #Nmode = len(self.freqs)
+        #Nstns = len(self.x)
+        #kG = zeros((Nmode,Nmode))
+        #for i in range(Nstns-1):
+        #    dx = self.x[i+1] - self.x[i]
+        #    for p in range(Nmode):
+        #        slope_p = self.shapes[i+1,:,p] - self.shapes[i,:,p]
+        #        for q in range(Nmode):
+        #            slope_q = self.shapes[i+1,:,q] - self.shapes[i,:,q]
+        #            intN = trapz(N[i:i+2], self.x[i:i+2], axis=0)
+        #            kG[p,q] += dot(slope_p,slope_q)/dx**2 * intN
+        
+        # XXX Assume force acts axially along the beam
+        dx = np.diff(self.x)
+        slopes = np.r_[
+            #zeros((1,)+self.shapes.shape[1:]),
+            np.diff(self.shapes, axis=0) / dx[:,None,None],
+            zeros((1,)+self.shapes.shape[1:]),
+        ] # use slope of preceding segment
+        inty = np.einsum('hp,hq->hpq', slopes[:,1,:], slopes[:,1,:])
+        intz = np.einsum('hp,hq->hpq', slopes[:,2,:], slopes[:,2,:])
+        kG = trapz((inty + intz) * N[:,None,None], x=self.x, axis=0)
         return kG
                     
 
