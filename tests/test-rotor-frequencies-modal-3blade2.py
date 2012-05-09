@@ -111,7 +111,7 @@ dynamics.OPT_GRAVITY = False
 dynamics.OPT_GEOMETRIC_STIFFNESS = True
 
 # Create model
-bladed_file = '/bladed/uniform_blade_2modes.prj'
+bladed_file = '/bladed/blade_nrel/parked.$pj'
 rotor = Rotor(bladed_file, 0)
 #t,y2 = rotor.simulate([0.2, 0.0], spin=10, t1=1, dt=0.01)
 
@@ -167,45 +167,60 @@ def plotfreqs(speeds, freqs):
     ax.set_ylabel('Vibration frequency (rad/s)')
     ax.legend(loc='upper left')
 
-##### Test frequencies from time-domain results, with two root lengths ######
+##### Test frequencies from time-domain results ######
+speeds = array([1, 5, 10, 20, 50, 100])
 if False:
-    speeds = [0, 1, 5, 10, 15, 20, 30, 40, 50]
-    rotor0 = Rotor(bladed_file, 0)
-    freqs0,t,y = test_speeds(speeds)
-    #rotor10 = Rotor(bladed_file, 10)
-    #freqs10,t,y = test_speeds(speeds)
-    
-    # At the moment, expect root length not to affect result because modes do
-    # not include any radial deflection
-    
-    plotfreqs(speeds, freqs0)
-    #plotfreqs(speeds, freqs10)
+    freqs,t,y = test_speeds(speeds*pi/30)
+    plotfreqs(speeds, freqs)
 
 ##### Test linearisation ######
-def campbell_diagram(speeds):
+def campbell_diagram(speeds, freqs=None):
     speeds = np.array(speeds)
-    print '----------------------------'
-    print 'Calculating Campbell diagram'
-    print '----------------------------'
-    print
-    print 'Varying speeds:'
-    print speeds
-    print
-    
-    results = []
-    for Omega in speeds:
-        print '::: Omega = {}'.format(Omega)
-        linsys = rotor.lin(spin=Omega)
-        w,v = linsys.modes()
-        results.append(w)
-    results = np.array(results)
+    if freqs is None:
+        print '----------------------------'
+        print 'Calculating Campbell diagram'
+        print '----------------------------'
+        print
+        print 'Varying speeds:'
+        print speeds
+        print
+        
+        freqs = []
+        for Omega in speeds:
+            print '::: Omega = {}'.format(Omega)
+            linsys = rotor.lin(spin=Omega)
+            w,v = linsys.modes()
+            freqs.append(w)
+        freqs = np.array(freqs)
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.plot(speeds, results)
+    ax.plot(speeds, freqs[:,::3], '.-')
     ax.plot(speeds, speeds, 'k--', speeds, 2*speeds, 'k--')
     ax.set_title('Campbell diagram')
     ax.set_xlabel('Rotational speed (rad/s)')
     ax.set_ylabel('Vibration frequency (rad/s)')
     ax.legend(rotor.modes.mode_descriptions, loc='upper left')
-    return results
+    return freqs
+
+####### Load Bladed Campbell diagram results #####
+from pybladed.data import BladedRun
+brun = [BladedRun('/bladed/blade_nrel/lin1_%drpm' % speed) for speed in speeds]
+bf1 = np.r_[[run.get('Frequency;3' )[0] for run in brun]]
+bf2 = np.r_[[run.get('Frequency;6' )[0] for run in brun]]
+bf3 = np.r_[[run.get('Frequency;9' )[0] for run in brun]]
+bf4 = np.r_[[run.get('Frequency;12')[0] for run in brun]]
+
+if True:
+    fc = campbell_diagram(speeds*pi/30)
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(speeds, fc[:,::3]/2/pi, '.-')
+    ax.plot(speeds, bf1/2/pi, 'b--')
+    ax.plot(speeds, bf2/2/pi, 'g--')
+    ax.plot(speeds, bf3/2/pi, 'r--')
+    ax.plot(speeds, bf4/2/pi, 'c--')
+    ax.plot(speeds, speeds/60, 'k:', speeds, 2*speeds/60, 'k:')
+    ax.set_title('Campbell diagram')
+    ax.set_xlabel('Rotational speed (rpm)')
+    ax.set_ylabel('Vibration frequency (Hz)')

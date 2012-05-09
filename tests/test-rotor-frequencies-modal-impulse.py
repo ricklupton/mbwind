@@ -20,15 +20,21 @@ from dynamics import (System, Hinge, DirectModalElement, RigidConnection,
 import dynvis
 import linearisation
 from blade import Blade
+from loading import BladeLoading
 
 import matplotlib.pylab as plt
 
 class Rotor(object):
-    def __init__(self, mode_source_file, root_length=0):
+    def __init__(self, mode_source_file, root_length=0, wind_table=None):
         # Modal element using data from Bladed model
         print "Loading modes from '%s'..." % mode_source_file
         self.blade = Blade(mode_source_file)
         self.modes = self.blade.modal_rep()
+        
+        if wind_table is not None:
+            loading = BladeLoading(self.blade, wind_table, None)
+        else:
+            loading = None
 
         Ry = rotmat_y(-pi/2)
         Rhb1 = rotmat_x(0 * 2*pi/3)
@@ -39,7 +45,7 @@ class Rotor(object):
         root1 = RigidConnection('root1', root_length*np.dot(Rhb1,[0,0,1]), dot(Rhb1,Ry))
         root2 = RigidConnection('root2', root_length*np.dot(Rhb2,[0,0,1]), dot(Rhb2,Ry))
         root3 = RigidConnection('root3', root_length*np.dot(Rhb3,[0,0,1]), dot(Rhb3,Ry))
-        self.blade1 = ModalElement('blade1', self.modes)
+        self.blade1 = ModalElement('blade1', self.modes, loading)
         self.blade2 = ModalElement('blade2', self.modes)
         self.blade3 = ModalElement('blade3', self.modes)
         
@@ -52,7 +58,7 @@ class Rotor(object):
         self.system = System(self.bearing)
 
         # Prescribed DOF accelerations - constant rotor speed
-        self.system.prescribe(self.bearing, acc=0.0)
+        self.system.prescribe(self.bearing, vel=0.0, acc=0.0)
         
         # setup integrator
         self.integ = Integrator(self.system, ('pos','vel'))
@@ -71,7 +77,10 @@ class Rotor(object):
             self.system.q[self.blade1.istrain] = qm0
             self.system.q[self.blade2.istrain] = qm0
             self.system.q[self.blade3.istrain] = qm0
+        self.system.prescribe(self.bearing, vel=spin, acc=0.0)
         self.system.qd[self.bearing.istrain][0] = spin
+        
+        self.system.find_equilibrium()
         
         # simulate
         self.t,self.y = self.integ.integrate(t1, dt)
@@ -110,9 +119,18 @@ class Rotor(object):
 dynamics.OPT_GRAVITY = False
 dynamics.OPT_GEOMETRIC_STIFFNESS = True
 
+# Set up impulsive loading
+# Blade loading
+wind_table = np.array([
+    [0, 0.9, 1,  1.1], # time
+    [0, 0,   20, 0, ], # x
+    [0, 0,   0,  0, ], # y
+    [0, 0,   0,  0, ], # z
+])
+
 # Create model
-bladed_file = '/bladed/uniform_blade_2modes.prj'
-rotor = Rotor(bladed_file, 0)
+bladed_file = '/bladed/blade_nrel/parked.$pj'
+rotor = Rotor(bladed_file, 0, wind_table)
 #t,y2 = rotor.simulate([0.2, 0.0], spin=10, t1=1, dt=0.01)
 
 def measure_period(t,y):
@@ -182,30 +200,31 @@ if False:
     #plotfreqs(speeds, freqs10)
 
 ##### Test linearisation ######
-def campbell_diagram(speeds):
+def campbell_diagram(speeds, freqs=None):
     speeds = np.array(speeds)
-    print '----------------------------'
-    print 'Calculating Campbell diagram'
-    print '----------------------------'
-    print
-    print 'Varying speeds:'
-    print speeds
-    print
-    
-    results = []
-    for Omega in speeds:
-        print '::: Omega = {}'.format(Omega)
-        linsys = rotor.lin(spin=Omega)
-        w,v = linsys.modes()
-        results.append(w)
-    results = np.array(results)
+    if freqs is None:
+        print '----------------------------'
+        print 'Calculating Campbell diagram'
+        print '----------------------------'
+        print
+        print 'Varying speeds:'
+        print speeds
+        print
+        
+        freqs = []
+        for Omega in speeds:
+            print '::: Omega = {}'.format(Omega)
+            linsys = rotor.lin(spin=Omega)
+            w,v = linsys.modes()
+            freqs.append(w)
+        freqs = np.array(freqs)
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.plot(speeds, results)
-    ax.plot(speeds, speeds, 'k--', speeds, 2*speeds, 'k--')
+    ax.plot(speeds*30/pi, freqs[:,::3], '.-')
+    ax.plot(speeds*30/pi, speeds, 'k--', speeds*30/pi, 2*speeds, 'k--')
     ax.set_title('Campbell diagram')
-    ax.set_xlabel('Rotational speed (rad/s)')
+    ax.set_xlabel('Rotational speed (rpm)')
     ax.set_ylabel('Vibration frequency (rad/s)')
     ax.legend(rotor.modes.mode_descriptions, loc='upper left')
-    return results
+    return freqs
