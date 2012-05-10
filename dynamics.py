@@ -911,12 +911,13 @@ class RigidConnection(Element):
         [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
         """
 
-        wps = skewmat(self.vp[3:])
+        wp = self.vp[3:]
         xc = dot(self.Rp, self.offset)
         # Distal velocity rd_d = rd_p - xc \times w_p
         self.F_vp[0:3,3:6] = -skewmat(xc)
         # Distal velocity quadratic term w_p \times w_p \times xc
-        self.F_v2[0:3] = dot( dot(wps,wps), xc )
+        self.F_v2[0:3] = dot(np.outer(wp,wp), xc) - xc*dot(wp,wp)
+        #self.F_v2[0:3] = dot( dot(wps,wps), xc )
 
     def shape(self):
         return [
@@ -1324,9 +1325,9 @@ class ModalElement(Element):
         self.stiffness = np.diag(self.mass_ee) * self.modes.freqs**2
         self.damping = 2 * self.modes.damping * self.stiffness / self.modes.freqs
         
-        # Cached geometric stiffness
-        self.kG = None
-        self.kG_w = None
+        # Geometric stiffness matrix
+        # Use int rdm as axial force, multiply by omega**2 later
+        self.kG = self.modes.geometric_stiffness(self.modes.I0_dist[:,0])
 
     def station_positions(self):
         prox_pos = self.modes.X(self.xstrain)
@@ -1444,17 +1445,9 @@ class ModalElement(Element):
         
         # Geometric stiffness
         if OPT_GEOMETRIC_STIFFNESS:
+            # Calculate magnitude of angular velocity perpendicular to beam
             local_wp_sq = np.sum(dot(self.Rp.T, self.vp[WP])[1:]**2)
-            if self.kG is None or abs(local_wp_sq/self.kG_w-1) > 0.01:
-                print 'Recalculating geometric stiffness'
-                centrifugal_force = local_wp_sq * self.modes.I0_dist[:,0]
-                self.kG = self.modes.geometric_stiffness(centrifugal_force)
-                self.kG_w = local_wp_sq
-            self.applied_stress[:] += dot(self.kG, self.xstrain)
-        
-        #print self.mass_ve
-        
-        
+            self.applied_stress[:] += local_wp_sq * dot(self.kG, self.xstrain)
         
         # External loading
         if self.loading is not None:

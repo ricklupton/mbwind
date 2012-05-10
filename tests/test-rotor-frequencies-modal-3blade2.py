@@ -15,7 +15,7 @@ import numpy as np
 from numpy import pi, array, dot
 
 import dynamics
-from dynamics import (System, Hinge, DirectModalElement, RigidConnection,
+from dynamics import (System, Hinge, RigidConnection,
                       ModalElement, Integrator, rotmat_x, rotmat_y)
 import dynvis
 import linearisation
