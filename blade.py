@@ -33,7 +33,43 @@ class BladedModule(object):
             raise ModuleNotFoundError("Could not find module '{}'".format(name))
         self.text = module.group(1)
         
-        items = re.findall(r"^[ \t]*([^ \t]+)[ \t]+(.*)", self.text, re.M)
+        if hasattr(self, '_parser_%s'%name.lower()):
+            items = getattr(self, '_parser_%s'%name.lower())(self.text)
+        else:
+            items = self._parser(self.text)
+        
+        for key,value in items.items():
+            setattr(self, key.lower(), value)
+        
+    def _parser_rmode(self, text):
+        '''
+        Parse mode shapes: separate tower and blade modes
+        '''
+        items = re.findall(r"^[ \t]*([^ \t]+)[ \t]+(.*)", text, re.M)
+        result = {}
+        blade_tower = None
+        for key,value in items:
+            if key.lower() == 'nblade':
+                blade_tower = 'blade_'
+            elif key.lower() == 'ntower':
+                blade_tower = 'tower_'
+                
+            splitvalue = splitquoted(value)
+            if len(splitvalue) > 1:
+                value = [xx.strip() for xx in splitvalue]
+                try: value = [float(xx) for xx in value]
+                except ValueError: pass
+            else:
+                try: value = float(value)
+                except ValueError: pass
+            
+            assert blade_tower is not None
+            result[blade_tower + key.lower()] = value
+        return result
+        
+    def _parser(self, text):
+        items = re.findall(r"^[ \t]*([^ \t]+)[ \t]+(.*)", text, re.M)
+        result = {}
         for key,value in items:
             splitvalue = splitquoted(value)
             if len(splitvalue) > 1:
@@ -43,7 +79,8 @@ class BladedModule(object):
             else:
                 try: value = float(value)
                 except ValueError: pass
-            setattr(self, key.lower(), value)
+            result[key.lower()] = value
+        return result
 
 class Blade(object):
     """
@@ -84,10 +121,10 @@ class Blade(object):
             self.mode_damping = []
             self.mode_data = np.zeros((6, 0, len(self.radii)))
         else:
-            self.nmodes = int(mmodes.nblade)
-            self.mode_types = mmodes.type
-            self.mode_freqs = asarray(mmodes.freq)
-            self.mode_damping = asarray(mmodes.damp)
+            self.nmodes = int(mmodes.blade_nblade)
+            self.mode_types = mmodes.blade_type
+            self.mode_freqs = asarray(mmodes.blade_freq)
+            self.mode_damping = asarray(mmodes.blade_damp)
             if hasattr(mmodes, 'crypt'):
                 raise NotImplementedError("Cannot read encrypted modes")
                 
@@ -98,7 +135,7 @@ class Blade(object):
             #          z ->  x
             for i in range(self.nmodes):
                 for j0,j1 in enumerate((2,1,0,5,4,3)):
-                    self.mode_data[:,j1,i] = getattr(mmodes, 'md%02d%d'%(1+i,1+j0))                    
+                    self.mode_data[:,j1,i] = getattr(mmodes, 'blade_md%02d%d'%(1+i,1+j0))                    
                 self.mode_data[:,2,i] *= -1
                 self.mode_data[:,5,i] *= -1
 
