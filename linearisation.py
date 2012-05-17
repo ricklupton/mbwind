@@ -26,6 +26,13 @@ eps_ijk = zeros((3,3,3))
 eps_ijk[0,1,2] = eps_ijk[1,2,0] = eps_ijk[2,0,1] =  1
 eps_ijk[2,1,0] = eps_ijk[1,0,2] = eps_ijk[0,2,1] = -1
 
+def e_ikl_S_kl(S):
+    return array([
+        S[1,2] - S[2,1],
+        S[2,0] - S[0,2],
+        S[0,1] - S[1,0],
+    ])
+
 def qrot3(q):
     q1,q2,q3 = q
     q0 = np.sqrt(1.0 - q1**2 - q2**2 - q3**2)
@@ -50,7 +57,8 @@ class LinearisedSystem(object):
         point z0, zd0, zdd0.
         If system is a tuple (M,C,K) of matrics, use these as the linearised matrices.
 
-        If the linearisation point is not given, zero is assumed.
+        If the linearisation point is not given, the current positions and
+        velocities of the system, and zero acceleration, is assumed.
         """
 
         if isinstance(system, System):
@@ -64,9 +72,13 @@ class LinearisedSystem(object):
         else:
             raise TypeError('Unexpected type of system')
 
-        if z0   is None: z0   = np.zeros(f)
-        if zd0  is None: zd0  = np.zeros(f)
-        if zdd0 is None: zdd0 = np.zeros(f)
+        if z0   is None:
+            z0 = system.q.dofs[:]
+        if zd0  is None:
+            zd0 = system.qd.dofs[:]
+        if zdd0 is None:
+            zdd0 = np.zeros(f)
+        assert len(z0) == len(zd0) == len(zdd0) == f
         self.z0 = z0
         self.zd0 = zd0
         self.zdd0 = zdd0
@@ -93,9 +105,9 @@ class LinearisedSystem(object):
         #    return self.eval_reduced_system(hi(zdd0,zdd,i))
 
         for iz in range(self.M.shape[0]):
-            self.K[:,iz] = derivative(z_func,   0, args=(iz,))
-            self.C[:,iz] = derivative(zd_func,  0, args=(iz,))
-            self.M[:,iz] = derivative(zdd_func, 0, args=(iz,))
+            self.K[:,iz] = derivative(z_func,   0, args=(iz,), dx=0.1)
+            self.C[:,iz] = derivative(zd_func,  0, args=(iz,), dx=0.1)
+            self.M[:,iz] = derivative(zdd_func, 0, args=(iz,), dx=0.1)
 
     def modes(self):
         w,v = scipy.linalg.eig(self.K,self.M)
@@ -116,31 +128,40 @@ class LinearisedSystem(object):
         ]
         return A,B
 
-    def multiblade_transform(self, irot, ib1, ib2, ib3):
+    def multiblade_transform(self, azimuth_omega, iblades):
         """
         Perform a multi-blade coordinate (MBC) transform.
-        irot    specifies the index of the DOF corresponding to rotor rotation
-        ib{123} are slices specifying the indices of the DOFs corresponding to each blade
+        azimuth - either a tuple (azimuth angle, angular velocity of rotor)
+                  or the index of the linsys DOF corresponding to azimuth angle
+        iblades - list of indices of the DOFs corresponding to each blade
         """
-        assert isinstance(ib1,slice) and isinstance(ib2,slice) and isinstance(ib3,slice)
-        N = len(self.M[0,ib1])
-        assert N == len(self.M[0,ib2]) == len(self.M[0,ib3])
+        if isinstance(azimuth_omega, tuple):
+            azimuth, omega = azimuth_omega
+        else:
+            azimuth = self.z0[azimuth_omega]
+            omega = self.zd0[azimuth_omega]
+        
+        Nb = len(iblades) # number of blades
+        if Nb != 3:
+            raise NotImplementedError("Only 3 blades implemented")
+        Ndof = len(iblades[0]) # number of DOFs per blade
+        if any((len(ib) != Ndof for ib in iblades)):
+            raise ValueError("All blades must have same number of DOFs")
         B  = eye(self.M.shape[0])
         mu = eye(self.M.shape[0])
-        I = eye(N)
-        theta = self.z0[irot]
-        omega = self.zd0[irot]
-        for ib,ix in enumerate([ib1,ib2,ib3]):
-            B[ix,ib1] = I
-            B[ix,ib2] = I * cos(theta + 2*ib*pi/3)
-            B[ix,ib3] = I * sin(theta + 2*ib*pi/3)
-        mu[ib1,ib1] = 1 * I / 3
-        mu[ib2,ib2] = 2 * I / 3
-        mu[ib3,ib3] = 2 * I / 3
-
+        
+        # Loop through each DOF (on all blades)
+        for ib,ix in enumerate(iblades):
+            B[ix,iblades[0]] = 1
+            B[ix,iblades[1]] = cos(azimuth + 2*ib*pi/Nb)
+            B[ix,iblades[2]] = sin(azimuth + 2*ib*pi/Nb)
+        mu[iblades[0],iblades[0]] = 1/3
+        mu[iblades[1],iblades[1]] = 2/3
+        mu[iblades[2],iblades[2]] = 2/3
+        
         R = np.zeros_like(B)
-        R[ib3,ib2] = -omega * I
-        R[ib2,ib3] =  omega * I
+        R[iblades[2],iblades[1]] = -omega
+        R[iblades[1],iblades[2]] =  omega
 
         Mb = dot(mu, dot(B.T, dot(self.M, B)))
         Cb = dot(mu, dot(B.T, dot(self.C, B)))
@@ -151,7 +172,10 @@ class LinearisedSystem(object):
 
         return LinearisedSystem((newM, newC, newK), self.z0, self.zd0, self.zdd0)
 
-    def integrate(self, tvals, z0, zd0):
+    def integrate(self, tvals, z0=None, zd0=None):
+        if z0 is None: z0 = self.z0
+        if zd0 is None: zd0 = self.zd0
+        
         f = self.M.shape[0]
         Mi = LA.inv(self.M)
 
@@ -389,12 +413,13 @@ class ModalRepresentation(object):
         self.I00  = trapz(X0     * density[:,NA],          x, axis=0)
         self.J00  = simps(J0     * density[:,NA,NA],       x, axis=0)
         self.S    = trapz(shapes * density[:,NA,NA],       x, axis=0)
-        self.S1   = trapz(S1     * density[:,NA,NA,NA],    x, axis=0)
-        self.T1   = trapz(T1     * density[:,NA,NA,NA],    x, axis=0)
-        self.S2   = trapz(S2     * density[:,NA,NA,NA,NA], x, axis=0)
-        self.T2   = trapz(T2     * density[:,NA,NA,NA,NA], x, axis=0)
-        self.H2   = trapz(H2     * density[:,NA,NA,NA],    x, axis=0)
-        self.H3   = trapz(H3     * density[:,NA,NA,NA,NA], x, axis=0)
+        self.S1  = trapz(S1     * density[:,NA,NA,NA],    x, axis=0)
+        self.T1  = trapz(T1     * density[:,NA,NA,NA],    x, axis=0)
+        self.S2  = trapz(S2     * density[:,NA,NA,NA,NA], x, axis=0)
+        self.T2  = trapz(T2     * density[:,NA,NA,NA,NA], x, axis=0)
+        
+        self.S1b = self.S1 + self.T1
+        self.S2b = self.S2 + self.T2
         
         self.I0 = zeros(3)
         self.J0 = zeros((3,3)) # XXX neglecting non-straight mass axis
@@ -412,6 +437,17 @@ class ModalRepresentation(object):
             self.J0[0,0] += ( (rho1+3*rho2)*x2**4 + (rho2+3*rho1)*x1**4
                             - 4*x1*x2*(rho1*x1**2 + rho2*x2**2) ) /(12*(x2-x1))
         self.I0 = self.I0_dist[0]
+        
+        # Might as well finish this change off now - always do this in inertia_tensor
+        self.ss_J0 = (eye(3)[:,:]           * self.J0.trace()) - self.J0
+        self.ss_S1 = (eye(3)[:,:,None]      * self.S1b.trace()) - self.S1b
+        self.ss_S2 = (eye(3)[:,:,None,None] * self.S2b.trace()) - self.S2b
+        self.e_S1 = e_ikl_S_kl(self.S1b)
+        self.e_S2 = e_ikl_S_kl(self.S2b)
+        
+        # Skew forms of I0 and S
+        self.sk_I0 = np.einsum('imj,m ->ij ', eps_ijk, self.I0)
+        self.sk_S0 = np.einsum('imj,mp->ijp', eps_ijk, self.S )
         
         # describe mode shapes
         # XXX: only knows about bending modes
@@ -447,27 +483,29 @@ class ModalRepresentation(object):
                 + [ \delta_{ij}(S_{kkpr} + T_{kkpr}) - (S_ijpr + T_ijpr) ] \epsilon_p \epsilon_r
 
         """
-        inertia = eye(3)*self.J0.trace() - self.J0        
+        #inertia = eye(3)*self.J0.trace() - self.J0
         if len(self.freqs) > 0:
             S1 = np.einsum('ijp,p', self.S1, q)
             T1 = np.einsum('ijp,p', self.T1, q)
             S2 = np.einsum('ijpr,p,r', self.S2, q, q)
             T2 = np.einsum('ijpr,p,r', self.T2, q, q)
-            inertia += eye(3)*2*S1.trace() - (S1 + S1.T) + (T1 + T1.T)
-            inertia += eye(3)*(S2.trace() + T2.trace()) - (S2 + T2)
+            inertia = self.ss_J0 + eye(3)*2*S1.trace() - (S1 + S1.T) - (T1 + T1.T) +\
+                eye(3)*(S2.trace() + T2.trace()) - (S2 + T2)
+        else:
+            inertia = self.ss_J0.copy()
         return inertia
 
     def strain_strain(self):
         if len(self.freqs) > 0:
-            A = np.einsum('mmpr',self.S2) + np.einsum('mmpr',self.T2)
+            A = np.einsum('mmpr',self.S2) #+ np.einsum('mmpr',self.T2)
         else:
             A = np.zeros((0,0))
         return A
     
     def rotation_strain(self, q):
         if len(self.freqs) > 0:
-            A = self.S1 - self.T1 + np.einsum('klpr,p', self.S2, q) + \
-                    np.einsum('klrp,p', self.T2, q)
+            A = self.S1 + self.T1 + np.einsum('klpr,r', self.S2, q) + \
+                    np.einsum('klrp,r', self.T2, q)
             B = np.einsum('ikl,lkp', eps_ijk, A)
         else:
             B = np.zeros((3,0))
@@ -477,9 +515,9 @@ class ModalRepresentation(object):
         if len(self.freqs) > 0:
             S1 = np.einsum('ijp,p', self.S1, qd)
             T1 = np.einsum('ijp,p', self.T1, qd)
-            S2 = np.einsum('ijpr,p,r', self.S2, q, qd)
-            T2 = np.einsum('ijpr,p,r', self.T2, q, qd)
-            A = (eye(3)*S1.trace() - S1 + T1 +
+            S2 = np.einsum('ijpr,p,r', self.S2, qd, q)
+            T2 = np.einsum('ijpr,p,r', self.T2, qd, q)
+            A = (eye(3)*(S1 + T1).trace() - S1 - T1 +
                  eye(3)*(S2 + T2).trace() - S2 - T2)
         else:
             A = zeros((3,3))
@@ -487,14 +525,13 @@ class ModalRepresentation(object):
     
     def quad_stress(self, q, qd, Wp):
         if len(self.freqs) > 0:
-            A1 = self.S1 - self.T1
+            A1 = self.S1 + self.T1
             A2 = np.einsum('ijpr,r', self.S2, q) + \
                  np.einsum('ijrp,r', self.T2, q)
-            H = np.einsum('pr,r', self.H2[0], q)
             
             # depending on angular velocity
             C = np.einsum('ijp,i,j', A1+A2, Wp, Wp) - \
-                dot(Wp,Wp) * ((A1+A2).trace() + 0*H)
+                dot(Wp,Wp) * ((A1+A2).trace())
             
             # depending on strain velocity
             B2 = self.S2 - self.T2.swapaxes(2,3)

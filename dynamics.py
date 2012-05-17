@@ -21,6 +21,7 @@ import pyximport
 pyximport.install(setup_args={'include_dirs':[np.get_include()]})
 
 import assemble
+import _modal_calcs
 
 eps_ijk = zeros((3,3,3))
 eps_ijk[0,1,2] = eps_ijk[1,2,0] = eps_ijk[2,0,1] =  1
@@ -70,6 +71,14 @@ def skewmat(vec):
         [ vec[2],  0,      -vec[0]],
         [-vec[1],  vec[0],  0     ],
     ])
+
+def update_skewmat(mat, vec):
+    mat[0,1] = -vec[2]
+    mat[0,2] =  vec[1]
+    mat[1,0] =  vec[2]
+    mat[1,2] = -vec[0]
+    mat[2,0] = -vec[1]
+    mat[2,1] =  vec[0]
 
 def rotmatrix(xp):
     #pos = xp[:3]
@@ -321,6 +330,11 @@ class System(object):
                 states.dofs.subset.remove(
                     (states is self.q) and self.q_dof[dof] or dof)
         
+        # prescribed strains
+        self.iNotPrescribed = np.ones(len(self.qd), dtype=bool)
+        self.iNotPrescribed[0:6] = False # ground node
+        self.iNotPrescribed[self.prescribed_dofs.keys()] = False
+        
         # real coords, node and strains
         ir = self.qd.indices_by_type(('ground', 'node', 'strain'))
         self.iReal = np.zeros(len(self.qd), dtype=bool)
@@ -383,6 +397,18 @@ class System(object):
         self.Sc = dot(self.S,c)
         self.Sb = dot(self.S,b)
 
+    def set_initial_velocities(self, time=None):
+        """
+        Set the initial prescribed velocities, if defined; for time integration,
+        the prescribed velocities are not otherwised used because they are
+        updated by the integrator.
+        """
+        if time is not None:
+            self.time = time            
+        for dof,(b,c) in self.prescribed_dofs.items():
+            if callable(b): b = b(self.time)
+            self.qd[dof] = b
+
     def update_kinematics(self, time=None, calculate_matrices=True):
         if time is not None:
             self.time = time
@@ -390,11 +416,8 @@ class System(object):
         # Update prescribed strains
         for dof,(b,c) in self.prescribed_dofs.items():
             if callable(c): c = c(self.time)
+            self.qdd[dof] = c
             # leave velocity for the integration, don't use b
-            if c is not None:
-                self.qdd[dof] = c
-            else:
-                self.qdd[dof] = 0.0
 
         # Reset mass and constraint matrices if updating
         if calculate_matrices:
@@ -426,11 +449,8 @@ class System(object):
         dofs = zip(self.q .indices(element.istrain),
                    self.qd.indices(element.istrain))
         if part is not None:
-            if isinstance(part, int):
-                dofs = [dofs[part]]
-            else:
-                dofs = dofs[part]
-        for iq,iqd in np.atleast_1d(dofs):
+            dofs = np.asarray(dofs)[part]
+        for iq,iqd in np.atleast_2d(dofs):
             self.prescribed_dofs[iqd] = (vel, acc)
             self.q_dof[iqd] = iq
         self._update_indices()
@@ -448,29 +468,28 @@ class System(object):
                 pass
         self._update_indices()
 
-    def solve_accelerations(self):
+    def solve_accelerations(self, out=None):
         '''
         Solve for free accelerations, taking account of any prescribed accelerations
         '''
 
-        # prescribed strains
-        iPrescribed = np.zeros(len(self.qd), dtype=bool)
-        iPrescribed[0:6] = True # ground node
-        iPrescribed[self.prescribed_dofs.keys()] = True
-
+        
         prescribed_acc_forces = dot(self.lhs, self.qdd._array)
         
         # remove prescribed acceleration entries from mass matrix and RHS
         # add the forces corresponding to prescribed accelerations back in
-        M = self.lhs[~iPrescribed,:][:,~iPrescribed]
-        b = (self.rhs - prescribed_acc_forces)[~iPrescribed]
+        M = self.lhs[self.iNotPrescribed,:][:,self.iNotPrescribed]
+        b = (self.rhs - prescribed_acc_forces)[self.iNotPrescribed]
 
         # solve system for accelerations
         a = LA.solve(M, b)
         
-        new_qdd = self.qdd._array.copy()
-        new_qdd[~iPrescribed] = a
-        return new_qdd
+        if out is None:
+            out = self.qdd._array.copy()
+        else:
+            out[:] = self.qdd._array
+        out[self.iNotPrescribed] = a
+        return out
     
     def solve_reactions(self):
         """
@@ -558,6 +577,10 @@ class Element(object):
         self.ad = zeros(NQD*self._ndistal)
         self.astrain = zeros(self._nstrain)
 
+        # The skew matrix of the prox angular velocity is used a lot - keep
+        # it preallocated
+        self.wps = zeros((3,3))
+
         # Default [constant] parts of transformation matrices:
         # distal node velocities are equal to proximal, no strain effects
         # acceleration constraint -Fv2 = [ prox->dist, -I, strain->dist ] * [ a_prox, a_dist, a_strain ]
@@ -577,22 +600,14 @@ class Element(object):
         # External forces and stresses
         self.applied_forces = zeros(NQD * (1 + self._ndistal))
         self.applied_stress = zeros(self._nstrain)
+        
+        # Gravity acceleration
+        self._gravacc = np.tile([0, 0, -gravity * OPT_GRAVITY, 0, 0, 0], 1 + self._ndistal)
 
     def __str__(self):
         return self.name
     def __repr__(self):
         return '<%s "%s">' % (self.__class__.__name__, self.name)
-
-    def _iprox(self):
-        return self.system.qd.indices(self.iprox)
-    def _idist(self):
-        if self.idist:
-            return self.system.qd.indices(self.idist[0])
-        return []
-    def _istrain(self):
-        return self.system.qd.indices(self.istrain)
-    def _imult(self):
-        return self.system.qd.indices(self.imult)
 
     def add_leaf(self, elem, distnode=0):
         self.children[distnode].append(elem)
@@ -658,6 +673,12 @@ class Element(object):
             self.vd = system.qd[idist]
             self.ad = system.qdd[idist]
 
+        # Save actual indices as well as names for speed when assembling
+        self._iprox = self.system.qd.indices(self.iprox)
+        self._idist = sum([self.system.qd.indices(i) for i in self.idist], [])
+        self._istrain = self.system.qd.indices(self.istrain)
+        self._imult = self.system.qd.indices(self.imult)
+
         self._set_wrapping()
 
     def _set_wrapping(self):
@@ -667,6 +688,9 @@ class Element(object):
         self._set_gravity_force()
 
     def update(self, calculate_matrices=True):
+        # Update cached prox angular velocity skew matrix
+        update_skewmat(self.wps, self.vp[3:])
+        
         # Calculate kinematic transforms
         self.calc_kinematics()
 
@@ -709,11 +733,7 @@ class Element(object):
             += np.r_[ Fprox, Mprox ]
 
     def _set_gravity_force(self):
-        if OPT_GRAVITY:
-            gravacc = np.tile([0, 0, -gravity, 0, 0, 0], 1 + self._ndistal)
-            self.applied_forces = dot(self.mass_vv, gravacc)
-        else:
-            self.applied_forces[:] = 0
+        self.applied_forces[:] = dot(self.mass_vv, self._gravacc)
 
     def calc_kinematics(self):
         """
@@ -759,11 +779,11 @@ class Hinge(Element):
         [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
         """
         n = dot(self.Rp, self.hinge_axis) # global hinge axis vector
-        wps = skewmat(self.vp[3:])            # angular velocity matrix
+        #wps = skewmat(self.vp[3:])            # angular velocity matrix
         thd = self.vstrain[0]             # theta dot
 
         self.F_ve[3:,:] = n[:,np.newaxis]
-        self.F_v2[3:] = thd*dot(wps, n)
+        self.F_v2[3:] = thd*dot(self.wps, n)
 
     def shape(self):
         # proximal values
@@ -828,6 +848,14 @@ class PrismaticJoint(Element):
 
 
 class FreeJoint(Element):
+    """
+    Free join with 6 degrees of freedom: 3 translational and 3 Euler angles.
+    
+    The Euler angles are
+        1. yaw about the Z axis
+        2. pitch about the rotated Y axis
+        3. roll about the twice-rotated X axis
+    """
     _ndistal = 1
     _nstrain = 6
     _nconstraints = NQD
@@ -900,6 +928,9 @@ class RigidConnection(Element):
             rotation = eye(3)
         self.offset = offset
         self.rotation = rotation
+        
+        # cache
+        self.skew_offset = skewmat(self.offset)
 
     def calc_distal_pos(self):
         self.rd[:] = self.rp + dot(self.Rp, self.offset)
@@ -911,13 +942,13 @@ class RigidConnection(Element):
         [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
         """
 
-        wp = self.vp[3:]
-        xc = dot(self.Rp, self.offset)
+        #wp = self.vp[3:]
+        xcs = dot(self.Rp, dot(self.skew_offset, self.Rp.T))
         # Distal velocity rd_d = rd_p - xc \times w_p
-        self.F_vp[0:3,3:6] = -skewmat(xc)
+        self.F_vp[0:3,3:6] = -xcs #skewmat(xc)
         # Distal velocity quadratic term w_p \times w_p \times xc
-        self.F_v2[0:3] = dot(np.outer(wp,wp), xc) - xc*dot(wp,wp)
-        #self.F_v2[0:3] = dot( dot(wps,wps), xc )
+        #self.F_v2[0:3] = dot(np.outer(wp,wp), xc) - xc*dot(wp,wp)
+        self.F_v2[0:3] = dot( dot(self.wps,self.wps), dot(self.Rp, self.offset) )
 
     def shape(self):
         return [
@@ -964,7 +995,7 @@ class RigidBody(Element):
         # global offset to centre of mass
         xc = dot(self.Rp, self.Xc)
         Jp = dot(self.Rp, dot(self.inertia, self.Rp.T))
-        wps = skewmat(self.vp[3:])
+        #wps = skewmat(self.vp[3:])
 
         ## MASS MATRIX ##
         #    mass_vv[VP,VP] constant
@@ -973,8 +1004,8 @@ class RigidBody(Element):
         self.mass_vv[WP,WP] =  Jp
 
         ## QUADRATIC FORCES ## (remaining terms)
-        self.quad_forces[VP] = self.mass * dot(dot(wps,wps), xc)
-        self.quad_forces[WP] = dot(wps, dot(Jp, self.vp[3:]))
+        self.quad_forces[VP] = self.mass * dot(dot(self.wps,self.wps), xc)
+        self.quad_forces[WP] = dot(self.wps, dot(Jp, self.vp[3:]))
 
 # Slices to refer to parts of matrices
 VP = slice(0,3)
@@ -1123,7 +1154,7 @@ class UniformBeam(Element):
         """
         X  = array([self.length,0,0]) + self.xstrain[0:3] # Distal pos in local coords
         Xd = self.vstrain[0:3]
-        wps = skewmat(self.vp[3:])
+        #wps = skewmat(self.vp[3:])
 
         q  = self._beam_rotation(1.0, self.xstrain)
         qd = self._beam_rotation_vel(1.0, self.xstrain, self.vstrain)
@@ -1146,8 +1177,9 @@ class UniformBeam(Element):
         assert not np.any(np.isnan(self.F_ve))
 
         # Quadratic velocity terms
-        self.F_v2[VP] = 2*dot(wps,     dot(self.Rp,Xd)) + dot(dot(wps,wps), dot(self.Rp, X   ))
-        self.F_v2[WP] = 2*dot(self.Rp, dot(Ed,qd     )) + dot(wps,          dot(self.Rp, wrel))
+        self.F_v2[VP] = 2*dot(self.wps, dot(self.Rp,Xd)) \
+                            + dot(dot(self.wps,self.wps), dot(self.Rp, X))
+        self.F_v2[WP] = 2*dot(self.Rp, dot(Ed,qd)) + dot(self.wps, dot(self.Rp, wrel))
 
     def shape(self, N=20):
         # proximal values
@@ -1171,7 +1203,7 @@ class UniformBeam(Element):
         ed = self.Rd[:,0]
         eps = skewmat(self.Rp[:,0]) # unit vectors along elastic line
         eds = skewmat(self.Rd[:,0])
-        wps = skewmat(self.vp[WP]) # angular velocity matrices
+        wps = self.wps #skewmat(self.vp[WP]) # angular velocity matrices
         wds = skewmat(self.vd[WP])
 
         # lumped inertia of cross-section
@@ -1362,53 +1394,74 @@ class ModalElement(Element):
     ]
 
     def calc_mass(self):
-        # angular velocity skew matrix
-        wp = self.vp[WP]
-        wps = skewmat(wp)
-        local_wp = dot(self.Rp.T, wp)
-
-        # Inertia tensor made up of undefomed inertia J0, and contributions
-        # from shapes
-        inertia = self.modes.inertia_tensor(self.xstrain)
-        inertia_global = dot(self.Rp, dot(inertia, self.Rp.T))
-
-        # Linear-rotation term
-        rw_global = dot(self.Rp, self.modes.I0 + dot(self.modes.S, self.xstrain))
-        rw_global_skew = skewmat(rw_global)
-
-        # Rotation-strain term
-        wf_global = dot(self.Rp, self.modes.rotation_strain(self.xstrain))
-
-        # 1st shape int in global coords
-        S_global = dot(self.Rp, self.modes.S)
-
-        ## MASS MATRIX ##
-        #    mass_vv[VP,VP] constant
-        self.mass_vv[VP,WP] = -rw_global_skew
-        self.mass_vv[WP,VP] =  rw_global_skew
-        self.mass_vv[WP,WP] =  inertia_global
-        self.mass_ve[VP, :] =  S_global
-        self.mass_ve[WP, :] =  wf_global
-        # mass_ee constant
-
+#        # angular velocity skew matrix
+#        wp = self.vp[WP]
+#        #wps = skewmat(wp)
+#        local_wp = dot(self.Rp.T, wp)
+#
+#        # Inertia tensor made up of undefomed inertia J0, and contributions
+#        # from shapes
+#        inertia = self.modes.inertia_tensor(self.xstrain)
+#        #inertia = _modal_calcs.inertia_tensor(self.modes, self.xstrain)
+#        inertia_global = dot(self.Rp, dot(inertia, self.Rp.T))
+#
+#        # Linear-rotation term
+#        rw_global = dot(self.Rp, self.modes.I0 + dot(self.modes.S, self.xstrain))
+#        rw_global_skew = skewmat(rw_global)
+#
+#        # Rotation-strain term
+#        wf_global = dot(self.Rp, self.modes.rotation_strain(self.xstrain))
+#        #wf_global = dot(self.Rp, _modal_calcs.rotation_strain(self.modes, self.xstrain))
+#
+#        # 1st shape int in global coords
+#        S_global = dot(self.Rp, self.modes.S)
+#
+#        ## MASS MATRIX ##
+#        #    mass_vv[VP,VP] constant
+#        self.mass_vv[VP,WP] = -rw_global_skew
+#        self.mass_vv[WP,VP] =  rw_global_skew
+#        self.mass_vv[WP,WP] =  inertia_global
+#        self.mass_ve[VP, :] =  S_global
+#        self.mass_ve[WP, :] =  wf_global
+#        # mass_ee constant
+        
+        #test_vv = np.zeros_like(self.mass_vv)
+        #test_ve = np.zeros_like(self.mass_ve)
+        #test_gv = np.zeros_like(self.quad_forces)
+        #test_ge = np.zeros_like(self.quad_stress)
+        #_modal_calcs.calc_mass(self.modes, self.Rp, self.vp[WP], self.xstrain,
+        #                       self.vstrain, test_vv, test_ve, test_gv, test_ge)
+        _modal_calcs.calc_mass(self.modes, self.Rp, self.vp[WP], self.xstrain,
+                               self.vstrain, self.mass_vv, self.mass_ve,
+                               self.quad_forces, self.quad_stress)
+        
         ## QUADRATIC FORCES ## (remaining terms)
 
-        # Centrifugal forces
-        centrifugal = dot(dot(wps,wps), rw_global)
-
-        # Force dependent on strain velocity
-        strainvel = 2*dot(wps, dot(self.Rp, dot(self.modes.S, self.vstrain)))
-
-        # Terms for moments dependent on strain velocity
-        ang_strainvel_local = self.modes.inertia_vel(self.xstrain, self.vstrain)
-        ang_strainvel_global = dot(self.Rp, dot(ang_strainvel_local, self.Rp.T))
-
-        #if self.name == 'blade1':
-        #    print dot(self.Rp.T, centrifugal)
-        self.quad_forces[VP] = centrifugal + strainvel
-        self.quad_forces[WP] = dot(
-            (dot(wps, inertia_global) + 2*ang_strainvel_global), wp)
-        self.quad_stress[ :] = self.modes.quad_stress(self.xstrain, self.vstrain, local_wp)
+#        # Centrifugal forces
+#        centrifugal = dot(dot(self.wps,self.wps), rw_global)
+#
+#        # Force dependent on strain velocity
+#        strainvel = 2*dot(self.wps, dot(self.Rp, dot(self.modes.S, self.vstrain)))
+#
+#        # Terms for moments dependent on strain velocity
+#        ang_strainvel_local = self.modes.inertia_vel(self.xstrain, self.vstrain)
+#        #ang_strainvel_local = _modal_calcs.inertia_vel(self.modes, self.xstrain, self.vstrain)
+#        ang_strainvel_global = dot(self.Rp, dot(ang_strainvel_local, self.Rp.T))
+#
+#        #if self.name == 'blade1':
+#        #    print dot(self.Rp.T, centrifugal)
+#        self.quad_forces[VP] = centrifugal + strainvel
+#        self.quad_forces[WP] = dot(
+#            (dot(self.wps, inertia_global) + 2*ang_strainvel_global), wp)
+#        self.quad_stress[ :] = self.modes.quad_stress(self.xstrain, self.vstrain, local_wp)
+#        #self.quad_stress[ :] = _modal_calcs.quad_stress(
+#        #                      self.modes, self.xstrain, self.vstrain, local_wp)
+#        
+#        assert np.allclose(test_vv, self.mass_vv)
+#        assert np.allclose(test_ve, self.mass_ve)
+#        assert np.allclose(test_gv, self.quad_forces)
+#        assert np.allclose(test_ge, self.quad_stress)
+#
 
     def _get_loading(self):
         assert self.loading is not None
@@ -1437,7 +1490,7 @@ class ModalElement(Element):
         # Gravity loads
         self._set_gravity_force()
         
-        # Constitutive loading
+        # Constitutive loading (note stiffness and damping are diagonals so * ok)
         self.applied_stress[:] = (
             self.stiffness * self.xstrain +
             self.damping   * self.vstrain
@@ -1760,15 +1813,14 @@ class Integrator(object):
         if not np.iterable(tvals):
             assert dt is not None and t0 is not None
             tvals = np.arange(t0, tvals, dt)
-        
+
         # prepare for first outputs
         #self.system.update_kinematics(0.0) # work out kinematics
         #self.system.solve_reactions()
                 
-        initial_outputs = self.outputs()
         self.t = tvals
         self.y = []
-        for y0 in initial_outputs:
+        for y0 in self.outputs():
             self.y.append(zeros( (len(tvals),) + y0.shape ))
         
         iDOF_q  = self.system.q.indices_by_type('strain')
@@ -1791,9 +1843,12 @@ class Integrator(object):
             return np.r_[ self.system.qd[iDOF_qd], new_qdd[iDOF_qd] ]
 
         # Initial conditions
+        self.system.set_initial_velocities(time=0.0)
+        z0 = np.r_[ self.system.q[iDOF_q], self.system.qd[iDOF_qd] ]
+        
+        # Setup actual integrator
         integrator = ode(_func)
         integrator.set_integrator(self.method)
-        z0 = np.r_[ self.system.q[iDOF_q], self.system.qd[iDOF_qd] ]
         integrator.set_initial_value(z0, 0.0)        
         
         if nprint is not None:
@@ -1801,26 +1856,35 @@ class Integrator(object):
             sys.stdout.flush()
             tstart = time.clock()
         
+        # Update for first outputs
+        self.system.update_kinematics(0.0)
+        
         for it,t in enumerate(tvals):
             if t > 0:
                 integrator.integrate(t)
                 if not integrator.successful():
                     print 'stopping'
                     break
-            else:
-                self.system.update_kinematics(0.0)
-            
-            # Calculate reaction forces by backwards iteration down tree
+                
+            # Wrap joint angles etc
             self.system.q.wrap_states()
-            self.system.solve_reactions()
-            
-            # Save outputs
-            for y,out in zip(self.y, self.outputs()):
-                y[it] = out
-            if nprint is not None and (it % nprint) == 0:
-                sys.stdout.write('.'); sys.stdout.flush()
+
+            if t > tvals[0]:            
+                # Calculate reaction forces by backwards iteration down tree            
+                self.system.solve_reactions()
+                
+                # Save outputs
+                for y,out in zip(self.y, self.outputs()):
+                    y[it] = out
+                if nprint is not None and (it % nprint) == 0:
+                    sys.stdout.write('.'); sys.stdout.flush()
+            else:
+                if nprint is not None and (it % nprint) == 0:
+                    sys.stdout.write('-'); sys.stdout.flush()
         
         if nprint is not None:
-            print 'done (%.1f seconds)' % (time.clock() - tstart)
+            elapsed_time = time.clock() - tstart
+            print 'done (%.1f seconds, %d%% of simulation time)' % \
+                (elapsed_time, 100*elapsed_time/tvals[-1])
 
         return self.t, self.y

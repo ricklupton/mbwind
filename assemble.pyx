@@ -11,10 +11,7 @@ def assemble(elements, np.ndarray[double, ndim=2] mass, np.ndarray[double, ndim=
     for el in elements:
         
         # Nodal terms
-        iprox = el._iprox()
-        idist = el._idist()
-        inode = iprox + idist
-        istrain = el._istrain()
+        inode = el._iprox + el._idist
         el_mvv = el.mass_vv
         el_mve = el.mass_ve
         el_mee = el.mass_ee
@@ -28,16 +25,16 @@ def assemble(elements, np.ndarray[double, ndim=2] mass, np.ndarray[double, ndim=
                 mass[i,j] += el_mvv[I,J]
             
             # Node-strain
-            for J,j in enumerate(istrain):
+            for J,j in enumerate(el._istrain):
                 mass[i,j] += el_mve[I,J]
                 mass[j,i] += el_mve[I,J]
         
         # Strain-strain
         el_f = el.applied_stress
         el_g = el.quad_stress
-        for I,i in enumerate(istrain):
+        for I,i in enumerate(el._istrain):
             rhs[i] += -el_g[I] - el_f[I]
-            for J,j in enumerate(istrain):
+            for J,j in enumerate(el._istrain):
                 mass[i,j] += el_mee[I,J]
             
         # Constraints
@@ -45,15 +42,15 @@ def assemble(elements, np.ndarray[double, ndim=2] mass, np.ndarray[double, ndim=
         el_Fvd = el.F_vd
         el_Fve = el.F_ve
         el_F2 = el.F_v2
-        for I,i in enumerate(el._imult()):
+        for I,i in enumerate(el._imult):
             rhs[i] += -el_F2[I]
-            for J,j in enumerate(iprox):
+            for J,j in enumerate(el._iprox):
                 mass[i,j] += el_Fvp[I,J]
                 mass[j,i] += el_Fvp[I,J]
-            for J,j in enumerate(idist):
+            for J,j in enumerate(el._idist):
                 mass[i,j] += el_Fvd[I,J]
                 mass[j,i] += el_Fvd[I,J]
-            for J,j in enumerate(istrain):
+            for J,j in enumerate(el._istrain):
                 mass[i,j] += el_Fve[I,J]
                 mass[j,i] += el_Fve[I,J]
 
