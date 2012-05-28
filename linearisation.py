@@ -215,6 +215,25 @@ class LinearisedSystem(object):
         return result
 
 
+def discont_trapz(y, rho, x):
+    """
+    Trapezium rule along first axis of y, with weights given by discontinuous
+    values rho.
+    """
+    result = np.zeros_like(y[0])
+    for i in range(y.shape[0]-1):
+        result += (x[i+1]-x[i]) * (y[i]*rho[i,0] + y[i+1]*rho[i,1])
+    return result / 2
+
+def discont_trapz1(rho, x):
+    """
+    Trapezium rule along first axis of rho, 2 columns giving discontinuous values
+    """
+    result = np.zeros_like(rho[0])
+    for i in range(rho.shape[0]-1):
+        result += (x[i+1]-x[i]) * (rho[i,0] + rho[i,1])
+    return result / 2
+
 class ModalRepresentation(object):
     r"""
     Modal representation of a 1-dimensional element.
@@ -318,7 +337,7 @@ class ModalRepresentation(object):
 
     """
     def __init__(self, x, shapes, rotations, density, freqs, mass_axis=None,
-                 section_inertia=None, damping=None):
+                 section_inertia=None, gyration_ratio=1.0, damping=None, mode_names=None):
         r"""
         Setup modal representation for a 1-dimensional element.
 
@@ -339,10 +358,15 @@ class ModalRepresentation(object):
         mass_axis : array(`N_x` x 2)
             Y- and Z- coordinates of centre of mass at each point
             
-        section_inertia : array (`N_x` x 2) or (`N_x`)
-            Radii of gyration of cross-sections, depending on shape:
-             * (`N_x` x 2): two perpendicular radii of gyration
-             * (`N_x`): one radius of gyration, used for both directions
+        section_inertia : array (`N_x`)
+            Polar inertia of cross-sections
+            
+        gyration_ratio : array (`N_x`) or None
+            Ratio of radius of gyration about y-axis to that about the z-axis.
+            Assumes cross-sections are laminae so the transverse inertias add
+            to give the required polar inertia.
+            
+            If None, transverse inertias are zero.
 
         freqs : array (`N_modes`)
             Array of modal frequencies
@@ -351,7 +375,7 @@ class ModalRepresentation(object):
             Array of modal damping factors
 
         """
-        assert len(x) == shapes.shape[0] == rotations.shape[0] == len(density)
+        assert len(x) == shapes.shape[0] == rotations.shape[0]
         assert len(freqs) == shapes.shape[2] == rotations.shape[2]
         assert shapes.shape[1] == rotations.shape[1] == 3
 
@@ -361,24 +385,35 @@ class ModalRepresentation(object):
         if mass_axis is None:
             mass_axis = zeros((len(x),2))
         
-        newsec = zeros((len(x),3,3))
-        if section_inertia is None:
-            pass
-        elif section_inertia.ndim == 1:
-            newsec[:,1,1] = section_inertia
-            newsec[:,2,2] = section_inertia
+        self.section_inertia = zeros((len(x),3,3))
+        if section_inertia is not None:
+            # Polar inertia
+            self.section_inertia[:,0,0] = section_inertia
+            if gyration_ratio is not None:
+                # Transverse inertia: gyration_ratio = Iyy / Izz
+                #    so Izz = Ixx / (1 + gyration_ratio)
+                #       Iyy = Ixx - Izz
+                self.section_inertia[:,2,2] = section_inertia / (1 + gyration_ratio)
+                self.section_inertia[:,1,1] = section_inertia - self.section_inertia[:,2,2]
+        
+        # If only one set of density values is given, assume it's continuous.
+        # Otherwise, values should be given for the start and end of each section.
+        if density.ndim == 1:
+            # expand out
+            self.density = zeros((len(x)-1, 2))
+            self.density[:,0] = density[:-1]
+            self.density[:,1] = density[1:]
+        elif density.ndim == 2:
+            self.density = density
         else:
-            newsec[:,1,1] = section_inertia[0]
-            newsec[:,2,2] = section_inertia[1]         
-        section_inertia = newsec
+            raise ValueError('density should be Nx x 1 or Nx x 2')
 
         self.x = x
         self.shapes = shapes
         self.rotations = rotations
         self.freqs = freqs
         self.damping = damping
-        self.density = density
-        self.section_inertia = section_inertia
+
         self.mass_axis = mass_axis
 
         # Prepare integrands
@@ -392,15 +427,15 @@ class ModalRepresentation(object):
         H3 = zeros((len(x),3,len(freqs),len(freqs),len(freqs)))
 
         for i in range(len(x)):
-            J0[i] = np.outer(X0[i], X0[i])  +  section_inertia[i]
+            J0[i] = np.outer(X0[i], X0[i])  +  self.section_inertia[i]
             
             S1[i] = np.einsum('j,ip', X0[i], shapes[i])
             S2[i] = np.einsum('ip,jr', shapes[i], shapes[i])
             
             T1[i,:,:,:] = np.einsum('inq,nj,qp', eps_ijk,
-                                section_inertia[i], rotations[i])
+                                        self.section_inertia[i], rotations[i])
             T2[i,:,:,:,:] = np.einsum('ist,jlm,ls,mp,tr', eps_ijk, eps_ijk,
-                                section_inertia[i], rotations[i], rotations[i])
+                                self.section_inertia[i], rotations[i], rotations[i])
             
             H2[i,:,:,:  ] = np.einsum('p,q,j ->jpq',  rotations[i,1], rotations[i,1], X0[i]) + \
                             np.einsum('p,q,j ->jpq',  rotations[i,2], rotations[i,2], X0[i])
@@ -409,24 +444,31 @@ class ModalRepresentation(object):
 
         # Calculate shape integrals
         self.X0 = X0
-        self.mass = trapz(         density,                x, axis=0)
-        self.I00  = trapz(X0     * density[:,NA],          x, axis=0)
-        self.J00  = simps(J0     * density[:,NA,NA],       x, axis=0)
-        self.S    = trapz(shapes * density[:,NA,NA],       x, axis=0)
-        self.S1  = trapz(S1     * density[:,NA,NA,NA],    x, axis=0)
-        self.T1  = trapz(T1     * density[:,NA,NA,NA],    x, axis=0)
-        self.S2  = trapz(S2     * density[:,NA,NA,NA,NA], x, axis=0)
-        self.T2  = trapz(T2     * density[:,NA,NA,NA,NA], x, axis=0)
+        #self.mass = trapz(         density,                x, axis=0)
+        #self.S    = trapz(shapes * density[:,NA,NA],       x, axis=0)
+        #self.S1  = trapz(S1     * density[:,NA,NA,NA],    x, axis=0)
+        #self.T1  = trapz(T1     * density[:,NA,NA,NA],    x, axis=0)
+        #self.S2  = trapz(S2     * density[:,NA,NA,NA,NA], x, axis=0)
+        #self.T2  = trapz(T2     * density[:,NA,NA,NA,NA], x, axis=0)
+        self.mass = discont_trapz(np.ones_like(x), self.density, x)
+        self.S    = discont_trapz(shapes, self.density, x)
+        self.S1   = discont_trapz(S1, self.density, x)
+        self.T1   = discont_trapz(T1, self.density, x)
+        self.S2   = discont_trapz(S2, self.density, x)
+        self.T2   = discont_trapz(T2, self.density, x)
         
         self.S1b = self.S1 + self.T1
         self.S2b = self.S2 + self.T2
         
+        # Calculate 1st and 2nd moments of mass using exact formulae
+        # (trapz or simps not exact because of x or x**2 in integrand)
         self.I0 = zeros(3)
         self.J0 = zeros((3,3)) # XXX neglecting non-straight mass axis
+                               #     and section inertia
         self.I0_dist = zeros((len(x),3))
         for i in range(len(x)-2,-1,-1):
-            rho1 = density[i]
-            rho2 = density[i+1]
+            rho1 = self.density[i,0]
+            rho2 = self.density[i,1]
             x1,y1,z1 = X0[i]
             x2,y2,z2 = X0[i+1]
             Ix = ( (2*rho2+rho1)*x2**3 + (2*rho1+rho2)*x1**3 -
@@ -445,25 +487,50 @@ class ModalRepresentation(object):
         self.e_S1 = e_ikl_S_kl(self.S1b)
         self.e_S2 = e_ikl_S_kl(self.S2b)
         
+        # Add in section inertias
+        self.ss_J0 += trapz(self.section_inertia, x, axis=0)
+        
         # Skew forms of I0 and S
         self.sk_I0 = np.einsum('imj,m ->ij ', eps_ijk, self.I0)
         self.sk_S0 = np.einsum('imj,mp->ijp', eps_ijk, self.S )
         
         # describe mode shapes
-        # XXX: only knows about bending modes
-        self.mode_descriptions = []
-        order = {0: 0, 1: 0, 2: 0}
-        for p in range(len(freqs)):
-            direction = np.argmax(np.abs(self.shapes[-1,:,p]))
-            order[direction] += 1
-            self.mode_descriptions.append('Bending towards {} mode {}'.format(
-                'XYZ'[direction], order[direction]))
+        if mode_names is None:
+            mode_names = ['Mode %d' % i for i in range(len(freqs))]
+        self.mode_names = mode_names
+        
+        # Discrete mass matrix at all points
+        self.M = np.zeros((len(x),len(x)))
+        for i in range(0,len(x)-1):
+            m1,m2 = self.density[i,:]
+            x1,x2 = x[i:i+2]
+            
+            self.M[i  ,i+1] += (  m1 +   m2) * (x2 - x1) / 12
+            self.M[i+1,i  ] += (  m1 +   m2) * (x2 - x1) / 12
+            self.M[i  ,i  ] += (3*m1 +   m2) * (x2 - x1) / 12
+            self.M[i+1,i+1] += (  m1 + 3*m2) * (x2 - x1) / 12
+            
+            #off_diag = (m1 + m2) * (x2 - x1) / 12
+            #on_diag = (3*m1 + m2) * (x2 - x1) / 12
+            #if i > 0:
+            #    m01,m02 = self.density[i-1,:]
+            #    x0 = x[i-1]
+            #    on_diag += (3*m02 + m01) * (x1 - x0) / 12
+            #self.M[i,i+1] = self.M[i+1,i] = off_diag
+            #self.M[i,i] = on_diag
+        #self.M[-1,-1] = (3*m2 + m1) * (x1 - x0) / 12
+        
+        # Mode shapes including rigid body modes
+        
  
     def X(self, q):
         return self.X0 + np.einsum('hip,p', self.shapes, q)
     
     def Xdot(self, qd):
         return np.einsum('hip,p', self.shapes, qd)
+ 
+    def small_rots(self, q):
+        return np.einsum('hip,p', self.rotations, q)
  
     def R(self, q):
         rotations = np.einsum('hip,p', self.rotations, q)
@@ -497,7 +564,7 @@ class ModalRepresentation(object):
 
     def strain_strain(self):
         if len(self.freqs) > 0:
-            A = np.einsum('mmpr',self.S2) #+ np.einsum('mmpr',self.T2)
+            A = np.einsum('mmpr',self.S2) + np.einsum('mmpr',self.T2)
         else:
             A = np.zeros((0,0))
         return A
