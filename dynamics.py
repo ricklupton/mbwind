@@ -166,7 +166,10 @@ class StateArray(object):
     def __setitem__(self, index, value):
         if self._array is None:
             raise RuntimeError("Need to call allocate() first")
-        self._array[self._slice(index)] = value
+        ix = self._slice(index)
+        if not np.isscalar(value) and len(self._array[ix]) != len(value):
+            raise ValueError('value length does not match index')
+        self._array[ix] = value
     
     def __len__(self):
         return len(self.owners)
@@ -282,7 +285,7 @@ class System(object):
             if indices.start == indices.stop: continue
             if name == 'ground': prescribed = [True]
             else: prescribed = [(j in self.prescribed_dofs) for j in i]
-            pstr = all(prescribed) and ' * ' or (any(prescribed) and '(*)' or '   ')
+            pstr = ' * ' if all(prescribed) else '(*)' if any(prescribed) else '   '
             print '{:>2}-{:<2} {:<15}{:<15}{:<20} {}'.format(
                 i[0], i[-1], self.qd.owners[i[0]], self.qd.types[i[0]], name, pstr)
 
