@@ -1817,7 +1817,7 @@ class StrainOutput(object):
         if   self.deriv == 0: q = system.q
         elif self.deriv == 1: q = system.qd
         elif self.deriv == 2: q = system.qdd
-        assert q.get_type(self.state_name) in ('strain')
+        assert q.get_type(self.state_name) in ('strain','constraint')
         output = q[self.state_name]
         return output
 
@@ -1890,6 +1890,7 @@ class Integrator(object):
     def outputs(self):
         return [output(self.system) for output in self._outputs]
     
+    @property
     def labels(self):
         return [str(output) for output in self._outputs]
     
@@ -1907,28 +1908,25 @@ class Integrator(object):
         for y0 in self.outputs():
             self.y.append(zeros( (len(tvals),) + y0.shape ))
         
-        iDOF_q  = self.system.q.indices_by_type('strain')
-        iDOF_qd = self.system.qd.indices_by_type('strain')
-        assert len(iDOF_q) == len(iDOF_qd)
-        nDOF = len(iDOF_q)
+        nDOF = len(self.system.q.dofs)
                 
         # Gradient function
         def _func(ti, yi):
             # update system state with states and state rates
             # y constains [strains, d(strains)/dt]
-            self.system.q [iDOF_q]  = yi[:nDOF]
-            self.system.qd[iDOF_qd] = yi[nDOF:]
+            self.system.q.dofs[:]  = yi[:nDOF]
+            self.system.qd.dofs[:] = yi[nDOF:]
             self.system.update_kinematics(ti) # kinematics and dynamics
     
             # solve system
-            new_qdd = self.system.solve_accelerations()
+            self.system.solve_accelerations(self.system.qdd.dofs, only_dofs=True)
             
             # new state vector is [strains_dot, strains_dotdot]
-            return np.r_[ self.system.qd[iDOF_qd], new_qdd[iDOF_qd] ]
+            return np.r_[ self.system.qd.dofs[:], self.system.qdd.dofs[:] ]
 
         # Initial conditions
         self.system.set_initial_velocities(time=0.0)
-        z0 = np.r_[ self.system.q[iDOF_q], self.system.qd[iDOF_qd] ]
+        z0 = np.r_[ self.system.q.dofs[:], self.system.qd.dofs[:] ]
         
         # Setup actual integrator
         integrator = ode(_func)
@@ -1941,7 +1939,7 @@ class Integrator(object):
             tstart = time.clock()
         
         # Update for first outputs
-        self.system.update_kinematics(0.0)
+        _func(0.0, z0)
         
         for it,t in enumerate(tvals):
             if t > 0:
@@ -1953,8 +1951,11 @@ class Integrator(object):
             # Wrap joint angles etc
             self.system.q.wrap_states()
 
-            if t > tvals[0]:            
-                # Calculate reaction forces by backwards iteration down tree            
+            if t >= tvals[0]:                            
+                # Update nodal accelerations from strains' (DOFs') accelerations
+                self.system.update_kinematics()
+                
+                # Calculate reaction forces by backwards iteration down tree
                 self.system.solve_reactions()
                 
                 # Save outputs
