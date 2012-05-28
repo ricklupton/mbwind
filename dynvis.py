@@ -54,7 +54,7 @@ def showsystem(system, view=None):
     else:
         raise ValueError("view should be 'x', 'y', 'z', or None for 3d")
 
-def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, only_free=False):
+def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, only_free=False, scale=(1,1)):
     fig = plt.figure()
     fig.set_size_inches(10,10,forward=True)
     ax = fig.add_subplot(111, aspect=1, xlim=lim1,ylim=lim2)
@@ -83,27 +83,32 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, only_free=False):
         iDOF = system.q.indices_by_type('strain')
     N = len(iDOF)
     print iDOF, N
+    
+    # Rearrange yy to have all strains from all elements adjacent
+    dofs = []
+    for y_el in yy:
+        for j in range(y_el.shape[1]):
+            dofs.append(y_el[:,j])
+        if len(dofs) >= N: break
+    dofs = np.array(dofs)
+    assert dofs.shape[0] == N
+    print dofs
+    
     def animate(i):
-        j = 0
-        jj = 0
-        for k in iDOF:
-            if jj >= yy[j].shape[1]:
-                jj = 0
-                j += 1
-            system.q[k] = yy[j][i,jj]
-            jj += 1
+        # Update strain values
+        system.q[iDOF] = dofs[:,i]
         system.update_kinematics(tt[i], False)
 
         for el,ellines in lines:
             linedata = el.shape()
             for data,line in zip(linedata,ellines):
-                line.set_data(data[:,vs[0]], data[:,vs[1]])
+                line.set_data(data[:,vs[0]]*scale[0], data[:,vs[1]]*scale[1])
         time_text.set_text(time_template%tt[i])
 
         return [line for line in ellines for el,ellines in lines] + [time_text]
 
     ani = animation.FuncAnimation(fig, animate, np.arange(1, yy[0].shape[0]),
-        interval=tt[1]-tt[0]*1000*1, blit=False, init_func=init, repeat=False)
+        interval=(tt[1]-tt[0])*1000*1, blit=False, init_func=init, repeat=False)
     return ani
 
 def anim_modes(system, modeshapes, vs=(0,1), lim1=None, lim2=None):
