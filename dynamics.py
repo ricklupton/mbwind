@@ -982,7 +982,7 @@ class RigidBody(Element):
     _nstrain = 0
     _nconstraints = 0
 
-    def __init__(self, name, mass, inertia=None, Xc=None):
+    def __init__(self, name, mass, inertia=None, Xc=None, nodal_load=None):
         '''
         Rigid body element with only one node.
         Defined by mass and inertia tensor.
@@ -995,6 +995,8 @@ class RigidBody(Element):
         self.Xc = Xc
         # Set constant parts of mass matrix
         self.mass_vv[VP,VP] = self.mass * eye(3)
+        
+        self.nodal_load = nodal_load
 
     def shape(self):
         return [
@@ -1020,6 +1022,13 @@ class RigidBody(Element):
         ## QUADRATIC FORCES ## (remaining terms)
         self.quad_forces[VP] = self.mass * dot(dot(self.wps,self.wps), xc)
         self.quad_forces[WP] = dot(self.wps, dot(Jp, self.vp[3:]))
+
+    def calc_external_loading(self):
+        self._set_gravity_force()
+        if self.nodal_load is not None:
+            global_force = self.nodal_load(self.system.time)
+            self.applied_forces[VP] += global_force
+            
 
 # Slices to refer to parts of matrices
 VP = slice(0,3)
