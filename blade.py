@@ -165,21 +165,43 @@ class Tower(object):
         
         # Geometry
         mrcon = BladedModule(prj, 'RCON')
-        mgeom = BladedModule(prj, 'TGEOM')
         self.hubheight = mrcon.height
-        self.nstations = mgeom.nts
-        self.nelements = mgeom.nte
         
-        # Station positions in global coordinates (z up, x downwind)
-        self.stn_pos = np.array(mgeom.tclocal).reshape((-1,3))
+        mgeom = BladedModule(prj, 'TGEOM')
+        self.model_type = int(mgeom.tmodel)
         
-        # Element end stations
-        self.element_stns = np.array(mgeom.elstns, dtype=int).reshape((-1,2)) - 1
         
-        # Mass
-        mtmass = BladedModule(prj, 'TMASS')
-        self.density = np.array(mtmass.towm).reshape((-1,2))
+        if self.model_type == 2:
+            # Axisymmetric
+            self.nstations = mgeom.nte
+            self.nelements = self.nstations - 1
+            
+            # Station positions in global coordinates (z up, x downwind)
+            tj = np.array(mgeom.tj)
+            self.stn_pos = np.c_[ np.zeros((self.nstations,2)), tj ]
+            
+            # Mass
+            mtmass = BladedModule(prj, 'TMASS')
+            towm = np.array(mtmass.towm)
+            self.density = np.c_[ towm[:-1], towm[1:] ]
+            self.polar_inertia = np.zeros_like(self.density) # axial tower has no polar inertia
         
+        elif self.model_type == 3:
+            # Multi member
+            self.nstations = mgeom.nts            
+            self.nelements = mgeom.nte
+            
+            # Station positions in global coordinates (z up, x downwind)
+            self.stn_pos = np.array(mgeom.tclocal).reshape((-1,3))
+            
+            # Element end stations
+            self.element_stns = np.array(mgeom.elstns, dtype=int).reshape((-1,2)) - 1
+            
+            # Mass
+            mtmass = BladedModule(prj, 'TMASS')
+            self.density = np.array(mtmass.towm).reshape((-1,2))
+            self.polar_inertia = np.array(mtmass.towpmi).reshape((-1,2))
+            
         # Modes
         try:
             mmodes = BladedModule(prj, 'RMODE')
@@ -208,6 +230,35 @@ class Tower(object):
                     self.mode_data[:,j1,i] = getattr(mmodes, 'tower_md%02d%d'%(1+i,1+j0))                    
                 self.mode_data[:,2,i] *= -1
                 self.mode_data[:,5,i] *= -1
+        
+        # Mode names
+        self.mode_names = []
+        order = {0: 0, 1: 0, 2: 0, 3: 0}
+        normal_names = [
+            'Axial normal mode {}',
+            'Transverse Y normal mode {}',
+            'Transverse Z normal mode {}',
+            'Torsional normal mode {}',
+        ]
+        attachment_names = [
+            'Axial attachment mode',
+            'Translational Y attachment mode',
+            'Translational Z attachment mode',
+            'Torsional attachment mode',
+            'Rotation about Y attachment mode',
+            'Rotation about Z attachment mode',
+        ]
+        for p,t in enumerate(self.mode_types):
+            if t == 'N': # normal mode
+                direction = np.argmax(np.max(np.abs(self.mode_data[:,0:4,p]),axis=0))
+                order[direction] += 1
+                name = normal_names[direction].format(order[direction])
+            elif t == 'A': # attachment mode
+                direction = np.argmax(np.abs(self.mode_data[-1,:,p]))
+                name = attachment_names[direction]
+            else:
+                raise ValueError('Unknown mode type "%s"' % t)
+            self.mode_names.append(name)
 
     @property
     def element_lengths(self):
@@ -227,19 +278,38 @@ class Tower(object):
         # XXX should calc inertia about base
         return np.zeros((3,3))
     
-    def modal_rep(self):
+    def modal_rep(self, include_section_perp_inertia=True):
         """
         Return a ModalRepesentation containing the modal information
         """
         
+        # XXX assume stations are defined in order from bottom to top
+        x = self.stn_pos[:,2]
+        x -= x[0] # start from bottom
+        
+        # Mass axis is given by other two coordinates of station positions
+        mass_axis = self.stn_pos[:,:2]
+        
+        # Mode shapes and rotations
         shapes    = self.mode_data[:,:3,:]
         rotations = self.mode_data[:,3:,:]
-        #kgyr = np.zeros_like(bmf.radii)
-        #mass_axis = bmf.mass_axis
-        rep = ModalRepresentation(self.radii, shapes, rotations,
+        
+        # Polar inertia
+        # XXX smooth out discontinuities
+        Ixx = np.r_[ self.polar_inertia[0,0],
+                     0.5*(self.polar_inertia[1:,0] + self.polar_inertia[:-1,1]),
+                     self.polar_inertia[-1,1]
+        ]
+        
+        gyration_ratio = 1.0 if include_section_perp_inertia else None
+        
+        rep = ModalRepresentation(x, shapes, rotations,
             density=self.density,
             freqs  =self.mode_freqs,
             damping=self.mode_damping,
-#            section_inertia=kgyr,
+            mass_axis=mass_axis,
+            section_inertia=Ixx,
+            mode_names=self.mode_names,
+            gyration_ratio=gyration_ratio,
         )
         return rep
