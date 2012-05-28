@@ -1359,15 +1359,36 @@ class ModalElement(Element):
     _nstrain = 6
     _nconstraints = 0
 
-    def __init__(self, name, modes, loading=None):
+    def __init__(self, name, modes, loading=None, distal=False,
+                 damping_freqs=None):
         '''
         General element represented by mode shapes. Assume no distal nodes.
 
          - modal_rep : ModalRepresentation instance describing the
                        modal representation
+         - loading : Loading object describing external loading
+         - distal : whether the element needs a distal node
+                    (expands size of system by a node)
+         - extra_modal_mass : extra mass which has been included in the
+             calculation of the modal frequencies, but is not part of the element.
+             For example, Bladed adds nacelle and rotor mass to the reported
+             tower modal frequencies; to get the correct tower stiffness, this
+             has to be taken off again.
+            
+         - damping_freqs : reference frequencies used for damping coefficients.
+             If None, use modal frequencies. Needed for tower modes, when this
+             element wants the isolated modes, but the damping needs the 
+             combined frequencies in order to match Bladed.
 
         '''
         self._nstrain = len(modes.freqs)
+        if distal:
+            self._ndistal = 1
+            self._nconstraints = NQD
+        
+        if damping_freqs is None:
+            damping_freqs = modes.freqs
+            
         Element.__init__(self, name)
         self.modes = modes
         self.loading = loading
@@ -1378,7 +1399,7 @@ class ModalElement(Element):
 
         # Stiffness matrix
         self.stiffness = np.diag(self.mass_ee) * self.modes.freqs**2
-        self.damping = 2 * self.modes.damping * self.stiffness / self.modes.freqs
+        self.damping = 2 * self.modes.damping * self.stiffness / damping_freqs
         
         # Geometric stiffness matrix
         # Use int rdm as axial force, multiply by omega**2 later
@@ -1400,6 +1421,35 @@ class ModalElement(Element):
         global_vel = self.vp[None,VP] + np.einsum('ij,hj', self.Rp, prox_vel) \
             + np.einsum('ijk,j,kl,hl', eps_ijk, self.vp[WP], self.Rp, prox_pos)
         return global_vel
+
+    def calc_distal_pos(self):
+        self.rd[:]   = self.station_positions()[-1]
+        self.Rd[:,:] = self.station_rotations()[-1]
+
+    def calc_kinematics(self):
+        """
+        Update kinematic transforms: F_vp, F_ve and F_v2
+        [vd wd] = Fvp * [vp wp]  +  Fve * [vstrain]  +  Fv2
+        """
+        if self._ndistal == 0:
+            return
+            
+        # Distal relative position in global coordinates
+        xl = dot(self.Rp, self.modes.X(self.xstrain)[-1])
+
+        # distal vel
+        self.F_vp[VP,WP] = -skewmat(xl)
+
+        # Distal vel due to strain
+        self.F_ve[VP,:] = dot(self.Rp, self.modes.shapes[-1])
+        # Distal ang vel due to strain
+        self.F_ve[WP,:] = dot(self.Rp, self.modes.rotations[-1])
+
+        # Quadratic velocity terms
+        tip_lin_vel = dot(self.modes.shapes[-1],    self.xstrain)
+        tip_ang_vel = dot(self.modes.rotations[-1], self.vstrain)        
+        self.F_v2[VP] = dot(self.wps, dot(self.wps,xl) + 2*dot(self.Rp,tip_lin_vel))
+        self.F_v2[WP] = dot(self.wps, dot(self.Rp, tip_ang_vel))
 
     def shape(self):
         # proximal values
@@ -1511,10 +1561,16 @@ class ModalElement(Element):
 
     def calc_external_loading(self):
         # Gravity loads
-        self._set_gravity_force()
+        self.applied_forces[:] = dot(self.mass_vv,   self._gravacc)
+        self.applied_stress[:] = -dot(self.mass_ve.T, self._gravacc)
+        # XXX NB applied_stresses are negative (so they are as expected for
+        #     elastic stresses, but opposite for applied stresses)
+        
+        #print self.applied_stress
+        #self._set_gravity_force()
         
         # Constitutive loading (note stiffness and damping are diagonals so * ok)
-        self.applied_stress[:] = (
+        self.applied_stress[:] += (
             self.stiffness * self.xstrain +
             self.damping   * self.vstrain
         )
@@ -1541,6 +1597,11 @@ class ModalElement(Element):
             X[:,0] -= self.modes.x
             return X[stations]
         return CustomOutput(f, label="{} deflections".format(self.name))
+    
+    def output_rotations(self, stations=(-1,)):
+        def f(system):
+            return self.modes.small_rots(self.xstrain)[stations]
+        return CustomOutput(f, label="{} rotations".format(self.name))
     
     def output_positions(self, stations=(-1,)):
         def f(system):
