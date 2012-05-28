@@ -468,13 +468,13 @@ class System(object):
                 pass
         self._update_indices()
 
-    def solve_accelerations(self, out=None):
+    def solve_accelerations(self, out=None, only_dofs=False):
         '''
         Solve for free accelerations, taking account of any prescribed accelerations
         '''
-
         
-        prescribed_acc_forces = dot(self.lhs, self.qdd._array)
+        prescribed_acc_forces = dot(self.lhs[:,~self.iNotPrescribed],
+                                    self.qdd[~self.iNotPrescribed])
         
         # remove prescribed acceleration entries from mass matrix and RHS
         # add the forces corresponding to prescribed accelerations back in
@@ -483,13 +483,27 @@ class System(object):
 
         # solve system for accelerations
         a = LA.solve(M, b)
+
+        result = self.qdd._array.copy()
+        result[self.iNotPrescribed] = a 
         
+        iDOF = self.qd.indices_by_type('strain')
         if out is None:
-            out = self.qdd._array.copy()
+            if only_dofs:                
+                return result[iDOF]
+            else:
+                return result
         else:
-            out[:] = self.qdd._array
-        out[self.iNotPrescribed] = a
-        return out
+            #print '~', a
+            if only_dofs:
+                out[:] = result[iDOF]
+            else:
+                out[:] = result
+            return out
+        
+        #print '~', a
+        #self.qdd[self.iNotPrescribed] = a
+        #return out
     
     def solve_reactions(self):
         """
