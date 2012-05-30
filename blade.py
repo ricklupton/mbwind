@@ -10,7 +10,36 @@ Represent a wind turbine blade, including mass and aerodynamic properties.
 import numpy as np
 from numpy import asarray
 import re
-from linearisation import ModalRepresentation
+from linearisation import ModalRepresentation, LinearisedSystem
+
+from dynamics import System, UniformBeam
+        
+def rotation_matrix_to_quaternions(R):
+    q0 = 0.5 * np.sqrt(1 + R.trace())
+    q1 =(R[2,1] - R[1,2]) / (4*q0)
+    q2 =(R[0,2] - R[2,0]) / (4*q0)
+    q3 =(R[1,0] - R[0,1]) / (4*q0)
+    return np.array([q0,q1,q2,q3])
+
+def system_shapes(system, x, q_dofs=None):
+    """
+    Find actual shapes and rotations of system
+    """
+    if q_dofs is not None:
+        system.q.dofs[:] = q_dofs
+    system.update_kinematics(0.0, False)
+        
+    beams = list(system.iter_elements())
+    modes = np.zeros((len(beams)+1, 6))
+    for ib,beam in enumerate(beams):
+        qd = rotation_matrix_to_quaternions(beam.Rd)
+        modes[1+ib,0:3] = beam.rd - [x[1+ib],0,0]
+        modes[1+ib,3:6] = qd[1:]
+
+    if False and np.abs(modes).max() > 0:
+        modes /= np.abs(modes).max()
+    return modes
+            
 
 def splitquoted(string):
     """Split on spaces, keeping quoted things together"""
@@ -186,6 +215,12 @@ class Tower(object):
             self.density = np.c_[ towm[:-1], towm[1:] ]
             self.polar_inertia = np.zeros_like(self.density) # axial tower has no polar inertia
         
+            # Stiffness
+            mtstiff = BladedModule(prj, 'TSTIFF')
+            EI = mtstiff.eitow
+            self.EIy = self.EIz = np.c_[ EI[:-1], EI[1:] ]
+            self.EAx = np.nan * np.zeros_like(self.EIy)
+        
         elif self.model_type == 3:
             # Multi member
             self.nstations = mgeom.nts            
@@ -313,3 +348,88 @@ class Tower(object):
             gyration_ratio=gyration_ratio,
         )
         return rep
+    
+    def modal_analysis(self, Nmodes=None):
+        """
+        Calculate tower modes from finite element model.
+        """
+
+        print "Building model..."
+        
+        # XXX assume stations are defined in order from bottom to top
+        x = self.stn_pos[:,2]
+        x -= x[0] # start from bottom
+        assert np.allclose(0, self.stn_pos[:,:2])
+
+        # Check all beams are uniform
+        assert np.allclose(0, np.diff(self.density))
+        assert np.allclose(0, np.diff(self.EIy))
+        assert np.allclose(0, np.diff(self.EIz))
+
+        # Build model
+        beams = [UniformBeam('beam%d'%(i+1), x[i+1]-x[i], self.density[i,0],
+                             0, self.EIy[i,0], self.EIz[i,0], 0, 0)
+                 for i in range(len(x)-1)]
+        for b1,b2 in zip(beams[:-1], beams[1:]):
+            b1.add_leaf(b2)
+        system = System(beams[0])
+        
+        # Constrain extension and torsion
+        for b in beams:
+            system.prescribe(b, 0, 0, part=[0,3])
+
+        ## Fix distal end too...
+        #P_custom = np.zeros((2, system.lhs.shape[1]))
+        #b_custom = np.zeros(2)
+        #c_custom = np.zeros(2)
+        ## sum of y strains and z strains both equal zero
+        #P_custom[0,[b._istrain[1] for b in beams]] = 1
+        #P_custom[1,[b._istrain[2] for b in beams]] = 1
+        #system.custom_constraints = (P_custom, b_custom, c_custom)
+        #system.B = np.r_[ system.B[:-4], system.B[-2:] ]
+        #system.calc_projections()
+
+        print "Linearising..."
+
+        ## Linearise and find system modes
+        #linsys = LinearisedSystem(system)
+        #w, v = linsys.modes()
+#
+        #if Nmodes is None:
+            #Nmodes = len(w)
+        #assert Nmodes <= 6*len(beams)
+        #
+        #freqs = w[:Nmodes]
+        #damping = 0.01 * np.ones_like(freqs)
+#
+        ## Find actual shapes that correspond to beam strain mode shapes
+        #shapes    = np.zeros((len(beams)+1, 3, Nmodes))
+        #rotations = np.zeros((len(beams)+1, 3, Nmodes))
+        #for imode in range(Nmodes):
+            #m = system_shapes(system, x, v[:,imode]/50)
+            #shapes[:,:,imode] = m[:,0:3]
+            #rotations[:,:,imode] = m[:,3:6]
+#
+        #rep = ModalRepresentation(x, shapes, rotations,
+            #density=self.density,
+            #freqs  =freqs,
+            #damping=damping,
+        #)
+        rep = None
+        
+        # Attachment modes: apply force to each distal direction in turn
+        att = np.zeros((len(beams)+1, 6, 4))
+        beams[-1].distal_load = lambda t: [0, 0.06, 0] #, 0, 0, 0]
+        #system.find_equilibrium()
+        att[:,:,0] = system_shapes(system, x)
+        #beams[-1].distal_load = lambda t: [0, 0, 1, 0, 0, 0]
+        #system.find_equilibrium()
+        #att[:,:,1] = system_shapes(system, x)
+        #beams[-1].distal_load = lambda t: [0, 0, 0, 0, 1, 0]
+        ##system.find_equilibrium()
+        #att[:,:,2] = system_shapes(system, x)
+        #beams[-1].distal_load = lambda t: [0, 0, 0, 0, 0, 1]
+        ##system.find_equilibrium()
+        #att[:,:,3] = system_shapes(system, x)
+
+        return rep, system, beams, att
