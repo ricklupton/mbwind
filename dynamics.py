@@ -1044,7 +1044,8 @@ class UniformBeam(Element):
     _nstrain = 6
     _nconstraints = NQD
 
-    def __init__(self, name, length, density, EA, EIy, EIz, GIx=0.0, Jx=0.0, wind=None):
+    def __init__(self, name, length, density, EA, EIy, EIz, GIx=0.0, Jx=0.0,
+                 wind=None, distal_load=None):
         '''
         Euler beam element.
 
@@ -1066,6 +1067,7 @@ class UniformBeam(Element):
         self.EIz = EIz
         self.Jx = Jx
         self.wind = wind
+        self.distal_load = distal_load
         self._initial_calcs()
 
     def _calc_mass_coeffs(self):
@@ -1302,7 +1304,24 @@ class UniformBeam(Element):
                 self.applied_forces[VP] += Qrp
                 self.applied_forces[WP] += Qwp
                 self.applied_stress[:]  += Qstrain
-
+        
+        if self.distal_load:
+            global_force = self.distal_load(self.system.time)
+            # generalised forces
+            #Qrp = global_force[:3]
+            #Qwp = dot(skewmat(self.rd - self.rp), global_force[:3]) + global_force[3:]
+            #Qstrain = np.r_[ dot(self.Rp.T, global_force[:3]),
+            #                 dot(self.Rp.T, global_force[3:]) ]
+            Qrp = global_force
+            Qwp = dot(skewmat(self.rd - self.rp), global_force[:3])
+            Qstrain = dot(np.eye(6,3), dot(self.Rp.T, global_force[:3]))
+            print Qrp
+            print Qwp
+            print Qstrain
+            print
+            self.applied_forces[VP] += Qrp
+            self.applied_forces[WP] += Qwp
+            self.applied_stress[:]  += Qstrain
 
 #==============================================================================
 # class EulerBeam(UniformBeam):
