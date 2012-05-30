@@ -27,6 +27,7 @@ class Turbine(object):
         self.blade = Blade(bladed_file)
         self.tower = Tower(bladed_file)
         self.modes = self.blade.modal_rep()
+        #self.tmodes = self.tower.modal_rep()
 
         Ry = rotmat_y(-pi/2)
         Rhb1 = rotmat_x(0 * 2*pi/3)
@@ -76,6 +77,19 @@ class Turbine(object):
         for b in (self.blade1, self.blade2, self.blade3):
             self.integ.add_output(dynamics.NodeOutput(b.iprox, local=True, deriv=2))
 
+    @property
+    def mass(self):
+        """Total mass of turbine"""
+        return self.tower.total_mass + self.modes.mass * 3
+    
+    @property
+    def inertia(self):
+        """Total rotational inertia of turbine about base"""
+        inertia = self.tower.total_inertia
+        inertia[(0,1),(0,1)] = self.modes.mass * 3 * self.tower.hubheight
+        return inertia
+        # XXX neglecting rotor rotational inertia
+
     def set_base_motion(self, dof, w, amp):
         self.base_motion = dof
         self.base_motion_amp = amp
@@ -111,7 +125,7 @@ class Turbine(object):
         
         # simulate
         self.t,self.y = self.integ.integrate(t1, dt, t0)
-        for i,lab in enumerate(self.integ.labels):
+        for i,lab in enumerate(self.integ.labels()):
             print "%2d  %s" % (i,lab)
         return self.t, self.y
     
@@ -123,11 +137,8 @@ class Turbine(object):
         
         if init:
             self.system.find_equilibrium()
-            
-        # need initial amplitudes for linearisation point
-        if qm0 is None: 
-            qm0 = self.system.q[self.blade1.istrain]
-        linsys = linearisation.LinearisedSystem(self.system, np.tile(qm0, 3))
+
+        linsys = linearisation.LinearisedSystem(self.system)
         return linsys
 
     def ani(self, vs=(0,1), t=None, y=None):

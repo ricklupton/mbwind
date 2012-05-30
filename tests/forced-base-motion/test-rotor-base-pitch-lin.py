@@ -2,8 +2,8 @@
 """
 Created on Tue 01 May 2012
 
-Test response of blade root loads in a rotating rotor to prescribed harmonic
-base motion of the structure.
+Test response of blade root loads in a rotating rotor to a harmonic force at
+the base of the structure.
 
 @author: Rick Lupton
 """
@@ -30,10 +30,18 @@ rotor_speed = 2   # rad/s
 # Create model
 bladed_file = r'C:\Users\Rick Lupton\Dropbox\phd\Bladed\Models\OC3-Hywind_SparBuoy_NREL5MW.prj'
 tb = Turbine(bladed_file)
-tb.set_base_motion(4, pitch_freq, pitch_amp)
 
-# Simulate
+# Linearise model and simulate
+lin = tb.lin(az0=0, rotor_speed=rotor_speed, init=True)
+t,yl = lin.integrate(90)
+
+# Convert to MBC and simulate
+mbclin = lin.multiblade_transform((0, rotor_speed), [range(0,4),range(4,8),range(8,12)])
+t,ym = mbclin.integrate(90)
+
+# Simulate original full system
 #t,y = tb.simulate(rotor_speed=2, t1=90, dt=0.10, init=True)
+
 
 def mbc(az, u):
     N = len(az)
@@ -64,7 +72,7 @@ def p(parts=False):
         for i in np.nonzero(np.diff(az) < 0)[0]:
             ax.axvline(t[i], alpha=0.1)
         ax.axhline(0, alpha=0.1)            
-        ax.set_title(tb.modes.mode_names[imode])
+        ax.set_title(tb.modes.mode_descriptions[imode])
         #ax1.legend(frameon=False, loc='upper left')
         #plt.setp(ax1.get_legend().get_texts(), fontsize='small')
             
