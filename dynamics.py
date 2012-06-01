@@ -135,7 +135,10 @@ class ArrayProxy(object):
         return self._target[self.subset[index]]
     
     def __setitem__(self, index, value):
-        self._target[self.subset[index]] = value
+        ix = self.subset[index]
+        if not np.isscalar(value) and len(self._target[ix]) != len(value):
+            raise ValueError('value length does not match index')
+        self._target[ix] = value
     
     def __len__(self):
         return len(self.subset)
@@ -471,7 +474,7 @@ class System(object):
                 pass
         self._update_indices()
 
-    def solve_accelerations(self, out=None, only_dofs=False):
+    def solve_accelerations(self):
         '''
         Solve for free accelerations, taking account of any prescribed accelerations
         '''
@@ -490,23 +493,8 @@ class System(object):
         result = self.qdd._array.copy()
         result[self.iNotPrescribed] = a 
         
-        iDOF = self.qd.indices_by_type('strain')
-        if out is None:
-            if only_dofs:                
-                return result[iDOF]
-            else:
-                return result
-        else:
-            #print '~', a
-            if only_dofs:
-                out[:] = result[iDOF]
-            else:
-                out[:] = result
-            return out
-        
-        #print '~', a
-        #self.qdd[self.iNotPrescribed] = a
-        #return out
+        iStrain = self.qd.indices_by_type('strain')
+        self.qdd[iStrain] = result[iStrain]
     
     def solve_reactions(self):
         """
@@ -1930,25 +1918,33 @@ class Integrator(object):
         for y0 in self.outputs():
             self.y.append(zeros( (len(tvals),) + y0.shape ))
         
-        nDOF = len(self.system.q.dofs)
+        iDOF_q  = self.system.q.indices_by_type('strain')
+        iDOF_qd = self.system.qd.indices_by_type('strain')
+        assert len(iDOF_q) == len(iDOF_qd)
+        nDOF = len(iDOF_q)
+        #DOF = len(self.system.q.dofs)
                 
         # Gradient function
         def _func(ti, yi):
             # update system state with states and state rates
             # y constains [strains, d(strains)/dt]
-            self.system.q.dofs[:]  = yi[:nDOF]
-            self.system.qd.dofs[:] = yi[nDOF:]
+            #elf.system.q.dofs[:]  = yi[:nDOF]
+            #elf.system.qd.dofs[:] = yi[nDOF:]
+            self.system.q [iDOF_q]  = yi[:nDOF]
+            self.system.qd[iDOF_qd] = yi[nDOF:]
             self.system.update_kinematics(ti) # kinematics and dynamics
     
             # solve system
-            self.system.solve_accelerations(self.system.qdd.dofs, only_dofs=True)
+            self.system.solve_accelerations()
             
             # new state vector is [strains_dot, strains_dotdot]
-            return np.r_[ self.system.qd.dofs[:], self.system.qdd.dofs[:] ]
+            #return np.r_[ self.system.qd.dofs[:], self.system.qdd.dofs[:] ]
+            return np.r_[ self.system.qd[iDOF_qd], self.system.qdd[iDOF_qd] ]
 
         # Initial conditions
         self.system.set_initial_velocities(time=0.0)
-        z0 = np.r_[ self.system.q.dofs[:], self.system.qd.dofs[:] ]
+        z0 = np.r_[ self.system.q[iDOF_q], self.system.qd[iDOF_qd] ]
+        #z0 = np.r_[ self.system.q.dofs[:], self.system.qd.dofs[:] ]
         
         # Setup actual integrator
         integrator = ode(_func)
