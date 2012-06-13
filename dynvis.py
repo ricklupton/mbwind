@@ -54,7 +54,7 @@ def showsystem(system, view=None):
     else:
         raise ValueError("view should be 'x', 'y', 'z', or None for 3d")
 
-def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, only_free=False, scale=(1,1)):
+def anim(system, t, strains, vs=(0,1), lim1=None, lim2=None, scale=(1,1)):
     fig = plt.figure()
     fig.set_size_inches(10,10,forward=True)
     ax = fig.add_subplot(111, aspect=1, xlim=lim1,ylim=lim2)
@@ -77,38 +77,25 @@ def anim(system, tt, yy, vs=(0,1), lim1=None, lim2=None, only_free=False, scale=
         time_text.set_text('')
         return [line for line in ellines for el,ellines in lines] + [time_text]
 
-    if only_free:
-        iDOF = system.q.dofs.subset
-    else:
-        iDOF = system.q.indices_by_type('strain')
+    iDOF = system.q.indices_by_type('strain')
     N = len(iDOF)
-    print iDOF, N
-    
-    # Rearrange yy to have all strains from all elements adjacent
-    dofs = []
-    for y_el in yy:
-        for j in range(y_el.shape[1]):
-            dofs.append(y_el[:,j])
-        if len(dofs) >= N: break
-    dofs = np.array(dofs)
-    assert dofs.shape[0] == N
-    print dofs
+    assert (strains.shape[0] == len(t)) and (strains.shape[1] == N)
     
     def animate(i):
         # Update strain values
-        system.q[iDOF] = dofs[:,i]
-        system.update_kinematics(tt[i], False)
+        system.q[iDOF] = strains[i]
+        system.update_kinematics(t[i], False)
 
         for el,ellines in lines:
             linedata = el.shape()
             for data,line in zip(linedata,ellines):
                 line.set_data(data[:,vs[0]]*scale[0], data[:,vs[1]]*scale[1])
-        time_text.set_text(time_template%tt[i])
+        time_text.set_text(time_template%t[i])
 
         return [line for line in ellines for el,ellines in lines] + [time_text]
 
-    ani = animation.FuncAnimation(fig, animate, np.arange(1, yy[0].shape[0]),
-        interval=(tt[1]-tt[0])*1000*1, blit=False, init_func=init, repeat=False)
+    ani = animation.FuncAnimation(fig, animate, np.arange(len(t)),
+        interval=(t[1]-t[0])*1000, blit=False, init_func=init, repeat=False)
     return ani
 
 def anim_modes(system, modeshapes, vs=(0,1), lim1=None, lim2=None):
