@@ -522,9 +522,7 @@ class System(object):
             ma = dot(self.lhs[np.ix_(self.iReal,self.iReal)], qdd)
             return dot(self.R.T, (Q - ma))
         
-        q00 = self.q.dofs[:].copy()
         q0 = scipy.optimize.fsolve(func, self.q.dofs[:])
-        print q0 - q00
         self.q.dofs[:] = q0
 
     def eval_residue(self, z, zd, zdd, parts=False):
@@ -1907,16 +1905,18 @@ class Integrator(object):
     def integrate(self, tvals, dt=None, t0=0.0, nprint=20):
         if not np.iterable(tvals):
             assert dt is not None and t0 is not None
-            tvals = np.arange(t0, tvals, dt)
+            tvals = np.arange(0.0, tvals, dt)
+        out_tvals = tvals[tvals >= t0]
+        it0 = np.nonzero(tvals >= t0)[0][0]
 
         # prepare for first outputs
         #self.system.update_kinematics(0.0) # work out kinematics
         #self.system.solve_reactions()
                 
-        self.t = tvals
+        self.t = out_tvals
         self.y = []
         for y0 in self.outputs():
-            self.y.append(zeros( (len(tvals),) + y0.shape ))
+            self.y.append(zeros( (len(out_tvals),) + y0.shape ))
         
         iDOF_q  = self.system.q.indices_by_type('strain')
         iDOF_qd = self.system.qd.indices_by_type('strain')
@@ -1969,7 +1969,7 @@ class Integrator(object):
             # Wrap joint angles etc
             self.system.q.wrap_states()
 
-            if t >= tvals[0]:                            
+            if t >= t0:                            
                 # Update nodal accelerations from strains' (DOFs') accelerations
                 self.system.update_kinematics()
                 
@@ -1978,7 +1978,7 @@ class Integrator(object):
                 
                 # Save outputs
                 for y,out in zip(self.y, self.outputs()):
-                    y[it] = out
+                    y[it-it0] = out
                 if nprint is not None and (it % nprint) == 0:
                     sys.stdout.write('.'); sys.stdout.flush()
             else:
