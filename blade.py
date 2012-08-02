@@ -313,7 +313,7 @@ class Tower(object):
         # XXX should calc inertia about base
         return np.zeros((3,3))
     
-    def modal_rep(self, include_section_perp_inertia=True):
+    def modal_rep(self, include_section_perp_inertia=True, rejig=False):
         """
         Return a ModalRepesentation containing the modal information
         """
@@ -346,6 +346,9 @@ class Tower(object):
             section_inertia=Ixx,
             mode_names=self.mode_names,
             gyration_ratio=gyration_ratio,
+            rejig_attachment_modes=rejig,
+            EIy=self.EIy,
+            EIz=self.EIz,
         )
         return rep
     

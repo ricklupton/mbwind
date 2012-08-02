@@ -337,7 +337,10 @@ class ModalRepresentation(object):
 
     """
     def __init__(self, x, shapes, rotations, density, freqs, mass_axis=None,
-                 section_inertia=None, gyration_ratio=1.0, damping=None, mode_names=None):
+                 section_inertia=None, gyration_ratio=1.0,
+                 EIy=None, EIz=None,
+                 damping=None,
+                 mode_names=None, rejig_attachment_modes=False):
         r"""
         Setup modal representation for a 1-dimensional element.
 
@@ -413,34 +416,43 @@ class ModalRepresentation(object):
         self.rotations = rotations
         self.freqs = freqs
         self.damping = damping
-
         self.mass_axis = mass_axis
+        self.EIy = EIy
+        self.EIz = EIz
+
+        # describe mode shapes
+        if mode_names is None:
+            mode_names = ['Mode %d' % i for i in range(len(freqs))]
+        self.mode_names = list(mode_names) # copy because insert in rejig
+        
+        if rejig_attachment_modes:
+            self._rejig_attachment_modes()
 
         # Prepare integrands
         X0 = np.c_[ x, mass_axis ]
         J0 = zeros((len(x),3,3))
-        S1 = zeros((len(x),3,3,len(freqs)))
-        T1 = zeros((len(x),3,3,len(freqs)))
-        S2 = zeros((len(x),3,3,len(freqs),len(freqs)))
-        T2 = zeros((len(x),3,3,len(freqs),len(freqs)))
-        H2 = zeros((len(x),3,len(freqs),len(freqs)))
-        H3 = zeros((len(x),3,len(freqs),len(freqs),len(freqs)))
+        S1 = zeros((len(x),3,3,len(self.freqs)))
+        T1 = zeros((len(x),3,3,len(self.freqs)))
+        S2 = zeros((len(x),3,3,len(self.freqs),len(self.freqs)))
+        T2 = zeros((len(x),3,3,len(self.freqs),len(self.freqs)))
+        H2 = zeros((len(x),3,len(self.freqs),len(self.freqs)))
+        H3 = zeros((len(x),3,len(self.freqs),len(self.freqs),len(self.freqs)))
 
         for i in range(len(x)):
             J0[i] = np.outer(X0[i], X0[i])  +  self.section_inertia[i]
             
-            S1[i] = np.einsum('j,ip', X0[i], shapes[i])
-            S2[i] = np.einsum('ip,jr', shapes[i], shapes[i])
+            S1[i] = np.einsum('j,ip', X0[i], self.shapes[i])
+            S2[i] = np.einsum('ip,jr', self.shapes[i], self.shapes[i])
             
             T1[i,:,:,:] = np.einsum('inq,nj,qp', eps_ijk,
-                                        self.section_inertia[i], rotations[i])
+                                        self.section_inertia[i], self.rotations[i])
             T2[i,:,:,:,:] = np.einsum('ist,jlm,ls,mp,tr', eps_ijk, eps_ijk,
-                                self.section_inertia[i], rotations[i], rotations[i])
+                                self.section_inertia[i], self.rotations[i], self.rotations[i])
             
-            H2[i,:,:,:  ] = np.einsum('p,q,j ->jpq',  rotations[i,1], rotations[i,1], X0[i]) + \
-                            np.einsum('p,q,j ->jpq',  rotations[i,2], rotations[i,2], X0[i])
-            H3[i,:,:,:,:] = np.einsum('p,q,jr->jpqr', rotations[i,1], rotations[i,1], shapes[i]) + \
-                            np.einsum('p,q,jr->jpqr', rotations[i,2], rotations[i,2], shapes[i])
+            H2[i,:,:,:  ] = np.einsum('p,q,j ->jpq',  self.rotations[i,1], self.rotations[i,1], X0[i]) + \
+                            np.einsum('p,q,j ->jpq',  self.rotations[i,2], self.rotations[i,2], X0[i])
+            H3[i,:,:,:,:] = np.einsum('p,q,jr->jpqr', self.rotations[i,1], self.rotations[i,1], self.shapes[i]) + \
+                            np.einsum('p,q,jr->jpqr', self.rotations[i,2], self.rotations[i,2], self.shapes[i])
 
         # Calculate shape integrals
         self.X0 = X0
@@ -451,7 +463,7 @@ class ModalRepresentation(object):
         #self.S2  = trapz(S2     * density[:,NA,NA,NA,NA], x, axis=0)
         #self.T2  = trapz(T2     * density[:,NA,NA,NA,NA], x, axis=0)
         self.mass = discont_trapz(np.ones_like(x), self.density, x)
-        self.S    = discont_trapz(shapes, self.density, x)
+        self.S    = discont_trapz(self.shapes, self.density, x)
         self.S1   = discont_trapz(S1, self.density, x)
         self.T1   = discont_trapz(T1, self.density, x)
         self.S2   = discont_trapz(S2, self.density, x)
@@ -494,10 +506,7 @@ class ModalRepresentation(object):
         self.sk_I0 = np.einsum('imj,m ->ij ', eps_ijk, self.I0)
         self.sk_S0 = np.einsum('imj,mp->ijp', eps_ijk, self.S )
         
-        # describe mode shapes
-        if mode_names is None:
-            mode_names = ['Mode %d' % i for i in range(len(freqs))]
-        self.mode_names = mode_names
+        
         
         # Discrete mass matrix at all points
         self.M = np.zeros((len(x),len(x)))
@@ -522,6 +531,55 @@ class ModalRepresentation(object):
         
         # Mode shapes including rigid body modes
         
+        ########### STIFFNESS #################
+        if EIy is not None and EIz is not None:
+            K = zeros((len(x), len(x), 3, 3))
+            for i in range(K.shape[0]-1):
+                assert np.allclose(*EIy[i]) and np.allclose(*EIz[i])
+                ki = np.diag([0, EIy[i,0], EIz[i,0]]) / (x[i+1] - x[i])
+                K[i  ,  i] += ki
+                K[i+1,i+1] += ki
+                K[i  ,i+1] -= ki
+                K[i+1,i  ] -= ki
+            self.stiffness = np.einsum('gip,ghij,hjq->pq', self.rotations, K,
+                                       self.rotations)
+    
+    def _rejig_attachment_modes(self):
+        """Convert attachment modes from force -> displacement, and make sure
+        there are always 6 of them. Normal modes unchanged"""
+        
+        Na = sum(1 for name in self.mode_names if 'attachment' in name)
+        Nn = sum(1 for name in self.mode_names if 'normal' in name)
+        assert Na + Nn == len(self.freqs)
+        Pall = np.r_['1', self.shapes, self.rotations]
+        
+        # attachment (a) and normal (n)
+        Paf = Pall[:,:,:Na]
+        Pn = Pall[:,:,Na:]
+        
+        # add extension and torsion attachment modes
+        padding = zeros((Paf.shape[0],Paf.shape[1],1))
+        Paf = np.r_['2', padding, Paf[:,:,:2], padding, Paf[:,:,2:] ]
+        Paf[-1,0,0] = 1 # dummy extension mode
+        Paf[-1,3,3] = 1 # dummy torsion mode
+        
+        # displacements at tip
+        Paf_tip = Paf[-1]
+        Paf_tip_inv = np.linalg.inv(Paf_tip)
+        
+        # transform attachment modes from forces to displacements
+        Pa = np.einsum('hip,pj->hij', Paf, Paf_tip_inv)
+        Pa[:,0,0] = 0 # dummy extension mode
+        Pa[:,3,3] = 0 # dummy torsion mode
+        
+        # all mode shapes again
+        P = np.r_['2', Pa, Pn ]
+        self.shapes = P[:,:3,:]
+        self.rotations = P[:,3:,:]
+        self.freqs = np.r_[ np.nan, self.freqs[:2], np.nan, self.freqs[2:] ]
+        self.damping = np.r_[ np.nan, self.damping[:2], np.nan, self.damping[2:] ]
+        self.mode_names.insert(0, "Dummy extension mode")
+        self.mode_names.insert(3, "Dummy torsion mode")
  
     def X(self, q):
         return self.X0 + np.einsum('hip,p', self.shapes, q)
