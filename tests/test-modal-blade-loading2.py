@@ -129,6 +129,50 @@ def doplot(t=None,y=None):
     ax.set_ylabel('Rel. wind speed (m/s)')
     ax.set_ylim((18,25))
     
-if False:
+def bigplot(t,y):
+    fig = plt.figure()
+    gs = gridspec.GridSpec(4, 2)
+
+    import matplotlib
+    matplotlib.rcParams.update({'font.size': 16})
+    
+    ax = fig.add_subplot(gs[0,0])
+    ax.plot(wind_table[0], wind_table[1].T)
+    ax.set_ylabel('Wind speed (m/s)')
+    ax.set_ylim((0,25))
+    
+    ax = fig.add_subplot(gs[1,0])
+    ax.plot(t, -y[2][:,2], 'b', label='Mine')
+    ax.plot(t, bladed_defl[:,4], 'k--', label='Bladed')
+    ax.set_ylabel('OOP force (N/m)')
+    #ax.legend(frameon=False)
+    #ax.set_ylim((0,0.045))
+    #plt.setp(ax.get_legend().get_texts(), fontsize='small')
+    
+    ax = fig.add_subplot(gs[1,1])
+    ax.plot(t, y[2][:,1], 'b', label='Mine')
+    ax.plot(t, bladed_defl[:,5], 'k--', label='Bladed')
+    ax.set_ylabel('IP force (N/m)')
+    
+    ax = fig.add_subplot(gs[2:4,0])
+    ax.plot(t, -100*y[1][:,0,2], 'b', label='Mine (midspan)')
+    ax.plot(t, -100*y[1][:,1,2], 'g', label='Mine (tip)')
+    ax.plot(t, 100*bladed_defl[:len(t),0], 'k--', label='Bladed')
+    ax.plot(t, 100*bladed_defl[:len(t),2], 'k--')
+    ax.set_ylabel('OOP defl (cm)')
+    ax.set_xlabel('Time / s')
+    ax.legend(frameon=False)
+    #ax.set_ylim((0,0.045))
+    plt.setp(ax.get_legend().get_texts(), fontsize='small')
+    
+    ax = fig.add_subplot(gs[2:4,1])
+    ax.plot(t, 100*y[1][:,0,1], 'b', label='Mine')
+    ax.plot(t, 100*y[1][:,1,1], 'g')
+    ax.plot(t, 100*bladed_defl[:len(t),1], 'k--', label='Bladed')
+    ax.plot(t, 100*bladed_defl[:len(t),3], 'k--')
+    ax.set_ylabel('IP defl (cm)')
+    ax.set_xlabel('Time / s')
+    
+if True:
     t,y = integ.integrate(10, 0.05)
 

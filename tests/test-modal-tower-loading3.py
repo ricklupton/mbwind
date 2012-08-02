@@ -24,13 +24,13 @@ from linearisation import LinearisedSystem
 
 dynamics.OPT_GRAVITY = False
 
-modes_path = '/bladed/nrel_tower/point_load/tower_7modes_only'
-bladed_path = '/bladed/nrel_tower/point_load/flextower_rigidblades_7modes'
+modes_path = '/media/data/bladed/nrel_tower/point_load/tower_7modes_only'
+bladed_path = '/media/data/bladed/nrel_tower/point_load/flextower_rigidblades_7modes'
 
 # Modal element using data from Bladed model
 print "Loading tower from '%s'..." % modes_path
 #tower = Tower(modes_path+'.$pj')
-tower = Tower(bladed_path+'.$pj')
+tower = Tower(bladed_path+'.$PJ')
 modes = tower.modal_rep(False)
 
 # Get combined tower frequencies
