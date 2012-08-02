@@ -28,14 +28,14 @@ dynamics.OPT_GEOMETRIC_STIFFNESS = True
 
 # Create model
 bladed_file = r'C:\Users\Rick Lupton\Dropbox\phd\Bladed\Models\OC3-Hywind_SparBuoy_NREL5MW.prj'
-tb = Turbine(bladed_file)
-tb.set_base_motion(4, 0.60, 0.3)
+tb = Turbine(bladed_file, rigid=False)
+tb.set_base_motion(4, 0.80, 10*pi/180)
 #t,y = tb.simulate(rotor_speed=2, t1=60, dt=0.05, init=True)
 
 def p(parts=False):
     fig = plt.figure()
     fig.set_size_inches(15,10,forward=True)
-    gs = gridspec.GridSpec(5, 2)
+    gs = gridspec.GridSpec(6, 2)
     motion = ['surge','sway','heave','roll','pitch','yaw'][tb.base_motion]
     fig.suptitle('Blade loads in response to base motion: {}'.format(motion))
         
@@ -45,7 +45,7 @@ def p(parts=False):
     mh = tb.modes.mass * tb.tower.hubheight
     h = tb.tower.hubheight
     mrg = tb.modes.I0[0]
-    I = tb.modes.J0[1,1]
+    I = tb.modes.J0[0,0]
     g = dynamics.gravity * dynamics.OPT_GRAVITY
     Fx = {
         r'$\dot\theta^2$':   -mrg*az[1]**2,
@@ -116,6 +116,18 @@ def p(parts=False):
             expec = np.sum(expected[i].values(), axis=0)
             ax.plot(t, y[18][:,results[i]]/1e3, colours[i], t, expec/1e3, 'k--')
         ax.set_ylabel(loads[i])
+    
+    ax = fig.add_subplot(gs[5,0])
+    expec = np.sqrt(np.sum(expected[1].values(), axis=0)**2 + \
+                    np.sum(expected[2].values(), axis=0)**2   )
+    res = np.sqrt(y[18][:,results[1]]**2 + y[18][:,results[2]]**2)
+    ax.plot(t, res/1e3, 'b', t, expec/1e3, 'k--')
+    
+    ax = fig.add_subplot(gs[5,1])
+    expec = np.sqrt(np.sum(expected[4].values(), axis=0)**2 + \
+                    np.sum(expected[5].values(), axis=0)**2   )
+    res = np.sqrt(y[18][:,results[4]]**2 + y[18][:,results[5]]**2)
+    ax.plot(t, res/1e3, 'b', t, expec/1e3, 'k--')
         
     ax.set_xlabel('Time / s')
     
