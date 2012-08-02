@@ -16,7 +16,7 @@ import matplotlib.gridspec as gridspec
 
 import dynamics
 from dynamics import System, ModalElement, Integrator, RigidConnection, rotmat_y, \
-    RigidBody
+    RigidBody, DistalModalElement
 from blade import Tower
 #from loading import PointLoading
 import dynvis
@@ -24,17 +24,17 @@ from linearisation import LinearisedSystem
 
 dynamics.OPT_GRAVITY = False
 
-modes_path = '/bladed/simple_tower/point_load/tower_7modes_only'
-bladed_path = '/bladed/simple_tower/point_load/flextower_rigidblades_7modes'
+modes_path = '/media/data/bladed/simple_tower/point_load/tower_7modes_only'
+bladed_path = '/media/data/bladed/simple_tower/point_load/flextower_rigidblades_7modes'
 
 # Modal element using data from Bladed model
 print "Loading tower from '%s'..." % modes_path
-tower = Tower(modes_path+'.$pj')
-modes = tower.modal_rep()
+tower = Tower(modes_path+'.$PJ')
+modes = tower.modal_rep(rejig=True)
 
 # Get combined tower frequencies
-tower2 = Tower(bladed_path+'.$pj')
-modes2 = tower2.modal_rep()
+tower2 = Tower(bladed_path+'.$PJ')
+modes2 = tower2.modal_rep(rejig=True)
 
 # Load Bladed data for comparison
 import pybladed.data
@@ -53,11 +53,14 @@ loadfunc = scipy.interpolate.interp1d(thrust_time, thrust)
 
 # Modal element
 base = RigidConnection('base', rotation=rotmat_y(-np.pi/2))
-el = ModalElement('el', modes, distal=True, damping_freqs=modes2.freqs)
+el = DistalModalElement('el', modes, distal=True, damping_freqs=modes2.freqs)
+#el = ModalElement('el', modes, distal=True, damping_freqs=modes2.freqs)
 rna = RigidBody('rna', 24000, np.diag([6400003, 6400003, 4266667]), nodal_load=loadfunc)
 base.add_leaf(el)
 el.add_leaf(rna)
 system = System(base)
+
+system.prescribe(el, vel=0, part=[0,3])
 
 integ = Integrator(system)
 integ.add_output(el.output_deflections())
@@ -99,13 +102,24 @@ def doplot():
     ax.plot(t, bladed_defl[:,1], 'k--', label='Bladed')
     ax.set_ylabel('y rot (rad)')
     
-    ax = fig.add_subplot(gs[3,0])
-    ax.plot(t, y[0][:,1])
-    ax.set_ylabel('Transverse mode')
-    
-    ax = fig.add_subplot(gs[3,1])
-    ax.plot(t, y[0][:,[4,6]])
-    ax.set_ylabel('Rotation & normal modes')
+    if y[0].shape[1] == 7:
+        ax = fig.add_subplot(gs[3,0])
+        ax.plot(t, y[0][:,1])
+        ax.set_ylabel('Transverse mode')
+        
+        ax = fig.add_subplot(gs[3,1])
+        ax.plot(t, y[0][:,[4,6]])
+        ax.set_ylabel('Rotation & normal modes')
+    elif y[0].shape[1] == 9:
+        ax = fig.add_subplot(gs[3,0])
+        ax.plot(t, y[0][:,1:3])
+        ax.set_ylabel('Transverse mode')
+        
+        ax = fig.add_subplot(gs[3,1])
+        ax.plot(t, y[0][:,4:])
+        ax.set_ylabel('Rotation & normal modes')
+    else:
+        assert False
 
 def blah():
     ax = fig.add_subplot(gs[0,0])
