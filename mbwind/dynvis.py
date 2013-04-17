@@ -11,30 +11,31 @@ import matplotlib.pylab as plt
 import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D # analysis:ignore (enables 3d projection)
 
-def show(system, tt, yy, tvals, dof=None):
-    fig = plt.figure()
+def show(system, t, strains, tvals, fade=False, figsize=None):
+    fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111,projection='3d', xlabel='x', ylabel='y', zlabel='z')
     ax.plot([1,0,0,0,0],[0,0,1,0,0],[0,0,0,0,1], 'k-')
     ax.set_aspect(1,'datalim')
+    ax._axis3don = False
     ax.hold(True)
 
-    if dof is None:
-        dof = system.iFreeDOF
-    N = np.count_nonzero(dof)
-    q = yy[:,:N]
-    if yy.shape[1] >= 2*N:
-        qd = yy[:,N:2*N]
+    iDOF = system.q.indices_by_type('strain')
+    N = len(iDOF)
+    assert (strains.shape[0] == len(t)) and (strains.shape[1] == N)
+
+    Ntvals = len(tvals)
+    if fade:
+        alphas = [((1+i)/Ntvals)**4 for i in range(Ntvals)]
     else:
-        qd = None
-    
-    for t in tvals:
-        i = np.nonzero(tt >= t)[0]
-        if not len(i) > 0: break
-        system.q[dof] = q[i[0]]
-        if qd is not None:
-            system.qd[dof] = qd[i[0]]
-        system.update(t, False)
-        system.first_element.plot_chain(ax)
+        alphas = [1] * Ntvals
+
+    for i in range(Ntvals):
+        it = np.nonzero(t >= t[i])[0]
+        if not len(it) > 0: break
+        system.q[iDOF] = strains[it[0]]
+        system.update_kinematics(t[it[0]], False)
+        system.first_element.plot_chain(ax, alpha=alphas[i])
+    return ax
 
 def showsystem(system, view=None):
     fig = plt.figure()
@@ -94,6 +95,7 @@ def anim(system, t, strains, vs=(0,1), lim1=None, lim2=None, scale=(1,1)):
 
         return [line for line in ellines for el,ellines in lines] + [time_text]
 
+    print 'Starting animation....'
     ani = animation.FuncAnimation(fig, animate, np.arange(len(t)),
         interval=(t[1]-t[0])*1000, blit=False, init_func=init, repeat=False)
     return ani
