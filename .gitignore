@@ -5,11 +5,9 @@
 *.pyd
 *.o
 *.c
-
 # Ignore profiling reports
 *.profile
-
 *.un~
-
 # Bladed copies of .prj files (slightly XML)
 *.prx
+/mbwind.egg-info/
