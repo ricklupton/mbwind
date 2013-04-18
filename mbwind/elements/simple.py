@@ -94,9 +94,9 @@ class FreeJoint(Element):
     Free join with 6 degrees of freedom: 3 translational and 3 Euler angles.
 
     The Euler angles are
-        1. yaw about the Z axis
+        1. roll about the twice-rotated X axis
         2. pitch about the rotated Y axis
-        3. roll about the twice-rotated X axis
+        3. yaw about the Z axis
     """
     _ndistal = 1
     _nstrain = 6
@@ -114,25 +114,27 @@ class FreeJoint(Element):
         self.F_ve = eye(6)
 
     def calc_distal_pos(self):
-        Rd = dot( dot(rotmat_z(self.xstrain[3]),
-                      rotmat_y(self.xstrain[4])),
-                      rotmat_x(self.xstrain[5]))
+        Rd = reduce(dot, (rotmat_z(self.xstrain[5]),
+                          rotmat_y(self.xstrain[4]),
+                          rotmat_x(self.xstrain[3])))
         if self.post_transform is not None:
             Rd = dot(Rd, self.post_transform)
         self.rd[:] = self.rp + self.xstrain[0:3]
-        self.Rd[:,:] = Rd
+        self.Rd[:, :] = Rd
 
     def calc_kinematics(self):
         """
         Update kinematic transforms: F_vp, F_ve and F_v2
         [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
         """
-        # Angle strains to angular velocity depend on current angles
-        F = self.F_ve[3:6,3:6]
-        a1,a2,a3 = self.xstrain[3:6]
-        b1,b2,b3 = self.vstrain[3:6]
-        F[0:3,0] = [cos(a1)*cos(a2), sin(a3)*cos(a2), -sin(a2)]
-        F[0:2,1] = [-sin(a3), cos(a3)]
+        # Angle strains to angular velocity depend on current angles.
+        # Derive this by writing the axis of each Euler rotation in
+        # global coordinates
+        a1, a2, a3 = self.xstrain[3:6]
+        b1, b2, b3 = self.vstrain[3:6]
+        self.F_ve[3:6, 3] = [cos(a2)*cos(a3), cos(a2)*sin(a3), -sin(a2)]
+        self.F_ve[3:6, 4] = [-sin(a3), cos(a3), 0]
+        # axis for yaw rotation is constant in global axes
         self.F_v2[3:6] = [
             -b1*b2*cos(a3)*sin(a2) - b1*b3*sin(a3)*cos(a2) - b2*b3*cos(a3),
             -b1*b2*sin(a3)*sin(a2) - b1*b3*cos(a3)*cos(a2) - b2*b3*sin(a3),
