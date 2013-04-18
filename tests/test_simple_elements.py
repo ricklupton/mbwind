@@ -1,9 +1,9 @@
-from numpy import zeros, array, eye, pi, dot, sqrt, c_
+from numpy import zeros, array, eye, pi, dot, sqrt, c_, diag
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 from unittest import TestCase
 
-from mbwind.utils import rotmat_x
-from mbwind.elements import Hinge
+from mbwind.utils import rotmat_x, rotmat_z
+from mbwind.elements import Hinge, RigidBody
 
 
 class HingeTestCase(TestCase):
@@ -53,3 +53,25 @@ class HingeTestCase(TestCase):
         assert_array_equal(h.F_v2, zeros(6))  # no quadratic force, base fixed
 
         # TODO should test when Rp != I
+
+
+class RigidBodyTestCase(TestCase):
+    def test_mass_simple(self):
+        # simple rigid body at origin
+        II = diag([4.2, 6.7, 11.7])
+        b = RigidBody('body', mass=4.3, inertia=II)
+        b.calc_mass()
+        assert_array_equal(b.mass_vv[:3, :3], 4.3 * eye(3))
+        assert_array_equal(b.mass_vv[:3, 3:], 0)
+        assert_array_equal(b.mass_vv[3:, :3], 0)
+        assert_array_equal(b.mass_vv[3:, 3:], II)
+        assert_array_equal(b.quad_forces, 0)
+
+        # now rotate node by 90 deg about z axis, swapping x & y
+        b.Rp = rotmat_z(pi / 2)
+        b.calc_mass()
+        assert_array_equal(b.mass_vv[:3, :3], 4.3 * eye(3))
+        assert_array_equal(b.mass_vv[:3, 3:], 0)
+        assert_array_equal(b.mass_vv[3:, :3], 0)
+        assert_array_almost_equal(b.mass_vv[3:, 3:], diag([6.7, 4.2, 11.7]))
+        assert_array_equal(b.quad_forces, 0)
