@@ -70,6 +70,15 @@ def qrot3(q):
         [2*(q1*q3 - q0*q2),     2*(q2*q3 + q0*q1),     1 - 2*(q1**2 + q2**2)],
     ])
 
+
+def rotation_matrix_to_quaternions(R):
+    q0 = 0.5 * np.sqrt(1 + R.trace())
+    q1 =(R[2,1] - R[1,2]) / (4*q0)
+    q2 =(R[0,2] - R[2,0]) / (4*q0)
+    q3 =(R[1,0] - R[0,1]) / (4*q0)
+    return array([q0,q1,q2,q3])
+
+
 def euler_param_E(q):
     return array([
         [-q[1],  q[0], -q[3],  q[2]],

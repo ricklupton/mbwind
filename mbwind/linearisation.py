@@ -25,29 +25,7 @@ eps_ijk = zeros((3,3,3))
 eps_ijk[0,1,2] = eps_ijk[1,2,0] = eps_ijk[2,0,1] =  1
 eps_ijk[2,1,0] = eps_ijk[1,0,2] = eps_ijk[0,2,1] = -1
 
-def e_ikl_S_kl(S):
-    return array([
-        S[1,2] - S[2,1],
-        S[2,0] - S[0,2],
-        S[0,1] - S[1,0],
-    ])
 
-def qrot3(q):
-    q1,q2,q3 = q
-    q0 = np.sqrt(1.0 - q1**2 - q2**2 - q3**2)
-    assert not np.isnan(q0)
-    return array([
-        [1 - 2*(q2**2 + q3**2), 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2)    ],
-        [2*(q1*q2 + q0*q3),     1 - 2*(q1**2 + q3**2), 2*(q2*q3 - q0*q1)    ],
-        [2*(q1*q3 - q0*q2),     2*(q2*q3 + q0*q1),     1 - 2*(q1**2 + q2**2)],
-    ])
-
-def rotation_matrix_to_quaternions(R):
-    q0 = 0.5 * np.sqrt(1 + R.trace())
-    q1 =(R[2,1] - R[1,2]) / (4*q0)
-    q2 =(R[0,2] - R[2,0]) / (4*q0)
-    q3 =(R[1,0] - R[0,1]) / (4*q0)
-    return array([q0,q1,q2,q3])
 
 
 def system_residue(system, z, zd, zdd):

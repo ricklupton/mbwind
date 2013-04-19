@@ -4,7 +4,7 @@ Misc functions
 """
 
 from __future__ import division
-from numpy import array, zeros, cos, sin
+from numpy import array, zeros, zeros_like, cos, sin
 
 eps_ijk = zeros((3, 3, 3))
 eps_ijk[0, 1, 2] = eps_ijk[1, 2, 0] = eps_ijk[2, 0, 1] = 1
@@ -50,3 +50,15 @@ def update_skewmat(mat, vec):
     mat[1, 2] = -vec[0]
     mat[2, 0] = -vec[1]
     mat[2, 1] =  vec[0]
+
+
+def discont_trapz(y, rho, x):
+    """
+    Trapezium rule along first axis of y, with weights given by discontinuous
+    values rho.
+    """
+    assert x.ndim == 1 and len(x) == y.shape[0]
+    result = zeros_like(y[0])
+    for i in range(y.shape[0] - 1):
+        result += (x[i+1]-x[i]) * (y[i]*rho[i, 0] + y[i+1]*rho[i, 1])
+    return result / 2

@@ -79,6 +79,26 @@ class RigidBodyView(object):
     ]
 
 
+class ModalBeamView(object):
+    def shape(self, beam):
+        # proximal values
+        X0 = beam.modes.X0
+        defl = dot(beam.modes.shapes, beam.xstrain)
+        shape = [dot(beam.Rp, (X0[i]+defl[i])) for i in range(X0.shape[0])]
+        return [
+            beam.rp + array(shape),
+            np.r_[[beam.rp],
+                  [beam.rp + dot(beam.Rp, X0[-1])],
+                  [beam.rp + shape[-1]]
+                  ]
+        ]
+
+    shape_plot_options = [
+        {'c': 'g', 'marker': 'o', 'lw': 2, 'ms': 1},
+        {'c': 'k', 'lw': 2, 'alpha': 0.3},
+    ]
+
+
 def plot_chain(self, ax, **opts):
     for linedata,lineopts in zip(self.shape(), self.shape_plot_options):
         for k,v in opts.items():

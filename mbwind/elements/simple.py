@@ -18,8 +18,8 @@ class Hinge(Element):
     """
     A Hinge allows rotation about a specified axis. Nodes are coincident.
     """
-    _ndistal = 1
     _nstrain = 1
+    _ndistal = 1
     _nconstraints = 6
 
     def __init__(self, name, hinge_axis, post_transform=None):
