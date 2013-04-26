@@ -1,7 +1,10 @@
+
+from __future__ import division
 import numpy as np
-from numpy import array, zeros, eye, newaxis, dot
+from numpy import array, zeros, eye, newaxis, dot, r_, ix_
 from scipy.integrate import trapz
-from .utils import eps_ijk, discont_trapz
+from scipy import linalg
+from .utils import eps_ijk, discont_trapz, skewmat
 from .core import qrot3
 
 
@@ -530,3 +533,378 @@ class BladeModalAnalysis(object):
     def modal_stiffness(self, rotations):
         # Sum over mode shapes to give modal stiffness
         return np.einsum('xip,xyij,yjq->pq', rotations, self.K, rotations)
+
+
+class ModesFromScratch(object):
+    def __init__(self, x, density, EA, EIy, EIz):
+        self.x = x - x[0]
+        self.density = self._prepare_inputs(len(x), density)
+        self.EA = self._prepare_inputs(len(x), EA)
+        self.EIy = self._prepare_inputs(len(x), EIy)
+        self.EIz = self._prepare_inputs(len(x), EIz)
+        if not np.allclose(self.EIy, self.EIz):
+            raise NotImplementedError("Non-symmetric EI not done yet")
+
+        # Assemble matrices
+        N_nodes = len(x)
+        N_dof = N_nodes * 6
+        self.M = np.zeros((N_dof, N_dof))
+        self.K = np.zeros((N_dof, N_dof))
+        for i_el in range(N_nodes - 1):
+            elem_length = x[i_el+1] - x[i_el]
+            ke = self.element_stiffness_matrix(
+                self.EA[i_el, 0], self.EA[i_el, 1],
+                self.EIy[i_el, 0], self.EIy[i_el, 1],
+                elem_length
+            )
+            me = self.element_mass_matrix(
+                self.density[i_el, 0], self.density[i_el, 1],
+                elem_length
+            )
+            i1, i2 = i_el * 6, (i_el + 2) * 6
+            self.M[i1:i2, i1:i2] += me
+            self.K[i1:i2, i1:i2] += ke
+
+    def _prepare_inputs(self, n, input):
+        # If only one set of density values is given, assume it's continuous.
+        # Otherwise, values should be given at start and end of each section.
+        input = np.asarray(input)
+        if input.ndim == 0:
+            return input * np.ones((n - 1, 2))
+        elif input.ndim == 1:
+            assert input.shape[0] == n
+            yy = np.zeros((n - 1, 2))
+            yy[:, 0] = input[:-1]
+            yy[:, 1] = input[1:]
+            return yy
+        elif input.ndim == 2:
+            assert input.shape[0] == n - 1
+            return input
+        else:
+            raise ValueError('input should be Nx x 1 or Nx x 2')
+
+    def element_mass_matrix(self, rho_1, rho_2, l):
+        """
+        Finite element mass matrix, assuming cubic shape functions and
+        linear density variation from ``r1`` to ``r2``.
+        """
+        e = array([[l*(rho_1/4 + rho_2/12), 0, 0, 0, 0, 0, l*(rho_1/12 + rho_2/12), 0, 0, 0, 0, 0], [0, l*(2*rho_1/7 + 3*rho_2/35), 0, 0, 0, l**2*(15*rho_1 + 7*rho_2)/420, 0, l*(9*rho_1/140 + 9*rho_2/140), 0, 0, 0, l**2*(-7*rho_1 - 6*rho_2)/420], [0, 0, l*(2*rho_1/7 + 3*rho_2/35), 0, l**2*(-15*rho_1 - 7*rho_2)/420, 0, 0, 0, l*(9*rho_1/140 + 9*rho_2/140), 0, l**2*(7*rho_1 + 6*rho_2)/420, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, l**2*(-15*rho_1 - 7*rho_2)/420, 0, l**3*(rho_1/168 + rho_2/280), 0, 0, 0, l**2*(-6*rho_1 - 7*rho_2)/420, 0, l**3*(-rho_1 - rho_2)/280, 0], [0, l**2*(15*rho_1 + 7*rho_2)/420, 0, 0, 0, l**3*(rho_1/168 + rho_2/280), 0, l**2*(6*rho_1 + 7*rho_2)/420, 0, 0, 0, l**3*(-rho_1 - rho_2)/280], [l*(rho_1/12 + rho_2/12), 0, 0, 0, 0, 0, l*(rho_1/12 + rho_2/4), 0, 0, 0, 0, 0], [0, l*(9*rho_1/140 + 9*rho_2/140), 0, 0, 0, l**2*(6*rho_1 + 7*rho_2)/420, 0, l*(3*rho_1/35 + 2*rho_2/7), 0, 0, 0, l**2*(-7*rho_1 - 15*rho_2)/420], [0, 0, l*(9*rho_1/140 + 9*rho_2/140), 0, l**2*(-6*rho_1 - 7*rho_2)/420, 0, 0, 0, l*(3*rho_1/35 + 2*rho_2/7), 0, l**2*(7*rho_1 + 15*rho_2)/420, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, l**2*(7*rho_1 + 6*rho_2)/420, 0, l**3*(-rho_1 - rho_2)/280, 0, 0, 0, l**2*(7*rho_1 + 15*rho_2)/420, 0, l**3*(rho_1/280 + rho_2/168), 0], [0, l**2*(-7*rho_1 - 6*rho_2)/420, 0, 0, 0, l**3*(-rho_1 - rho_2)/280, 0, l**2*(-7*rho_1 - 15*rho_2)/420, 0, 0, 0, l**3*(rho_1/280 + rho_2/168)]])
+        # e = array([
+        #     [r1/4 + r2/12, 0, 0, 0, 0, 0,
+        #      r1/12 + r2/12, 0, 0, 0, 0, 0],
+        #     [0, 2*r1/7 + 3*r2/35, 0, 0, 0, l*(15*r1 + 7*r2)/420,
+        #      0, 9*r1/140 + 9*r2/140, 0, 0, 0, l*(-7*r1 - 6*r2)/420],
+        #     [0, 0, 2*r1/7 + 3*r2/35, 0, l*(-15*r1 - 7*r2)/420, 0,
+        #      0, 0, 9*r1/140 + 9*r2/140, 0, l*(7*r1 + 6*r2)/420, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #     [0, 0, l*(-15*r1 - 7*r2)/420, 0, l**2*(r1/168 + r2/280), 0,
+        #      0, 0, l*(-6*r1 - 7*r2)/420, 0, l**2*(-r1 - r2)/280, 0],
+        #     [0, l*(15*r1 + 7*r2)/420, 0, 0, 0, l**2*(r1/168 + r2/280),
+        #      0, l*(6*r1 + 7*r2)/420, 0, 0, 0, l**2*(-r1 - r2)/280],
+        #     [r1/12 + r2/12, 0, 0, 0, 0, 0,
+        #      r1/12 + r2/4, 0, 0, 0, 0, 0],
+        #     [0, 9*r1/140 + 9*r2/140, 0, 0, 0, l*(6*r1 + 7*r2)/420,
+        #      0, 3*r1/35 + 2*r2/7, 0, 0, 0, l*(-7*r1 - 15*r2)/420],
+        #     [0, 0, 9*r1/140 + 9*r2/140, 0, l*(-6*r1 - 7*r2)/420, 0,
+        #      0, 0, 3*r1/35 + 2*r2/7, 0, l*(7*r1 + 15*r2)/420, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #     [0, 0, l*(7*r1 + 6*r2)/420, 0, l**2*(-r1 - r2)/280, 0,
+        #      0, 0, l*(7*r1 + 15*r2)/420, 0, l**2*(r1/280 + r2/168), 0],
+        #     [0, l*(-7*r1 - 6*r2)/420, 0, 0, 0, l**2*(-r1 - r2)/280, 0,
+        #      l*(-7*r1 - 15*r2)/420, 0, 0, 0, l**2*(r1/280 + r2/168)]])
+        return e
+
+    def element_stiffness_matrix(self, EA_1, EA_2, EI_1, EI_2, l):
+        """
+        Finite element stiffness matrix, assuming cubic shape functions and
+        linear stiffness variation.
+        """
+        e = array([[(EA_1 + EA_2)/(2*l), 0, 0, 0, 0, 0, -(EA_1 + EA_2)/(2*l), 0, 0, 0, 0, 0], [0, 6*(EI_1 + EI_2)/l**3, 0, 0, 0, 2*(2*EI_1 + EI_2)/l**2, 0, -(6*EI_1 + 6*EI_2)/l**3, 0, 0, 0, 2*(EI_1 + 2*EI_2)/l**2], [0, 0, 6*(EI_1 + EI_2)/l**3, 0, -(4*EI_1 + 2*EI_2)/l**2, 0, 0, 0, -(6*EI_1 + 6*EI_2)/l**3, 0, -(2*EI_1 + 4*EI_2)/l**2, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, -(4*EI_1 + 2*EI_2)/l**2, 0, (3*EI_1 + EI_2)/l, 0, 0, 0, 2*(2*EI_1 + EI_2)/l**2, 0, (EI_1 + EI_2)/l, 0], [0, 2*(2*EI_1 + EI_2)/l**2, 0, 0, 0, (3*EI_1 + EI_2)/l, 0, -(4*EI_1 + 2*EI_2)/l**2, 0, 0, 0, (EI_1 + EI_2)/l], [-(EA_1 + EA_2)/(2*l), 0, 0, 0, 0, 0, (EA_1 + EA_2)/(2*l), 0, 0, 0, 0, 0], [0, -(6*EI_1 + 6*EI_2)/l**3, 0, 0, 0, -(4*EI_1 + 2*EI_2)/l**2, 0, 6*(EI_1 + EI_2)/l**3, 0, 0, 0, -(2*EI_1 + 4*EI_2)/l**2], [0, 0, -(6*EI_1 + 6*EI_2)/l**3, 0, 2*(2*EI_1 + EI_2)/l**2, 0, 0, 0, 6*(EI_1 + EI_2)/l**3, 0, 2*(EI_1 + 2*EI_2)/l**2, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, -(2*EI_1 + 4*EI_2)/l**2, 0, (EI_1 + EI_2)/l, 0, 0, 0, 2*(EI_1 + 2*EI_2)/l**2, 0, (EI_1 + 3*EI_2)/l, 0], [0, 2*(EI_1 + 2*EI_2)/l**2, 0, 0, 0, (EI_1 + EI_2)/l, 0, -(2*EI_1 + 4*EI_2)/l**2, 0, 0, 0, (EI_1 + 3*EI_2)/l]])
+        #e = array([[(EA_1 + EA_2)/(2*l**2), 0, 0, 0, 0, 0, -(EA_1 + EA_2)/(2*l**2), 0, 0, 0, 0, 0], [0, 6*(EI_1 + EI_2)/l**4, 0, 0, 0, 2*(2*EI_1 + EI_2)/l**3, 0, -(6*EI_1 + 6*EI_2)/l**4, 0, 0, 0, 2*(EI_1 + 2*EI_2)/l**3], [0, 0, 6*(EI_1 + EI_2)/l**4, 0, -(4*EI_1 + 2*EI_2)/l**3, 0, 0, 0, -(6*EI_1 + 6*EI_2)/l**4, 0, -(2*EI_1 + 4*EI_2)/l**3, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, -(4*EI_1 + 2*EI_2)/l**3, 0, (3*EI_1 + EI_2)/l**2, 0, 0, 0, 2*(2*EI_1 + EI_2)/l**3, 0, (EI_1 + EI_2)/l**2, 0], [0, 2*(2*EI_1 + EI_2)/l**3, 0, 0, 0, (3*EI_1 + EI_2)/l**2, 0, -(4*EI_1 + 2*EI_2)/l**3, 0, 0, 0, (EI_1 + EI_2)/l**2], [-(EA_1 + EA_2)/(2*l**2), 0, 0, 0, 0, 0, (EA_1 + EA_2)/(2*l**2), 0, 0, 0, 0, 0], [0, -(6*EI_1 + 6*EI_2)/l**4, 0, 0, 0, -(4*EI_1 + 2*EI_2)/l**3, 0, 6*(EI_1 + EI_2)/l**4, 0, 0, 0, -(2*EI_1 + 4*EI_2)/l**3], [0, 0, -(6*EI_1 + 6*EI_2)/l**4, 0, 2*(2*EI_1 + EI_2)/l**3, 0, 0, 0, 6*(EI_1 + EI_2)/l**4, 0, 2*(EI_1 + 2*EI_2)/l**3, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, -(2*EI_1 + 4*EI_2)/l**3, 0, (EI_1 + EI_2)/l**2, 0, 0, 0, 2*(EI_1 + 2*EI_2)/l**3, 0, (EI_1 + 3*EI_2)/l**2, 0], [0, 2*(EI_1 + 2*EI_2)/l**3, 0, 0, 0, (EI_1 + EI_2)/l**2, 0, -(2*EI_1 + 4*EI_2)/l**3, 0, 0, 0, (EI_1 + 3*EI_2)/l**2]])
+        return e
+
+    def normal_modes(self, n_modes=None, clamped=True, exclude_axial=True,
+                     exclude_torsion=True):
+        """
+        Calculate the normal mode shapes and frequencies, limited to the first
+        ``n_modes`` modes if required.
+        """
+        assert exclude_axial and exclude_torsion
+
+        # remove axial/torsion
+        idx = [i for i in range(len(self.K)) if (i % 6) not in (0, 3)]
+        if clamped:
+            idx = idx[4:-4]  # take away ends
+
+        w, v = linalg.eig(self.K[ix_(idx, idx)], self.M[ix_(idx, idx)])
+        order = np.argsort(w)
+        w = np.sqrt(w[order].real)
+        v = v[:, order]
+
+        # put back axial/torsion as zeros
+        shapes = zeros((len(self.K), v.shape[1]))
+        shapes[idx, :] = v
+
+        if n_modes is not None:
+            w = w[:n_modes]
+            shapes = shapes[:, :n_modes]
+        return w, shapes
+
+    def attachment_modes(self, exclude_axial=True, exclude_torsion=True):
+        """
+        Calculate the mode shapes with unit deflection at the ends of the beam
+        """
+        assert exclude_axial and exclude_torsion
+
+        N = self.K.shape[0]
+
+        # remove axial/torsion
+        idx_ok = array([(i % 6) != 3 for i in range(N)])
+        #idx_ok = np.ones(N, dtype=bool)
+        idx_B = zeros(N, dtype=bool)
+        idx_B[:6] = idx_B[-6:] = True
+        K_II = self.K[idx_ok & ~idx_B, :][:, idx_ok & ~idx_B]
+        K_IB = self.K[idx_ok & ~idx_B, :][:, idx_ok & idx_B]
+
+        # Attachment modes
+        Xi = zeros((N, 12))
+        Xi[ix_(idx_ok & ~idx_B, idx_ok[:12])] = -dot(linalg.inv(K_II), K_IB)
+        Xi[ix_(idx_ok & idx_B,  idx_ok[:12])] = eye(sum(idx_ok[:12]))
+        return Xi
+
+    @property
+    def K_BI(self):
+        idx_B = zeros(self.K.shape[0], dtype=bool)
+        idx_B[:6] = idx_B[-6:] = True
+        return self.K[idx_B, :][:, ~idx_B]
+
+    @property
+    def M_BI(self):
+        idx_B = zeros(self.K.shape[0], dtype=bool)
+        idx_B[:6] = idx_B[-6:] = True
+        return self.M[idx_B, :][:, ~idx_B]
+
+    def transformation_to_global_coords(self, Rp, rp, rd):
+        """
+        Returns the transformation matrix Y which maps the global velocities
+        \dot{r}_p, \omega_p, \dot{r}_d, \omega_d to the local deflections
+        \dot{u}_p, \Omega_p, \dot{u}_d, \Omega_d, for the instantaneous
+        configuration of the body specified by Rp, rp and rd.
+        """
+        Y = zeros((12, 12))
+        Y[6:9, 0:3] = -Rp.T
+        Y[6:9, 3:6] = dot(Rp.T, skewmat(rd - rp))
+        Y[6:9, 6:9] = Rp.T
+        Y[9:12, 3:6] = -Rp.T
+        Y[9:12, 9:12] = Rp.T
+        return Y
+
+
+########################################################################
+## Shape integrals etc #################################################
+########################################################################
+
+
+class ShapeIntegrals(object):
+    def __init__(self, modes):
+        """modes should be an object with M and K attributes"""
+        self.modes = modes
+
+        # location of centre of each cross-section
+        #self.X0 = X0 = np.c_[x, mass_axis]
+        self.X0 = zeros((len(modes.x), 3))
+        self.X0[:, 0] = modes.x
+
+        # Integrate mass (un-deflected shape integrals). This is done
+        # exactly if the density distribution is linear.
+        self.mass, self.I0, self.J0 = integrate_mass_moments(self.X0, modes.density)
+
+        # Prepare integrands
+        Nfreq = len(self.freqs)
+        J0 = zeros((len(x), 3, 3))
+        S1 = zeros((len(x), 3, 3, Nfreq))
+        T1 = zeros((len(x), 3, 3, Nfreq))
+        S2 = zeros((len(x), 3, 3, Nfreq, Nfreq))
+        T2 = zeros((len(x), 3, 3, Nfreq, Nfreq))
+        # H2 = zeros((len(x), 3, Nfreq, Nfreq))
+        # H3 = zeros((len(x), 3, Nfreq, Nfreq, Nfreq))
+
+        for i in range(len(x)):
+            J0[i] = np.outer(X0[i], X0[i]) + self.section_inertia[i]
+
+            S1[i] = np.einsum('j,ip', X0[i], self.shapes[i])
+            S2[i] = np.einsum('ip,jr', self.shapes[i], self.shapes[i])
+
+            T1[i] = np.einsum('inq,nj,qp', eps_ijk,
+                              self.section_inertia[i], self.rotations[i])
+            T2[i] = np.einsum('ist,jlm,ls,mp,tr', eps_ijk, eps_ijk,
+                              self.section_inertia[i],
+                              self.rotations[i], self.rotations[i])
+
+            # H2[i] = (np.einsum('p,q,j->jpq', self.rotations[i, 1],
+            #                    self.rotations[i, 1], X0[i]) +
+            #          np.einsum('p,q,j->jpq', self.rotations[i, 2],
+            #                    self.rotations[i, 2], X0[i]))
+            # H3[i] = (np.einsum('p,q,jr->jpqr', self.rotations[i, 1],
+            #                    self.rotations[i, 1], self.shapes[i]) +
+            #          np.einsum('p,q,jr->jpqr', self.rotations[i, 2],
+            #                    self.rotations[i, 2], self.shapes[i]))
+
+        # Calculate shape integrals, using trapezium rule (assume
+        # linear variation across segments) and allowing that density
+        # may contain discontinuities.
+        self.S = discont_trapz(self.shapes, self.density, x)
+        self.S1 = discont_trapz(S1, self.density, x)
+        self.T1 = discont_trapz(T1, self.density, x)
+        self.S2 = discont_trapz(S2, self.density, x)
+        self.T2 = discont_trapz(T2, self.density, x)
+
+        self.S1b = self.S1 + self.T1
+        self.S2b = self.S2 + self.T2
+
+        # Might as well finish this change now - always done in inertia_tensor
+        self.ss_J0 = (eye(3)[:, :] * self.J0.trace()) - self.J0
+        self.ss_S1 = (eye(3)[:, :, newaxis] * self.S1b.trace()) - self.S1b
+        self.ss_S2 = ((eye(3)[:, :, newaxis, newaxis] * self.S2b.trace())
+                      - self.S2b)
+        self.e_S1 = e_ikl_S_kl(self.S1b)
+        self.e_S2 = e_ikl_S_kl(self.S2b)
+
+        # Add in section inertias
+        self.ss_J0 += trapz(self.section_inertia, x, axis=0)
+
+        # Skew forms of I0 and S
+        self.sk_I0 = np.einsum('imj,m ->ij ', eps_ijk, self.I0)
+        self.sk_S0 = np.einsum('imj,mp->ijp', eps_ijk, self.S)
+
+    def X(self, q):
+        return self.X0 + np.einsum('hip,p', self.shapes, q)
+
+    def Xdot(self, qd):
+        return np.einsum('hip,p', self.shapes, qd)
+
+    def small_rots(self, q):
+        return np.einsum('hip,p', self.rotations, q)
+
+    def R(self, q):
+        rotations = np.einsum('hip,p', self.rotations, q)
+        R = zeros((len(self.x), 3, 3))
+        for i in range(len(self.x)):
+            R[i] = qrot3(rotations[i]/2)
+        return R
+
+    def inertia_tensor(self, q):
+        """
+        Construct the inertia tensor corresponding to the modal coordinates
+
+        .. math::
+
+            I_{\theta\theta} = (\delta_{ij}J0_{kk} - J0_{ij})
+                + [ \delta_{ij}(2 S_{kkp}) - (S_{ijp} + S_{jip}) +
+                    (T_{ijp} + T_{jip}) ] \epsilon_p
+                + [ \delta_{ij}(S_{kkpr} + T_{kkpr}) -
+                    (S_ijpr + T_ijpr) ] \epsilon_p \epsilon_r
+
+        """
+        #inertia = eye(3)*self.J0.trace() - self.J0
+        if len(self.freqs) > 0:
+            S1 = np.einsum('ijp,p', self.S1, q)
+            T1 = np.einsum('ijp,p', self.T1, q)
+            S2 = np.einsum('ijpr,p,r', self.S2, q, q)
+            T2 = np.einsum('ijpr,p,r', self.T2, q, q)
+            inertia = (self.ss_J0 + eye(3)*2*S1.trace() -
+                       (S1 + S1.T) - (T1 + T1.T) +
+                       eye(3)*(S2.trace() + T2.trace()) - (S2 + T2))
+        else:
+            inertia = self.ss_J0.copy()
+        return inertia
+
+    def strain_strain(self):
+        if len(self.freqs) > 0:
+            A = np.einsum('mmpr', self.S2) + np.einsum('mmpr', self.T2)
+        else:
+            A = np.zeros((0, 0))
+        return A
+
+    def rotation_strain(self, q):
+        if len(self.freqs) > 0:
+            A = (self.S1 + self.T1 + np.einsum('klpr,r', self.S2, q) +
+                 np.einsum('klrp,r', self.T2, q))
+            B = np.einsum('ikl,lkp', eps_ijk, A)
+        else:
+            B = np.zeros((3, 0))
+        return B
+
+    def inertia_vel(self, q, qd):
+        if len(self.freqs) > 0:
+            S1 = np.einsum('ijp,p', self.S1, qd)
+            T1 = np.einsum('ijp,p', self.T1, qd)
+            S2 = np.einsum('ijpr,p,r', self.S2, qd, q)
+            T2 = np.einsum('ijpr,p,r', self.T2, qd, q)
+            A = (eye(3)*(S1 + T1).trace() - S1 - T1 +
+                 eye(3)*(S2 + T2).trace() - S2 - T2)
+        else:
+            A = zeros((3, 3))
+        return A
+
+    def quad_stress(self, q, qd, Wp):
+        if len(self.freqs) > 0:
+            A1 = self.S1 + self.T1
+            A2 = (np.einsum('ijpr,r', self.S2, q) +
+                  np.einsum('ijrp,r', self.T2, q))
+
+            # depending on angular velocity
+            C = (np.einsum('ijp,i,j', A1+A2, Wp, Wp) -
+                 dot(Wp, Wp) * ((A1+A2).trace()))
+
+            # depending on strain velocity
+            B2 = self.S2 - self.T2.swapaxes(2, 3)
+            D = 2 * np.einsum('ijk,j,l,ikpl', eps_ijk, Wp, qd, B2)
+
+            return C + D
+        else:
+            return np.zeros(0)
+
+    def distributed_loading(self, P, q):
+        """
+        Return the generalised forces corresponding to the distributed load P.
+
+        Returns a tuple (Q_r, Q_w, Q_e) of forces/moments/stresses.
+        """
+        X = self.X(q)  # length x 3
+        XcrossP = np.einsum('ijk,hj,hk->hi', eps_ijk, X, P)  # length x 3
+        UTP = np.einsum('hip,hi->hp', self.shapes, P)
+        Qr = -trapz(P,       self.x, axis=0)
+        Qw = trapz(XcrossP, self.x, axis=0)
+        Qe = -trapz(UTP,     self.x, axis=0)
+        return Qr, Qw, Qe
+
+    def geometric_stiffness(self, N):
+        """
+        Calculate the geometric stiffening matrix corresponding to an applied
+        force N.
+        """
+        # loop through SEGMENTS
+        #Nmode = len(self.freqs)
+        #Nstns = len(self.x)
+        #kG = zeros((Nmode,Nmode))
+        #for i in range(Nstns-1):
+        #    dx = self.x[i+1] - self.x[i]
+        #    for p in range(Nmode):
+        #        slope_p = self.shapes[i+1,:,p] - self.shapes[i,:,p]
+        #        for q in range(Nmode):
+        #            slope_q = self.shapes[i+1,:,q] - self.shapes[i,:,q]
+        #            intN = trapz(N[i:i+2], self.x[i:i+2], axis=0)
+        #            kG[p,q] += dot(slope_p,slope_q)/dx**2 * intN
+
+        # XXX Assume force acts axially along the beam
+        dx = np.diff(self.x)
+        slopes = np.r_[
+            #zeros((1,)+self.shapes.shape[1:]),
+            np.diff(self.shapes, axis=0) / dx[:, newaxis, newaxis],
+            zeros((1,)+self.shapes.shape[1:]),
+        ]  # use slope of preceding segment
+        inty = np.einsum('hp,hq->hpq', slopes[:, 1, :], slopes[:, 1, :])
+        intz = np.einsum('hp,hq->hpq', slopes[:, 2, :], slopes[:, 2, :])
+        kG = trapz((inty + intz) * N[:, newaxis, newaxis], x=self.x, axis=0)
+        return kG

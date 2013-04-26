@@ -16,8 +16,8 @@ import scipy.optimize
 #import matplotlib.pylab as plt
 from scipy.integrate import ode, simps
 
-from . import assemble, _modal_calcs
-from .utils import update_skewmat
+from . import assemble
+from .utils import update_skewmat, skewmat
 
 ###########################
 ##  OPTIONS  ##############
