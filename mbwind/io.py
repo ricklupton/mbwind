@@ -112,6 +112,7 @@ def convert_Bladed_attachment_modes(mode_names, freqs, damping, shapes,
     Na = sum(1 for name in mode_names if 'attachment' in name)
     Nn = sum(1 for name in mode_names if 'normal' in name)
     assert Na + Nn == len(freqs)
+    have_torsion = any('torsion' in name.lower() for name in mode_names)
     Pall = np.r_['1', shapes, rotations]
 
     # attachment (a) and normal (n)
@@ -120,9 +121,13 @@ def convert_Bladed_attachment_modes(mode_names, freqs, damping, shapes,
 
     # add extension and torsion attachment modes
     padding = zeros((Paf.shape[0], Paf.shape[1], 1))
-    Paf = np.r_['2', padding, Paf[:, :, :2], padding, Paf[:, :, 2:]]
-    Paf[-1, 0, 0] = 1  # dummy extension mode
-    Paf[-1, 3, 3] = 1  # dummy torsion mode
+    if have_torsion:
+        Paf = np.r_['2', padding, Paf[:, :, :]]
+        Paf[-1, 0, 0] = 1  # dummy extension mode
+    else:
+        Paf = np.r_['2', padding, Paf[:, :, :2], padding, Paf[:, :, 2:]]
+        Paf[-1, 0, 0] = 1  # dummy extension mode
+        Paf[-1, 3, 3] = 1  # dummy torsion mode
 
     # displacements at tip
     Paf_tip = Paf[-1]
@@ -137,9 +142,14 @@ def convert_Bladed_attachment_modes(mode_names, freqs, damping, shapes,
     P = np.r_['2', Pa, Pn]
     new_shapes = P[:, :3, :]
     new_rotations = P[:, 3:, :]
-    new_freqs = np.r_[np.nan, freqs[:2], np.nan, freqs[2:]]
-    new_damping = np.r_[np.nan, damping[:2], np.nan, damping[2:]]
-    new_mode_names = (["Dummy extension mode"] + mode_names[:2] +
-                      ["Dummy torsion mode"] + mode_names[2:])
+    if have_torsion:
+        new_freqs = np.r_[0, freqs]
+        new_damping = np.r_[0, damping]
+        new_mode_names = ["Dummy extension mode"] + mode_names
+    else:
+        new_freqs = np.r_[0, freqs[:2], 0, freqs[2:]]
+        new_damping = np.r_[0, damping[:2], 0, damping[2:]]
+        new_mode_names = (["Dummy extension mode"] + mode_names[:2] +
+                          ["Dummy torsion mode"] + mode_names[2:])
 
     return new_mode_names, new_freqs, new_damping, new_shapes, new_rotations
