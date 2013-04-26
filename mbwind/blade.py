@@ -100,7 +100,8 @@ class BladedModule(object):
                 blade_tower = 'blade_'
             elif key.lower() == 'ntower':
                 blade_tower = 'tower_'
-            result[blade_tower + key.lower()] = value
+            if blade_tower is not None:
+                result[blade_tower + key.lower()] = value
         return result
 
     def _default_parser(self, text):
@@ -199,7 +200,6 @@ class Tower(object):
         mgeom = BladedModule(prj, 'TGEOM')
         self.model_type = int(mgeom.tmodel)
 
-
         if self.model_type == 2:
             # Axisymmetric
             self.nstations = mgeom.nte
@@ -236,6 +236,11 @@ class Tower(object):
             mtmass = BladedModule(prj, 'TMASS')
             self.density = np.array(mtmass.towm).reshape((-1,2))
             self.polar_inertia = np.array(mtmass.towpmi).reshape((-1,2))
+
+            # Stiffness
+            mtstiff = BladedModule(prj, 'TSTIFF')
+            self.EIy = np.array(mtstiff.toweiy).reshape((-1, 2))
+            self.EIz = np.array(mtstiff.toweiz).reshape((-1, 2))
 
         # Modes
         try:
