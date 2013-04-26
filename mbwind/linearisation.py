@@ -91,6 +91,7 @@ class LinearisedSystem(object):
         K = array([derivative(perturb, 0, 0.1, args=(i, 0)) for i in ii]).T
         system.q.dofs[:] = z0
         system.qd.dofs[:] = zd0
+        system.update_kinematics()
 
         return cls(M, C, K, z0, zd0, zdd0)
 
