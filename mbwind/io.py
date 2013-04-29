@@ -37,6 +37,8 @@ class BladedModesReader(object):
                     (?:TYPE[ \t]+(.*)\n
                     FREQ[ \t]+(.*)\n
                     DAMP[ \t]+(.*)\n
+                    (?:MASS.*\n
+                       STIFF.*\n)?
                     ((?:MD.*\n)+|CRYPT))?
                 ''', module, re.VERBOSE).groups()
         except (ParameterNotFound, AttributeError):
