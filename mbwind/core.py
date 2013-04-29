@@ -257,7 +257,7 @@ class System(object):
             if name == 'ground': prescribed = [True]
             else: prescribed = [(j in self.prescribed_dofs) for j in i]
             pstr = ' * ' if all(prescribed) else '(*)' if any(prescribed) else '   '
-            print '{:>2}-{:<2} {:<15}{:<15}{:<20} {}'.format(
+            print '{:>3}-{:<3} {:<15}{:<15}{:<20} {}'.format(
                 i[0], i[-1], self.qd.owners[i[0]], self.qd.types[i[0]], name, pstr)
 
     def iter_elements(self):
