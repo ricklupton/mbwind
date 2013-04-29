@@ -2,7 +2,7 @@
 import numpy as np
 from numpy import array, dot
 from mbwind.elements import FreeJoint, RigidConnection, RigidBody
-from mbwind.elements.modal import DistalModalElementFromScratch
+from mbwind.elements.modal import ModalElement, DistalModalElementFromScratch
 
 
 # class HingeView(object):
@@ -47,22 +47,26 @@ def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
     t = np.linspace(0, 2*np.pi, 50)
 
     # Calculate axis limits automatically
-    def calc_extent(system):
+    def nodal_positions(system, z):
+        system.q.dofs[:] = z
+        system.update_kinematics(calculate_matrices=False)
         qnodes = system.q.by_type(('ground', 'node'))
         # Pick out positions (not rotation matrices)
-        xyz = qnodes[[i for i in range(len(qnodes)) if (i % 12) < 3]]
-        xyz = xyz.reshape((-1, 3))
-        return xyz.min(axis=0), xyz.max(axis=0)
-    extents = []
-    for i in range(len(t)):
-        # Update system
-        system.q.dofs[:] = modeshape * np.sin(t[i])
-        system.update_kinematics(calculate_matrices=False)
-        extents.append(calc_extent(system))
-    extents = array(extents)  # shape: (time, min-max, xyz)
-    min_extent = extents[:, 0, :].min(axis=0) * 1.1
-    max_extent = extents[:, 1, :].max(axis=0) * 1.1
-    scale = (max_extent - min_extent).max() / 20
+        xyz = qnodes[[i for i in range(len(qnodes)) if (i % 12) < 3]] \
+            .reshape((-1, 3))
+        # Add in ModalElement final station positions as a workaround
+        modal_xyz = [e.station_positions()[-1] for e in system.iter_elements()
+                     if isinstance(e, ModalElement)]
+        return np.r_[xyz, modal_xyz]
+
+    # Calculate nodal positions at -1, 0 and 1
+    qn_a = nodal_positions(system, -1 * modeshape)
+    qn_b = nodal_positions(system, +1 * modeshape)
+
+    # Minimum and maximum nodal positions along each axis (xyz)
+    min_extent = np.minimum(qn_a, qn_b).min(axis=0) * 1.1
+    max_extent = np.maximum(qn_a, qn_b).max(axis=0) * 1.1
+    scale = (max_extent - min_extent).max() / 7  # a representative scale
     if xlim is None:
         xlim = (min(-scale, min_extent[0]), max(scale, max_extent[0]))
     if ylim is None:
@@ -70,11 +74,15 @@ def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
     if zlim is None:
         zlim = (min(-scale, min_extent[2]), max(scale, max_extent[2]))
 
+    # Figure out how much the nodes moved so we know how much to scale the mode
+    node_motion = np.sqrt(np.sum((qn_b - qn_a)**2, axis=1)).max()
+    modeshape_scale = scale / node_motion
+
     # Create axes: XZ, YZ, XY
     directions = ('xz', 'yz', 'xy')
     limits = {'x': xlim, 'y': ylim, 'z': zlim}
-    fig, axes = plt.subplots(1, 3, figsize=figsize)
-    #                             subplot_kw=dict(aspect='equal'))
+    fig, axes = plt.subplots(1, 3, figsize=figsize,
+                             subplot_kw=dict(aspect='equal'))
 
     if title is not None:
         fig.suptitle(title)
@@ -102,7 +110,7 @@ def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
 
     def animate(i):
         # Update system
-        system.q.dofs[:] = modeshape * np.sin(t[i])
+        system.q.dofs[:] = modeshape_scale * modeshape * np.sin(t[i])
         system.update_kinematics(calculate_matrices=False)
 
         # Update artists
@@ -204,7 +212,7 @@ class RigidConnectionView(ElementView):
     element = RigidConnection
 
     def create_artists(self):
-        self.line, = self.axes.plot([], [], c='m', lw=1, marker='^', ms=10)
+        self.line, = self.axes.plot([], [], c='m', lw=1, marker='^', ms=3)
         self.distal_orientation, = self.axes.plot([], [], c='k', lw=0.5)
         return (self.line, self.distal_orientation)
 
@@ -265,5 +273,29 @@ class ModalBeamView(ElementView):
             [shape[-1]]
         ]
 
+        self.shape.set_data(shape[:, self.x], shape[:, self.y])
+        self.local_axis.set_data(local_axis[:, self.x], local_axis[:, self.y])
+
+
+class ModalElementView(ElementView):
+    element = ModalElement
+
+    def create_artists(self):
+        self.shape, = self.axes.plot([], [], c='g', marker='o', lw=2, ms=1)
+        self.local_axis, = self.axes.plot([], [], c='k', lw=2, alpha=0.3)
+        return (self.shape, self.local_axis)
+
+    def reset(self):
+        self.shape.set_data([], [])
+        self.local_axis.set_data([], [])
+
+    def update(self):
+        e = self.element
+        shape = self.element.station_positions()
+        local_axis = np.r_[
+            [e.rp],
+            [e.rp + dot(e.Rp, e.modes.X0[-1])],
+            [shape[-1]]
+        ]
         self.shape.set_data(shape[:, self.x], shape[:, self.y])
         self.local_axis.set_data(local_axis[:, self.x], local_axis[:, self.y])
