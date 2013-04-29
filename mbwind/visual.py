@@ -41,7 +41,7 @@ from matplotlib import pyplot as plt
 
 
 def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
-              figsize=(6, 4), filename=None, save_opts=None):
+              figsize=(6, 4), filename=None, save_opts=None, title=None):
     Ndof = len(modeshape)
     assert Ndof == len(system.q.dofs)
     t = np.linspace(0, 2*np.pi, 50)
@@ -74,7 +74,10 @@ def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
     directions = ('xz', 'yz', 'xy')
     limits = {'x': xlim, 'y': ylim, 'z': zlim}
     fig, axes = plt.subplots(1, 3, figsize=figsize)
-#                             subplot_kw=dict(aspect='equal'))
+    #                             subplot_kw=dict(aspect='equal'))
+
+    if title is not None:
+        fig.suptitle(title)
 
     # Set up axes and views
     sysviews = []
@@ -119,6 +122,7 @@ def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
             'fps': 30,
             'codec': 'libtheora',
             'bitrate': 800,
+            'dpi': 100,
         })
         anim.save(filename, **save_opts)
         plt.close(fig)
