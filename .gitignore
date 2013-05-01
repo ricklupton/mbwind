@@ -11,3 +11,6 @@
 # Bladed copies of .prj files (slightly XML)
 *.prx
 /mbwind.egg-info/
+/cover/
+/htmlcov/
+/.coverage
