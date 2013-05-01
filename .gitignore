@@ -3,8 +3,10 @@
 
 # Ignore cython-produced files
 *.pyd
+*.so
 *.o
 *.c
+
 # Ignore profiling reports
 *.profile
 *.un~
@@ -14,3 +16,4 @@
 /cover/
 /htmlcov/
 /.coverage
+/build/
