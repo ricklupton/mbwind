@@ -537,7 +537,8 @@ class BladeModalAnalysis(object):
 
 class ModesFromScratch(object):
     def __init__(self, x, density, EA, EIy, EIz):
-        self.x = x - x[0]
+        assert x[0] == 0
+        self.x = x
         self.density = self._prepare_inputs(len(x), density)
         self.EA = self._prepare_inputs(len(x), EA)
         self.EIy = self._prepare_inputs(len(x), EIy)
