@@ -51,13 +51,15 @@ def system_residue(system, z, zd, zdd):
 class LinearisedSystem(object):
     @classmethod
     def from_system(cls, system, z0=None, zd0=None, zdd0=None,
-                    perturbation=0.1):
+                    perturbation=None):
         """
         Linearise ``system`` about the point ``z0``, ``zd0``, ``zdd0``.
 
         If the linearisation point is not given, the current positions and
         velocities of the system, and zero acceleration, are assumed.
         """
+        if perturbation is None:
+            perturbation = 1e-3  # could have a better default
         assert perturbation > 0
 
         f = system.B.shape[0]  # number of DOFs
