@@ -242,7 +242,9 @@ class System(object):
         self._update_indices()
 
         # Give elements a chance to finish setting up (make views into global vectors)
+        self.elements = {}
         for element in self.iter_elements():
+            self.elements[element.name] = element
             element.finish_setup()
 
     def print_states(self):
