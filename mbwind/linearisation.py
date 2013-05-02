@@ -50,13 +50,15 @@ def system_residue(system, z, zd, zdd):
 
 class LinearisedSystem(object):
     @classmethod
-    def from_system(cls, system, z0=None, zd0=None, zdd0=None):
+    def from_system(cls, system, z0=None, zd0=None, zdd0=None,
+                    perturbation=0.1):
         """
         Linearise ``system`` about the point ``z0``, ``zd0``, ``zdd0``.
 
         If the linearisation point is not given, the current positions and
         velocities of the system, and zero acceleration, are assumed.
         """
+        assert perturbation > 0
 
         f = system.B.shape[0]  # number of DOFs
         if z0 is None:
@@ -85,10 +87,10 @@ class LinearisedSystem(object):
             args[n] = args[n] + x * one(len(args[n]), i)
             return system_residue(system, *args)
 
-        ii = range(f)
-        M = array([derivative(perturb, 0, 0.1, args=(i, 2)) for i in ii]).T
-        C = array([derivative(perturb, 0, 0.1, args=(i, 1)) for i in ii]).T
-        K = array([derivative(perturb, 0, 0.1, args=(i, 0)) for i in ii]).T
+        h = perturbation
+        M = array([derivative(perturb, 0, h, args=(i, 2)) for i in range(f)]).T
+        C = array([derivative(perturb, 0, h, args=(i, 1)) for i in range(f)]).T
+        K = array([derivative(perturb, 0, h, args=(i, 0)) for i in range(f)]).T
         system.q.dofs[:] = z0
         system.qd.dofs[:] = zd0
         system.update_kinematics()
