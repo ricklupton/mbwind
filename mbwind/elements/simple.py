@@ -109,6 +109,7 @@ class FreeJoint(Element):
         self.stiffness = stiffness
         self.damping = damping
         self.post_transform = post_transform
+        self.constant_force = zeros(6)
 
         # Constant parts of transformation matrices
         self.F_ve = eye(6)
@@ -142,8 +143,10 @@ class FreeJoint(Element):
         ]
 
     def calc_external_loading(self):
-        self.applied_stress[:] = dot(self.stiffness,self.xstrain) + \
-                                 dot(self.damping,  self.vstrain)
+        # NB applied stress is negative (designed as stiffness)
+        self.applied_stress[:] = (dot(self.stiffness, self.xstrain) +
+                                  dot(self.damping, self.vstrain) +
+                                  -self.constant_force)
 
 
 class RigidConnection(Element):
