@@ -1,24 +1,7 @@
-
 import numpy as np
 from numpy import array, dot
-from mbwind.elements import FreeJoint, RigidConnection, RigidBody
+from mbwind.elements import FreeJoint, RigidConnection, RigidBody, Hinge
 from mbwind.elements.modal import ModalElement, DistalModalElementFromScratch
-
-
-# class HingeView(object):
-#     def shape(self, hinge):
-#         # proximal values
-#         return [
-#             array([hinge.rd]),
-#             hinge.rd + np.r_[[dot(hinge.Rd, [1, 0, 0])],  [[0, 0, 0]],
-#                              [dot(hinge.Rd, [0, 1, 0])],  [[0, 0, 0]],
-#                              [dot(hinge.Rd, [0, 0, 1])]]
-#         ]
-
-#     shape_plot_options = [
-#         {'marker': 's', 'ms': 4, 'c': 'r'},
-#         {'c': 'k', 'lw': 0.5}
-#     ]
 
 
 # class PrismaticJointView(object):
@@ -189,6 +172,27 @@ class ElementView(object):
 
 class FreeJointView(ElementView):
     element = FreeJoint
+
+    def create_artists(self):
+        self.rd, = self.axes.plot([], [], marker='s', ms=4, c='r')
+        self.Rd, = self.axes.plot([], [], lw=0.5, c='k')
+        return (self.rd, self.Rd)
+
+    def reset(self):
+        self.rd.set_data([], [])
+        self.Rd.set_data([], [])
+
+    def update(self):
+        e = self.element
+        self.rd.set_data(e.rp[self.x], e.rd[self.y])
+        orient = e.rd + np.r_[[dot(e.Rd, [1, 0, 0])], [[0, 0, 0]],
+                              [dot(e.Rd, [0, 1, 0])], [[0, 0, 0]],
+                              [dot(e.Rd, [0, 0, 1])]]
+        self.Rd.set_data(orient[:, self.x], orient[:, self.y])
+
+
+class HingeView(ElementView):
+    element = Hinge
 
     def create_artists(self):
         self.rd, = self.axes.plot([], [], marker='s', ms=4, c='r')
