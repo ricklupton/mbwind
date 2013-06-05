@@ -4,8 +4,9 @@ Modal elements
 
 import numpy as np
 from numpy import array, zeros, eye, dot, pi
-from ..core import Element
+from ..core import Element, CustomOutput
 from ..utils import eps_ijk, skewmat
+from ..modes import cumulative_mass_moment
 import _modal_calcs
 
 # Slices to refer to parts of matrices
@@ -70,7 +71,8 @@ class ModalElement(Element):
 
         # Geometric stiffness matrix
         # Use int rdm as axial force, multiply by omega**2 later
-        # XXX self.kG = self.modes.geometric_stiffness(self.modes.I0)
+        cenfug_force = cumulative_mass_moment(self.modes.X0, self.modes.density)
+        self.kG = self.modes.geometric_stiffness(cenfug_force[:, 0])
 
     def station_positions(self):
         prox_pos = self.modes.X(self.xstrain)
@@ -228,7 +230,7 @@ class ModalElement(Element):
         )
 
         # Geometric stiffness
-        if OPT_GEOMETRIC_STIFFNESS:
+        if True or OPT_GEOMETRIC_STIFFNESS:
             # Calculate magnitude of angular velocity perpendicular to beam
             local_wp_sq = np.sum(dot(self.Rp.T, self.vp[WP])[1:]**2)
             self.applied_stress[:] += local_wp_sq * dot(self.kG, self.xstrain)

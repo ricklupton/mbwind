@@ -1,4 +1,3 @@
-
 from __future__ import division
 import numpy as np
 from numpy import array, zeros, eye, newaxis, dot, r_, ix_
@@ -53,6 +52,38 @@ def integrate_mass_moments(X0, density):
                     4*x1*x2*(rho1*x1**2 + rho2*x2**2)) / (12*(x2-x1))
 
     return m, I, J
+
+
+def cumulative_mass_moment(X0, density):
+    """
+    Calculate cumulative 1st moments of mass using exact formulae
+    (trapz or simps not exact because of x or x**2 in integrand)
+
+    Parameters
+    ----------
+
+    X0: array shape (N_stn, 3)
+        location of centres of cross-sections
+
+    density: array shape (N_stn - 1, 2)
+        density at start and end of each segment
+    """
+
+    # XXX neglecting non-straight mass axis
+    #     and section inertia
+
+    I = zeros((len(X0), 3))
+    for i in range(len(X0) - 1):
+        rho1, rho2 = density[i]
+        x1, y1, z1 = X0[i]
+        x2, y2, z2 = X0[i+1]
+
+        Ix = ((2*rho2+rho1)*x2**3 + (2*rho1+rho2)*x1**3 -
+              3*rho1*x2*x1**2 - 3*rho2*x1*x2**2) / (6*(x2-x1))
+        Iy = (rho1*y1 + rho2*y2 - (rho1*y2+rho2*y1)/2) * (x2-x1)/3
+        Iz = (rho1*z1 + rho2*z2 - (rho1*z2+rho2*z1)/2) * (x2-x1)/3
+        I[i, :] = [Ix, Iy, Iz]
+    return np.cumsum(I[::-1], axis=0)[::-1]
 
 
 class ModalRepresentation(object):
