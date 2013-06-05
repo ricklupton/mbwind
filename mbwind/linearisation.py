@@ -48,6 +48,31 @@ def system_residue(system, z, zd, zdd):
     return dot(Mr, zdd) - Qr + dot(RtM, system.Sc)
 
 
+def _create_strain_array(system, initial_values_dict):
+    """
+    Return an array of strains with zeros apart from the given values
+
+    Parameters
+    ----------
+
+     - system: the System
+     - initial_values_dict: dictionary of {element-name: dof-value-list}
+    """
+
+    # Dictionary of {element-name: dof-value-list} items
+    z = np.zeros(len(system.q.dofs))
+    for element_name, element_dofs in initial_values_dict.items():
+        istrain = system.elements[element_name]._istrain
+        idofs = system.qd.dofs.subset
+        for i, dof in zip(istrain, element_dofs):
+            try:
+                z[idofs.index(i)] = dof
+            except ValueError:
+                print "(skipping prescribed state {})".format(i)
+                pass  # this dof of the element must be prescribed
+    return z
+
+
 class LinearisedSystem(object):
     @classmethod
     def from_system(cls, system, z0=None, zd0=None, zdd0=None,
@@ -62,13 +87,20 @@ class LinearisedSystem(object):
             perturbation = 1e-3  # could have a better default
         assert perturbation > 0
 
+        def _prepare_initial_values(zx, default):
+            if zx is None:
+                return default
+            elif zx is 0:
+                return 0 * default
+            elif isinstance(zx, dict):
+                return _create_strain_array(system, zx)
+            else:
+                return zx
+
         f = system.B.shape[0]  # number of DOFs
-        if z0 is None:
-            z0 = system.q.dofs[:]
-        if zd0 is None:
-            zd0 = system.qd.dofs[:]
-        if zdd0 is None:
-            zdd0 = zeros(f)
+        z0 = _prepare_initial_values(z0, system.q.dofs[:])
+        zd0 = _prepare_initial_values(zd0, system.qd.dofs[:])
+        zdd0 = _prepare_initial_values(zdd0, zeros(len(system.q.dofs)))
 
         #def Q_func(zdd, i):
         #    self.q [self.iFreeDOF] = z0
