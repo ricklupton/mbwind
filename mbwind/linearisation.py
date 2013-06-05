@@ -206,7 +206,56 @@ class LinearisedSystem(object):
         newC = 2*dot(Mb,R) + Cb
         newK = dot(Mb,dot(R,R)) + dot(Cb,R) + Kb
 
-        return LinearisedSystem((newM, newC, newK), self.z0, self.zd0, self.zdd0)
+        return LinearisedSystem(newM, newC, newK, self.z0, self.zd0, self.zdd0)
+
+    def multiblade_transform2(self, azimuth_omega, iblades):
+        """
+        Perform a multi-blade coordinate (MBC) transform.
+        -- following the NREL MBC reference
+        """
+        azimuth = self.z0[azimuth_omega]
+        omega = self.zd0[azimuth_omega]
+        Nb = len(iblades) # number of blades
+        if Nb != 3:
+            raise NotImplementedError("Only 3 blades implemented")
+        Ndof = len(iblades[0]) # number of DOFs per blade
+        if any((len(ib) != Ndof for ib in iblades)):
+            raise ValueError("All blades must have same number of DOFs")
+
+        # Transformation block matrices
+        tx1 = np.ones((3, 3))
+        tx2 = np.zeros((3, 3))
+        tx3 = np.zeros((3, 3))
+        for i in range(3):
+            tx1[i, 1] = cos(azimuth + 2*i*pi/Nb)
+            tx1[i, 2] = sin(azimuth + 2*i*pi/Nb)
+            tx2[i, 1] = -sin(azimuth + 2*i*pi/Nb)
+            tx2[i, 2] = cos(azimuth + 2*i*pi/Nb)
+            tx3[i, 1] = -cos(azimuth + 2*i*pi/Nb)
+            tx3[i, 2] = -sin(azimuth + 2*i*pi/Nb)
+
+        # Assemble transformation blocks
+        T1 = np.eye(self.M.shape[0])
+        T2 = np.zeros_like(self.M)
+        T3 = np.zeros_like(self.M)
+        for i_dof in zip(*iblades):
+            # loop through sets of 3 indices
+            T1[np.ix_(i_dof, i_dof)] = tx1
+            T2[np.ix_(i_dof, i_dof)] = tx2
+            T3[np.ix_(i_dof, i_dof)] = tx3
+
+        # Transform equations
+        omega_dot = 0
+        T1i = np.linalg.inv(T1)
+        Mb = dot(T1i, dot(self.M, T1))
+        Cb = dot(T1i, 2*omega*dot(self.M, T2) + dot(self.C, T1))
+        Kb = dot(T1i, (omega**2 * dot(self.M, T3) + omega_dot*dot(self.M, T2) +
+                       omega * dot(self.C, T2) + dot(self.K, T1)))
+        #print self.K[10,10], Kb[10, 10]
+        #import matplotlib.pyplot as plt
+        #plt.matshow(dot(self.M, T3))
+
+        return LinearisedSystem(Mb, Cb, Kb, self.z0, self.zd0, self.zdd0)
 
     def integrate(self, tvals, z0=None, zd0=None):
         if z0 is None: z0 = self.z0
