@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import array, dot
+from numpy import array, dot, pi
 from mbwind.elements import FreeJoint, RigidConnection, RigidBody, Hinge
 from mbwind.elements.modal import ModalElement, DistalModalElementFromScratch
 
@@ -23,11 +23,23 @@ from matplotlib import animation
 from matplotlib import pyplot as plt
 
 
-def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
+def anim_mode(system, frequency, modeshape, xlim=None, ylim=None, zlim=None,
+              rotor_speed=None, rotor_element=None, blade_elements=None,
               figsize=(6, 4), filename=None, save_opts=None, title=None):
     Ndof = len(modeshape)
     assert Ndof == len(system.q.dofs)
-    t = np.linspace(0, 2*np.pi, 50)
+
+    # Choose time vector so there are at least 50 steps, or more if
+    # needed so that the rotor rotation isn't too coarse.
+    max_t = 2*pi/frequency
+    dt = max_t/50
+    if rotor_speed is not None and (rotor_speed/frequency < 5):
+        max_t = 2*pi/min(frequency, rotor_speed)
+        dt = min(dt, 2*pi/rotor_speed/200)
+    t = np.arange(0, max_t, dt)
+
+    # Save initial values
+    initial_q = system.q.dofs[:]
 
     # Calculate axis limits automatically
     def nodal_positions(system, z):
@@ -42,9 +54,9 @@ def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
                      if isinstance(e, ModalElement)]
         return np.r_[xyz, modal_xyz]
 
-    # Calculate nodal positions at -1, 0 and 1
-    qn_a = nodal_positions(system, -1 * modeshape)
-    qn_b = nodal_positions(system, +1 * modeshape)
+    # Calculate nodal positions at start and middle of oscillation
+    qn_a = nodal_positions(system, modeshape.real)
+    qn_b = nodal_positions(system, modeshape.imag)
 
     # Minimum and maximum nodal positions along each axis (xyz)
     min_extent = np.minimum(qn_a, qn_b).min(axis=0) * 1.1
@@ -59,7 +71,21 @@ def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
 
     # Figure out how much the nodes moved so we know how much to scale the mode
     node_motion = np.sqrt(np.sum((qn_b - qn_a)**2, axis=1)).max()
-    modeshape_scale = scale / node_motion
+    modeshape_scale = 0.4 * scale / (node_motion if node_motion > 0 else 1.0)
+
+    # If there is a rotating rotor, the blade coordinates will need to
+    # be calculated at every timestep
+    if rotor_speed is None:
+        assert rotor_element is None and blade_elements is None
+        def dofs_at_time(t):
+            return modeshape_scale * (modeshape * np.exp(1j*frequency*t)).real
+    else:
+        def dofs_at_time(t):
+            az = (rotor_speed * t) % (2*pi)
+            z = system.convert_mbc_dofs_to_blade(modeshape, blade_elements, az)
+            dofs = modeshape_scale * (z * np.exp(1j*frequency*t)).real
+            dofs[system.dof_index(rotor_element, 0)] += az
+            return dofs
 
     # Create axes: XZ, YZ, XY
     directions = ('xz', 'yz', 'xy')
@@ -67,8 +93,7 @@ def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
     fig, axes = plt.subplots(1, 3, figsize=figsize,
                              subplot_kw=dict(aspect='equal'))
 
-    if title is not None:
-        fig.suptitle(title)
+    fig.suptitle('[%.4f rad/s] %s' % (frequency, title or ''))
 
     # Set up axes and views
     sysviews = []
@@ -93,7 +118,7 @@ def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
 
     def animate(i):
         # Update system
-        system.q.dofs[:] = modeshape_scale * modeshape * np.sin(t[i])
+        system.q.dofs[:] = dofs_at_time(t[i])
         system.update_kinematics(calculate_matrices=False)
 
         # Update artists
@@ -112,11 +137,16 @@ def anim_mode(system, modeshape, xlim=None, ylim=None, zlim=None,
         save_opts.update({
             'fps': 30,
             'codec': 'libtheora',
-            'bitrate': 800,
+            'bitrate': 600,
             'dpi': 100,
         })
         anim.save(filename, **save_opts)
         plt.close(fig)
+
+    # Put back system how it started
+    system.q.dofs[:] = initial_q
+    system.update_kinematics(calculate_matrices=False)
+
     return anim
 
 
@@ -184,7 +214,7 @@ class FreeJointView(ElementView):
 
     def update(self):
         e = self.element
-        self.rd.set_data(e.rp[self.x], e.rd[self.y])
+        self.rd.set_data(e.rd[self.x], e.rd[self.y])
         orient = e.rd + np.r_[[dot(e.Rd, [1, 0, 0])], [[0, 0, 0]],
                               [dot(e.Rd, [0, 1, 0])], [[0, 0, 0]],
                               [dot(e.Rd, [0, 0, 1])]]

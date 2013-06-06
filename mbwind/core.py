@@ -8,6 +8,7 @@ Created on Wed Feb 22 17:24:13 2012
 from __future__ import division
 import time, sys
 import operator
+import itertools
 import numpy as np
 from numpy import array, zeros, eye, dot, pi, cos, sin
 import numpy.linalg as LA
@@ -494,6 +495,31 @@ class System(object):
 
         q0 = scipy.optimize.fsolve(func, self.q.dofs[:])
         self.q.dofs[:] = q0
+
+    ##############################################
+    ### Functions for helping with mode shapes ###
+    ##############################################
+    def dof_index(self, element, strain_number):
+        """Return the DOF number for strain ``strain_number`` of ``element``"""
+        strains = self.elements[element]._istrain
+        return self.qd.dofs.subset.index(strains[strain_number])
+
+    def convert_mbc_dofs_to_blade(self, v, elements, azimuth):
+        """Convert MBC DOFs in ``v`` to blade DOFs, at ``azimuth``"""
+        if len(elements) != 3:
+            raise NotImplementedError("Only 3 blade MBC is implemented")
+        vb = v.copy()
+        for imode in itertools.count():
+            try:
+                dofs = [self.dof_index(element, imode) for element in elements]
+            except IndexError:
+                break  # run out of blade modes
+            for j in range(3):
+                psi = azimuth + 2*pi*j/3
+                vb[dofs[j]] = v[dofs[0]] + (cos(psi)*v[dofs[1]] +
+                                            sin(psi)*v[dofs[2]])
+        return vb
+
 
 class ReducedSystem(object):
     def __init__(self, full_system):
