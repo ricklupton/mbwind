@@ -13,7 +13,7 @@ class ModesFromScratchTestCase(TestCase):
         """
 
         # values not important for this test
-        modes = ModesFromScratch(arange(10), 1, 1, 1)
+        modes = ModesFromScratch(arange(10), 1, 1, 1, 1)
 
         def getY(Rp, rp, rd):
             rp, rd = asarray(rp), asarray(rd)

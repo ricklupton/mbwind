@@ -1,8 +1,9 @@
 from numpy import zeros, array, eye, pi, dot, sqrt, c_, diag, cos, sin
+from numpy import linalg
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 from unittest import TestCase
 
-from mbwind.utils import rotmat_x, rotmat_z
+from mbwind.utils import rotmat_x, rotmat_y, rotmat_z, update_skewmat
 from mbwind.elements import Hinge, FreeJoint, RigidBody
 
 
@@ -153,3 +154,30 @@ class RigidBodyTestCase(TestCase):
         b.calc_external_loading()
         assert_array_equal(b.applied_forces,
                            b.mass * 9.81 * array([0, 0, -1, -3.4, 1.2, 0]))
+
+    def test_gyroscopic_acceleration(self):
+        """When the body is spinning, a torque should cause a perpendicular
+        acceleration"""
+
+        # Set up rigid body spinning about x axis, and precessing about z axis
+        precession = 0.1
+        spin = 27.3
+        A = 2.4           # perpendicular inertia
+        C = 5.7           # polar inertia
+
+        b = RigidBody('body', mass=7.04, inertia=diag([A, A, C]))
+        b.Rp[:, :] = rotmat_y(pi/2)
+        b.vp[3:] = [spin, 0, precession]
+        update_skewmat(b.wps, b.vp[3:])
+        b.calc_mass()
+
+        # Expect moment of momentum to be [C*spin, 0, A*precession] in global
+        Jp = dot(b.Rp, dot(b.inertia, b.Rp.T))
+        hp = dot(Jp, b.vp[3:])
+        assert_array_almost_equal(hp, [C*spin, 0, A*precession])
+
+        # Expect the torque to be (precession * spin_speed) * (C - A)
+        # about the y axis
+        expected_Q2 = spin * precession * (C - A)
+        assert_array_almost_equal(b.quad_forces, [0, 0, 0, 0, expected_Q2, 0])
+
