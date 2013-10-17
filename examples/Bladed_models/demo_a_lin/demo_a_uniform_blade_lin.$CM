@@ -1,0 +1,184 @@
+PLOTTYPE	1 
+STYLE	1
+NBLADES	 3           
+NUMPTS	 31          
+OMEGA	 0
+FREQ	 0
+DAMP	 0
+LABEL	 'Gearbox LSS rotation : 100.00 %,'
+OMEGA	 0
+FREQ	 2.221
+DAMP	 0.0049896
+LABEL	 'Tower mode 1 : 98.20 %, Tower mode 3 : 0.01 %, Tower mode 5 : 0.00 %, Tower mode 2 : 0.00 %, Tower mode 4 : 0.00 %, Tower mode 6 : 0.00 %,'
+OMEGA	 0
+FREQ	 2.2546
+DAMP	 0.0049961
+LABEL	 'Tower mode 2 : 98.14 %, Tower mode 4 : 0.00 %, Tower mode 6 : 0.00 %, Tower mode 1 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 5 : 0.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 14.633
+DAMP	 0.0050804
+LABEL	 'Tower mode 3 : 97.79 %, Tower mode 5 : 1.75 %,'
+OMEGA	 0
+FREQ	 18.322
+DAMP	 0.0048455
+LABEL	 'Tower mode 4 : 95.01 %, Tower mode 6 : 4.70 %,'
+OMEGA	 0
+FREQ	 48.964
+DAMP	 0.0058179
+LABEL	 'Tower mode 5 : 98.25 %, Tower mode 3 : 2.20 %,'
+OMEGA	 0
+FREQ	 51.732
+DAMP	 0.006302
+LABEL	 'Tower mode 6 : 95.30 %, Tower mode 4 : 4.99 %,'
+OMEGA	 0.20944
+FREQ	 2.154
+DAMP	 0.089353
+LABEL	 'Tower mode 1 : 97.03 %, Tower mode 2 : 0.50 %, Gearbox LSS rotation : 0.28 %, Tower mode 3 : 0.01 %, Tower mode 5 : 0.00 %, Tower mode 4 : 0.00 %, Tower mode 6 : 0.00 %,'
+OMEGA	 0.20944
+FREQ	 3.1546
+DAMP	 0.15696
+LABEL	 'Tower mode 2 : 97.11 %, Tower mode 4 : 0.02 %, Tower mode 1 : 0.00 %, Tower mode 6 : 0.00 %, Gearbox LSS rotation : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 5 : 0.00 %,'
+OMEGA	 0.20944
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0.20944
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0.20944
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0.20944
+FREQ	 3.825
+DAMP	 1.103
+LABEL	 'Gearbox LSS rotation : 96.44 %, Tower mode 1 : 2.65 %,'
+OMEGA	 0.20944
+FREQ	 18.235
+DAMP	 0.075505
+LABEL	 'Tower mode 4 : 95.21 %, Tower mode 6 : 4.85 %,'
+OMEGA	 0.20944
+FREQ	 24.879
+DAMP	 0.035253
+LABEL	 'Tower mode 3 : 78.35 %, Tower mode 5 : 20.33 %, Gearbox LSS rotation : 2.63 %,'
+OMEGA	 0.20944
+FREQ	 51.458
+DAMP	 0.022591
+LABEL	 'Tower mode 6 : 95.14 %, Tower mode 4 : 4.76 %,'
+OMEGA	 0.20944
+FREQ	 66.04
+DAMP	 0.024685
+LABEL	 'Tower mode 5 : 79.66 %, Tower mode 3 : 20.78 %,'
+OMEGA	 0
+FREQ	 0
+DAMP	 0
+LABEL	 'Gearbox LSS rotation : 100.00 %,'
+OMEGA	 0
+FREQ	 2.221
+DAMP	 0.0078509
+LABEL	 'Tower mode 1 : 98.20 %, Tower mode 3 : 0.01 %, Tower mode 5 : 0.00 %, Tower mode 2 : 0.00 %, Tower mode 4 : 0.00 %, Tower mode 6 : 0.00 %,'
+OMEGA	 0
+FREQ	 2.2546
+DAMP	 0.012742
+LABEL	 'Tower mode 2 : 98.14 %, Tower mode 4 : 0.00 %, Tower mode 6 : 0.00 %, Tower mode 1 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 5 : 0.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 14.633
+DAMP	 0.0070414
+LABEL	 'Tower mode 3 : 97.79 %, Tower mode 5 : 1.75 %,'
+OMEGA	 0
+FREQ	 18.322
+DAMP	 0.0075282
+LABEL	 'Tower mode 4 : 95.01 %, Tower mode 6 : 4.70 %,'
+OMEGA	 0
+FREQ	 19.451
+DAMP	 0.24995
+LABEL	 'Drive train damper mode 1 : 100.00 %,'
+OMEGA	 0
+FREQ	 48.964
+DAMP	 0.0060436
+LABEL	 'Tower mode 5 : 98.25 %, Tower mode 3 : 2.20 %,'
+OMEGA	 0
+FREQ	 51.733
+DAMP	 0.0068232
+LABEL	 'Tower mode 6 : 95.30 %, Tower mode 4 : 4.99 %,'
+NUMLINES	 11          
+NPTS	 3           
+XVALS	 0,0.20944,0
+YVALS	 0,3.825,0
+DEFLEGEND	 'Rotor rotation'
+USERLEGEND	 'Rotor rotation'
+NPTS	 3           
+XVALS	 0,0.20944,0
+YVALS	 2.221,2.154,2.221
+DEFLEGEND	 'Tower mode 1'
+USERLEGEND	 'Tower mode 1'
+NPTS	 3           
+XVALS	 0,0.20944,0
+YVALS	 2.2546,3.1546,2.2546
+DEFLEGEND	 'Tower mode 2'
+USERLEGEND	 'Tower mode 2'
+NPTS	 3           
+XVALS	 0,0.20944,0
+YVALS	 3.3333,3.3333,3.3333
+DEFLEGEND	 'Blade 1 actuator position'
+USERLEGEND	 'Blade 1 actuator position'
+NPTS	 3           
+XVALS	 0,0.20944,0
+YVALS	 3.3333,3.3333,3.3333
+DEFLEGEND	 'Blade 2 actuator position'
+USERLEGEND	 'Blade 2 actuator position'
+NPTS	 3           
+XVALS	 0,0.20944,0
+YVALS	 3.3333,3.3333,3.3333
+DEFLEGEND	 'Blade 3 actuator position'
+USERLEGEND	 'Blade 3 actuator position'
+NPTS	 3           
+XVALS	 0,0.20944,0
+YVALS	 14.633,24.879,14.633
+DEFLEGEND	 'Tower mode 3'
+USERLEGEND	 'Tower mode 3'
+NPTS	 3           
+XVALS	 0,0.20944,0
+YVALS	 18.322,18.235,18.322
+DEFLEGEND	 'Tower mode 4'
+USERLEGEND	 'Tower mode 4'
+NPTS	 3           
+XVALS	 0,0.20944,0
+YVALS	 48.964,66.04,48.964
+DEFLEGEND	 'Tower mode 5'
+USERLEGEND	 'Tower mode 5'
+NPTS	 3           
+XVALS	 0,0.20944,0
+YVALS	 51.732,51.458,51.733
+DEFLEGEND	 'Tower mode 6'
+USERLEGEND	 'Tower mode 6'
+NPTS	 1           
+XVALS	 0
+YVALS	 19.451
+DEFLEGEND	 'Drive train damper mode 1'
+USERLEGEND	 'Drive train damper mode 1'

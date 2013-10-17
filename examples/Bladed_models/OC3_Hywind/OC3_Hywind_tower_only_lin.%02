@@ -1,0 +1,22 @@
+FILE    OC3_Hywind_tower_only_lin.$02
+ACCESS  S
+FORM    F
+RECL    4
+FORMAT  R4
+MISSING NaN
+CONTENT CAMPBELL
+CONFIG  TABLE
+NDIMENS 3
+DIMENS  2  20  1
+GENLAB  'Coupled modes'
+VARIAB  Frequency 'Damping factor'
+VARUNIT A/T N
+AXISLAB 'Item'
+AXIUNIT N
+AXIMETH 1
+AXITICK 'Gearbox' 'Tower mode 1' 'Tower mode 2' 'Tower mode 3' 'Tower mode 4' 'Tower mode 5' 'Tower mode 7' 'Tower mode 6' 'Blade 3 Transfer Function mode 1' 'Blade 1 Transfer Function mode 1' 'Blade 2 Transfer Function mode 1' 1P 2P 3P 4P 5P 6P 7P 8P 9P
+AXISLAB 'Rotor speed'
+AXIUNIT A/T
+AXIMETH 3
+AXIVAL  0
+NVARS   0

@@ -1,0 +1,122 @@
+PLOTTYPE	1 
+STYLE	1
+NBLADES	 3           
+NUMPTS	 13          
+OMEGA	 0
+FREQ	 0
+DAMP	 NaN
+LABEL	 'Gearbox : 100.00 %,'
+OMEGA	 0
+FREQ	 2.221
+DAMP	 0.0049896
+LABEL	 'Tower mode 1 : 98.20 %, Tower mode 3 : 0.01 %, Tower mode 6 : 0.00 %, Tower mode 2 : 0.00 %, Tower mode 4 : 0.00 %, Tower mode 5 : 0.00 %,'
+OMEGA	 0
+FREQ	 2.2546
+DAMP	 0.0049961
+LABEL	 'Tower mode 2 : 98.14 %, Tower mode 4 : 0.00 %, Tower mode 5 : 0.00 %, Tower mode 1 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 6 : 0.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 Transfer Function State 2 : 90.91 %, Blade 3 Transfer Function State 1 : 9.09 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 Transfer Function State 2 : 90.91 %, Blade 1 Transfer Function State 1 : 9.09 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 Transfer Function State 2 : 90.91 %, Blade 2 Transfer Function State 1 : 9.09 %,'
+OMEGA	 0
+FREQ	 14.633
+DAMP	 0.0050804
+LABEL	 'Tower mode 3 : 97.79 %, Tower mode 6 : 1.75 %,'
+OMEGA	 0
+FREQ	 18.322
+DAMP	 0.0048455
+LABEL	 'Tower mode 4 : 95.01 %, Tower mode 5 : 4.70 %,'
+OMEGA	 0
+FREQ	 33.333
+DAMP	 1
+LABEL	 'Blade 3 Transfer Function State 1 : 90.91 %, Blade 3 Transfer Function State 2 : 9.09 %,'
+OMEGA	 0
+FREQ	 33.333
+DAMP	 1
+LABEL	 'Blade 1 Transfer Function State 1 : 90.91 %, Blade 1 Transfer Function State 2 : 9.09 %,'
+OMEGA	 0
+FREQ	 33.333
+DAMP	 1
+LABEL	 'Blade 2 Transfer Function State 1 : 90.91 %, Blade 2 Transfer Function State 2 : 9.09 %,'
+OMEGA	 0
+FREQ	 48.964
+DAMP	 0.0058179
+LABEL	 'Tower mode 6 : 98.25 %, Tower mode 3 : 2.20 %,'
+OMEGA	 0
+FREQ	 51.732
+DAMP	 0.006302
+LABEL	 'Tower mode 5 : 95.30 %, Tower mode 4 : 4.99 %,'
+NUMLINES	 13          
+NPTS	 1           
+XVALS	 0
+YVALS	 0
+DEFLEGEND	 'Gearbox'
+USERLEGEND	 'Gearbox'
+NPTS	 1           
+XVALS	 0
+YVALS	 2.221
+DEFLEGEND	 'Tower mode 1'
+USERLEGEND	 'Tower mode 1'
+NPTS	 1           
+XVALS	 0
+YVALS	 2.2546
+DEFLEGEND	 'Tower mode 2'
+USERLEGEND	 'Tower mode 2'
+NPTS	 1           
+XVALS	 0
+YVALS	 3.3333
+DEFLEGEND	 'Blade 3 Transfer Function State 2'
+USERLEGEND	 'Blade 3 Transfer Function State 2'
+NPTS	 1           
+XVALS	 0
+YVALS	 3.3333
+DEFLEGEND	 'Blade 1 Transfer Function State 2'
+USERLEGEND	 'Blade 1 Transfer Function State 2'
+NPTS	 1           
+XVALS	 0
+YVALS	 3.3333
+DEFLEGEND	 'Blade 2 Transfer Function State 2'
+USERLEGEND	 'Blade 2 Transfer Function State 2'
+NPTS	 1           
+XVALS	 0
+YVALS	 14.633
+DEFLEGEND	 'Tower mode 3'
+USERLEGEND	 'Tower mode 3'
+NPTS	 1           
+XVALS	 0
+YVALS	 18.322
+DEFLEGEND	 'Tower mode 4'
+USERLEGEND	 'Tower mode 4'
+NPTS	 1           
+XVALS	 0
+YVALS	 33.333
+DEFLEGEND	 'Blade 3 Transfer Function State 1'
+USERLEGEND	 'Blade 3 Transfer Function State 1'
+NPTS	 1           
+XVALS	 0
+YVALS	 33.333
+DEFLEGEND	 'Blade 1 Transfer Function State 1'
+USERLEGEND	 'Blade 1 Transfer Function State 1'
+NPTS	 1           
+XVALS	 0
+YVALS	 33.333
+DEFLEGEND	 'Blade 2 Transfer Function State 1'
+USERLEGEND	 'Blade 2 Transfer Function State 1'
+NPTS	 1           
+XVALS	 0
+YVALS	 48.964
+DEFLEGEND	 'Tower mode 6'
+USERLEGEND	 'Tower mode 6'
+NPTS	 1           
+XVALS	 0
+YVALS	 51.732
+DEFLEGEND	 'Tower mode 5'
+USERLEGEND	 'Tower mode 5'

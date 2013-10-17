@@ -1,0 +1,104 @@
+PLOTTYPE	1 
+STYLE	1
+NBLADES	 3           
+NUMPTS	 11          
+OMEGA	 0
+FREQ	 0
+DAMP	 NaN
+LABEL	 'Gearbox : 100.00 %,'
+OMEGA	 0
+FREQ	 2.3258
+DAMP	 0.0099623
+LABEL	 'Tower mode 1 : 97.36 %, Tower mode 4 : 0.03 %, Tower mode 7 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 2 : 0.00 %, Tower mode 5 : 0.00 %, Tower mode 6 : 0.00 %,'
+OMEGA	 0
+FREQ	 2.3487
+DAMP	 0.0099792
+LABEL	 'Tower mode 2 : 96.74 %, Tower mode 5 : 0.01 %, Tower mode 6 : 0.00 %, Tower mode 1 : 0.00 %, Tower mode 4 : 0.00 %, Tower mode 7 : 0.00 %, Tower mode 3 : 0.00 %,'
+OMEGA	 0
+FREQ	 9.3575
+DAMP	 0.0099909
+LABEL	 'Tower mode 3 : 97.91 %, Tower mode 4 : 3.01 %,'
+OMEGA	 0
+FREQ	 13.009
+DAMP	 0.01016
+LABEL	 'Tower mode 4 : 93.82 %, Tower mode 7 : 3.89 %, Tower mode 1 : 1.97 %,'
+OMEGA	 0
+FREQ	 15.475
+DAMP	 0.0096564
+LABEL	 'Tower mode 5 : 90.17 %, Tower mode 6 : 7.32 %, Tower mode 2 : 1.69 %,'
+OMEGA	 0
+FREQ	 35.137
+DAMP	 0.011904
+LABEL	 'Tower mode 7 : 96.10 %, Tower mode 4 : 3.15 %,'
+OMEGA	 0
+FREQ	 36.989
+DAMP	 0.012823
+LABEL	 'Tower mode 6 : 90.84 %, Tower mode 5 : 7.41 %, Tower mode 2 : 0.93 %,'
+OMEGA	 0
+FREQ	 188.5
+DAMP	 0.02
+LABEL	 'Blade 3 Transfer Function mode 1 : 100.00 %,'
+OMEGA	 0
+FREQ	 188.5
+DAMP	 0.02
+LABEL	 'Blade 1 Transfer Function mode 1 : 100.00 %,'
+OMEGA	 0
+FREQ	 188.5
+DAMP	 0.02
+LABEL	 'Blade 2 Transfer Function mode 1 : 100.00 %,'
+NUMLINES	 11          
+NPTS	 1           
+XVALS	 0
+YVALS	 0
+DEFLEGEND	 'Gearbox'
+USERLEGEND	 'Gearbox'
+NPTS	 1           
+XVALS	 0
+YVALS	 2.3258
+DEFLEGEND	 'Tower mode 1'
+USERLEGEND	 'Tower mode 1'
+NPTS	 1           
+XVALS	 0
+YVALS	 2.3487
+DEFLEGEND	 'Tower mode 2'
+USERLEGEND	 'Tower mode 2'
+NPTS	 1           
+XVALS	 0
+YVALS	 9.3575
+DEFLEGEND	 'Tower mode 3'
+USERLEGEND	 'Tower mode 3'
+NPTS	 1           
+XVALS	 0
+YVALS	 13.009
+DEFLEGEND	 'Tower mode 4'
+USERLEGEND	 'Tower mode 4'
+NPTS	 1           
+XVALS	 0
+YVALS	 15.475
+DEFLEGEND	 'Tower mode 5'
+USERLEGEND	 'Tower mode 5'
+NPTS	 1           
+XVALS	 0
+YVALS	 35.137
+DEFLEGEND	 'Tower mode 7'
+USERLEGEND	 'Tower mode 7'
+NPTS	 1           
+XVALS	 0
+YVALS	 36.989
+DEFLEGEND	 'Tower mode 6'
+USERLEGEND	 'Tower mode 6'
+NPTS	 1           
+XVALS	 0
+YVALS	 188.5
+DEFLEGEND	 'Blade 3 Transfer Function mode 1'
+USERLEGEND	 'Blade 3 Transfer Function mode 1'
+NPTS	 1           
+XVALS	 0
+YVALS	 188.5
+DEFLEGEND	 'Blade 1 Transfer Function mode 1'
+USERLEGEND	 'Blade 1 Transfer Function mode 1'
+NPTS	 1           
+XVALS	 0
+YVALS	 188.5
+DEFLEGEND	 'Blade 2 Transfer Function mode 1'
+USERLEGEND	 'Blade 2 Transfer Function mode 1'

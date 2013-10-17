@@ -1,0 +1,22 @@
+FILE    lin1.$02
+ACCESS  S
+FORM    F
+RECL    4
+FORMAT  R4
+MISSING NaN
+CONTENT CAMPBELL
+CONFIG  TABLE
+NDIMENS 3
+DIMENS  2  33  8
+GENLAB  'Coupled modes'
+VARIAB  Frequency 'Damping factor'
+VARUNIT A/T N
+AXISLAB 'Item'
+AXIUNIT N
+AXIMETH 1
+AXITICK 'Rotor rotation' 'Tower mode 1' 'Tower mode 2' 'Blade 1 actuator position' 'Blade 2 actuator position' 'Blade 3 actuator position' 'Drive train' 'Blade mode  1A' 'Blade mode  1B' 'Tower mode 4' 'Blade mode  2A' 'Blade mode  2B' 'Drive train damper mode 1' 'Tower mode 3' 'Tower mode 6' 'Blade mode  1C' 'Blade mode  3A' 'Blade mode  3B' 'Blade mode  2C' 'Blade mode  4A' 'Blade mode  4B' 'Blade mode  4C' 'Tower mode 5' 'Blade mode  3C' 1P 2P 3P 4P 5P 6P 7P 8P 9P
+AXISLAB 'Rotor speed'
+AXIUNIT A/T
+AXIMETH 3
+AXIVAL  0 0 0 0 0 0 0 0
+NVARS   0

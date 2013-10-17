@@ -1,0 +1,5 @@
+ *** WARNING [ 999]: Drive train flexibility is OFF
+ *** Note: The actuator 1st order passive response to position demand has been approximated by a 2nd order response so that accelerations and torques can be calculated
+
+ Run completed:            1 warnings.
+

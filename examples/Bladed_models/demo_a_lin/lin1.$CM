@@ -1,0 +1,893 @@
+PLOTTYPE	1 
+STYLE	1
+NBLADES	 3           
+NUMPTS	 192         
+OMEGA	 0
+FREQ	 0
+DAMP	 0
+LABEL	 'Gearbox LSS rotation : 100.00 %,'
+OMEGA	 0
+FREQ	 2.1618
+DAMP	 0.0065539
+LABEL	 'Tower mode 1 : 90.74 %, LSS rotation : 7.53 %, Blade  1 mode  1 : 0.77 %,'
+OMEGA	 0
+FREQ	 2.251
+DAMP	 0.0082696
+LABEL	 'Tower mode 2 : 98.85 %, Blade  1 mode  2 : 0.08 %, Tower mode 4 : 0.02 %, Blade  2 mode  2 : 0.01 %, Blade  3 mode  2 : 0.01 %, Tower mode 6 : 0.00 %, Blade  3 mode  1 : 0.00 %, Blade  2 mode  1 : 0.00 %, Blade  1 mode  4 : 0.00 %, Blade  1 mode  1 : 0.00 %, Blade  2 mode  4 : 0.00 %, Blade  3 mode  4 : 0.00 %, Tower mode 1 : 0.00 %, Blade  3 mode  3 : 0.00 %, Blade  2 mode  3 : 0.00 %, LSS rotation : 0.00 %, Blade  1 mode  3 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 5 : 0.00 %, Drive train damper mode 1 : 0.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.352
+DAMP	 0.0066776
+LABEL	 'LSS rotation : 79.77 %, Tower mode 1 : 8.98 %, Blade  3 mode  1 : 3.18 %, Blade  2 mode  1 : 3.17 %, Tower mode 3 : 2.94 %, Blade  1 mode  1 : 1.77 %,'
+OMEGA	 0
+FREQ	 10.957
+DAMP	 0.011162
+LABEL	 'Blade  2 mode  1 : 50.37 %, Blade  3 mode  1 : 46.92 %, Tower mode 4 : 1.48 %, Blade  1 mode  2 : 0.21 %, Blade  3 mode  2 : 0.17 %,'
+OMEGA	 0
+FREQ	 11.34
+DAMP	 0.011531
+LABEL	 'Blade  1 mode  1 : 66.10 %, Blade  3 mode  1 : 18.49 %, Blade  2 mode  1 : 14.15 %, Tower mode 1 : 0.26 %, Tower mode 4 : 0.19 %,'
+OMEGA	 0
+FREQ	 12.625
+DAMP	 0.0085396
+LABEL	 'Tower mode 4 : 37.56 %, Blade  1 mode  2 : 33.73 %, Blade  3 mode  2 : 13.10 %, Blade  2 mode  2 : 12.73 %, Blade  2 mode  1 : 1.45 %, Blade  3 mode  1 : 0.56 %,'
+OMEGA	 0
+FREQ	 15.519
+DAMP	 0.011816
+LABEL	 'Blade  2 mode  2 : 49.98 %, Blade  3 mode  2 : 49.83 %,'
+OMEGA	 0
+FREQ	 16.536
+DAMP	 0.012189
+LABEL	 'Blade  1 mode  2 : 35.65 %, Blade  2 mode  2 : 31.42 %, Blade  3 mode  2 : 31.00 %, Tower mode 2 : 0.80 %, Tower mode 4 : 0.71 %,'
+OMEGA	 0
+FREQ	 19.451
+DAMP	 0.24995
+LABEL	 'Drive train damper mode 1 : 100.00 %,'
+OMEGA	 0
+FREQ	 30.382
+DAMP	 0.0080527
+LABEL	 'Tower mode 3 : 54.99 %, Tower mode 5 : 42.62 %, LSS rotation : 2.80 %,'
+OMEGA	 0
+FREQ	 32.993
+DAMP	 0.010169
+LABEL	 'Tower mode 6 : 43.14 %, Tower mode 4 : 29.95 %, Blade  1 mode  2 : 20.28 %, Blade  3 mode  2 : 3.07 %, Blade  2 mode  2 : 2.96 %,'
+OMEGA	 0
+FREQ	 46.403
+DAMP	 0.027754
+LABEL	 'Blade  2 mode  1 : 18.11 %, Blade  3 mode  1 : 18.11 %, Blade  1 mode  1 : 18.02 %, Blade  2 mode  3 : 13.58 %, Blade  3 mode  3 : 13.57 %, Blade  1 mode  3 : 13.45 %, LSS rotation : 4.32 %,'
+OMEGA	 0
+FREQ	 68.052
+DAMP	 0.010315
+LABEL	 'Blade  2 mode  3 : 48.74 %, Blade  3 mode  3 : 43.46 %, Tower mode 6 : 4.62 %, Tower mode 4 : 1.29 %, Blade  1 mode  2 : 0.40 %, Blade  1 mode  4 : 0.34 %, Blade  1 mode  3 : 0.15 %,'
+OMEGA	 0
+FREQ	 69.589
+DAMP	 0.010313
+LABEL	 'Blade  1 mode  3 : 66.18 %, Blade  3 mode  3 : 19.63 %, Blade  2 mode  3 : 13.52 %,'
+OMEGA	 0
+FREQ	 82.225
+DAMP	 0.013907
+LABEL	 'Tower mode 6 : 29.50 %, Blade  1 mode  4 : 29.05 %, Tower mode 4 : 13.25 %, Blade  3 mode  4 : 7.99 %, Blade  2 mode  4 : 7.29 %, Blade  1 mode  2 : 4.34 %, Blade  2 mode  3 : 3.59 %, Blade  3 mode  3 : 2.86 %, Blade  3 mode  2 : 1.12 %, Blade  2 mode  2 : 1.09 %,'
+OMEGA	 0
+FREQ	 97.266
+DAMP	 0.010339
+LABEL	 'Blade  2 mode  4 : 50.55 %, Blade  3 mode  4 : 49.48 %,'
+OMEGA	 0
+FREQ	 99.501
+DAMP	 0.010552
+LABEL	 'Blade  2 mode  4 : 34.35 %, Blade  3 mode  4 : 33.91 %, Blade  1 mode  4 : 31.72 %,'
+OMEGA	 0
+FREQ	 125.81
+DAMP	 0.021739
+LABEL	 'Blade  1 mode  4 : 38.46 %, Tower mode 6 : 21.96 %, Tower mode 4 : 15.54 %, Blade  3 mode  4 : 8.02 %, Blade  2 mode  4 : 7.22 %, Blade  1 mode  2 : 5.14 %, Blade  3 mode  2 : 1.22 %, Blade  2 mode  2 : 1.18 %, Blade  2 mode  3 : 0.77 %,'
+OMEGA	 0
+FREQ	 131.37
+DAMP	 0.029171
+LABEL	 'Tower mode 5 : 56.84 %, Tower mode 3 : 41.30 %, LSS rotation : 2.16 %,'
+OMEGA	 0
+FREQ	 188.66
+DAMP	 0.08526
+LABEL	 'Blade  1 mode  3 : 19.67 %, Blade  3 mode  3 : 19.65 %, Blade  2 mode  3 : 19.64 %, Blade  3 mode  1 : 12.27 %, Blade  2 mode  1 : 12.27 %, Blade  1 mode  1 : 12.25 %, LSS rotation : 3.39 %,'
+OMEGA	 0
+FREQ	 0
+DAMP	 0
+LABEL	 'Gearbox LSS rotation : 100.00 %,'
+OMEGA	 0
+FREQ	 2.1618
+DAMP	 0.006752
+LABEL	 'Tower mode 1 : 90.74 %, LSS rotation : 7.53 %, Blade  1 mode  1 : 0.77 %,'
+OMEGA	 0
+FREQ	 2.251
+DAMP	 0.0086002
+LABEL	 'Tower mode 2 : 98.85 %, Blade  1 mode  2 : 0.08 %, Tower mode 4 : 0.02 %, Blade  2 mode  2 : 0.01 %, Blade  3 mode  2 : 0.01 %, Tower mode 6 : 0.00 %, Blade  3 mode  1 : 0.00 %, Blade  2 mode  1 : 0.00 %, Blade  1 mode  4 : 0.00 %, Blade  1 mode  1 : 0.00 %, Blade  2 mode  4 : 0.00 %, Blade  3 mode  4 : 0.00 %, Tower mode 1 : 0.00 %, Blade  3 mode  3 : 0.00 %, Blade  2 mode  3 : 0.00 %, LSS rotation : 0.00 %, Blade  1 mode  3 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 5 : 0.00 %, Drive train damper mode 1 : 0.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.352
+DAMP	 0.0070429
+LABEL	 'LSS rotation : 79.77 %, Tower mode 1 : 8.98 %, Blade  3 mode  1 : 3.18 %, Blade  2 mode  1 : 3.17 %, Tower mode 3 : 2.94 %, Blade  1 mode  1 : 1.77 %,'
+OMEGA	 0
+FREQ	 10.957
+DAMP	 0.011294
+LABEL	 'Blade  2 mode  1 : 50.37 %, Blade  3 mode  1 : 46.92 %, Tower mode 4 : 1.48 %, Blade  1 mode  2 : 0.21 %, Blade  3 mode  2 : 0.17 %,'
+OMEGA	 0
+FREQ	 11.34
+DAMP	 0.011651
+LABEL	 'Blade  1 mode  1 : 66.10 %, Blade  3 mode  1 : 18.49 %, Blade  2 mode  1 : 14.15 %, Tower mode 1 : 0.26 %, Tower mode 4 : 0.19 %,'
+OMEGA	 0
+FREQ	 12.625
+DAMP	 0.0087533
+LABEL	 'Tower mode 4 : 37.56 %, Blade  1 mode  2 : 33.73 %, Blade  3 mode  2 : 13.10 %, Blade  2 mode  2 : 12.73 %, Blade  2 mode  1 : 1.45 %, Blade  3 mode  1 : 0.56 %,'
+OMEGA	 0
+FREQ	 15.519
+DAMP	 0.012002
+LABEL	 'Blade  2 mode  2 : 49.98 %, Blade  3 mode  2 : 49.83 %,'
+OMEGA	 0
+FREQ	 16.536
+DAMP	 0.012343
+LABEL	 'Blade  1 mode  2 : 35.65 %, Blade  2 mode  2 : 31.42 %, Blade  3 mode  2 : 31.00 %, Tower mode 2 : 0.80 %, Tower mode 4 : 0.71 %,'
+OMEGA	 0
+FREQ	 19.451
+DAMP	 0.24995
+LABEL	 'Drive train damper mode 1 : 100.00 %,'
+OMEGA	 0
+FREQ	 30.382
+DAMP	 0.0080629
+LABEL	 'Tower mode 3 : 54.99 %, Tower mode 5 : 42.62 %, LSS rotation : 2.80 %,'
+OMEGA	 0
+FREQ	 32.993
+DAMP	 0.010193
+LABEL	 'Tower mode 6 : 43.14 %, Tower mode 4 : 29.95 %, Blade  1 mode  2 : 20.28 %, Blade  3 mode  2 : 3.07 %, Blade  2 mode  2 : 2.96 %,'
+OMEGA	 0
+FREQ	 46.403
+DAMP	 0.027784
+LABEL	 'Blade  2 mode  1 : 18.11 %, Blade  3 mode  1 : 18.11 %, Blade  1 mode  1 : 18.02 %, Blade  2 mode  3 : 13.58 %, Blade  3 mode  3 : 13.57 %, Blade  1 mode  3 : 13.45 %, LSS rotation : 4.32 %,'
+OMEGA	 0
+FREQ	 68.053
+DAMP	 0.010335
+LABEL	 'Blade  2 mode  3 : 48.74 %, Blade  3 mode  3 : 43.46 %, Tower mode 6 : 4.62 %, Tower mode 4 : 1.29 %, Blade  1 mode  2 : 0.40 %, Blade  1 mode  4 : 0.34 %, Blade  1 mode  3 : 0.15 %,'
+OMEGA	 0
+FREQ	 69.589
+DAMP	 0.010333
+LABEL	 'Blade  1 mode  3 : 66.18 %, Blade  3 mode  3 : 19.63 %, Blade  2 mode  3 : 13.52 %,'
+OMEGA	 0
+FREQ	 82.225
+DAMP	 0.013932
+LABEL	 'Tower mode 6 : 29.50 %, Blade  1 mode  4 : 29.05 %, Tower mode 4 : 13.25 %, Blade  3 mode  4 : 7.99 %, Blade  2 mode  4 : 7.29 %, Blade  1 mode  2 : 4.34 %, Blade  2 mode  3 : 3.59 %, Blade  3 mode  3 : 2.86 %, Blade  3 mode  2 : 1.12 %, Blade  2 mode  2 : 1.09 %,'
+OMEGA	 0
+FREQ	 97.266
+DAMP	 0.010369
+LABEL	 'Blade  2 mode  4 : 50.55 %, Blade  3 mode  4 : 49.48 %,'
+OMEGA	 0
+FREQ	 99.501
+DAMP	 0.01058
+LABEL	 'Blade  2 mode  4 : 34.35 %, Blade  3 mode  4 : 33.91 %, Blade  1 mode  4 : 31.72 %,'
+OMEGA	 0
+FREQ	 125.81
+DAMP	 0.02175
+LABEL	 'Blade  1 mode  4 : 38.46 %, Tower mode 6 : 21.96 %, Tower mode 4 : 15.54 %, Blade  3 mode  4 : 8.02 %, Blade  2 mode  4 : 7.22 %, Blade  1 mode  2 : 5.14 %, Blade  3 mode  2 : 1.22 %, Blade  2 mode  2 : 1.18 %, Blade  2 mode  3 : 0.77 %,'
+OMEGA	 0
+FREQ	 131.37
+DAMP	 0.029173
+LABEL	 'Tower mode 5 : 56.84 %, Tower mode 3 : 41.30 %, LSS rotation : 2.16 %,'
+OMEGA	 0
+FREQ	 188.66
+DAMP	 0.085267
+LABEL	 'Blade  1 mode  3 : 19.67 %, Blade  3 mode  3 : 19.65 %, Blade  2 mode  3 : 19.64 %, Blade  3 mode  1 : 12.27 %, Blade  2 mode  1 : 12.27 %, Blade  1 mode  1 : 12.25 %, LSS rotation : 3.39 %,'
+OMEGA	 0
+FREQ	 0
+DAMP	 0
+LABEL	 'Gearbox LSS rotation : 100.00 %,'
+OMEGA	 0
+FREQ	 2.1618
+DAMP	 0.00695
+LABEL	 'Tower mode 1 : 90.73 %, LSS rotation : 7.53 %, Blade  1 mode  1 : 0.77 %,'
+OMEGA	 0
+FREQ	 2.251
+DAMP	 0.0089261
+LABEL	 'Tower mode 2 : 98.85 %, Blade  1 mode  2 : 0.08 %, Tower mode 4 : 0.02 %, Blade  2 mode  2 : 0.01 %, Blade  3 mode  2 : 0.01 %, Tower mode 6 : 0.00 %, Blade  3 mode  1 : 0.00 %, Blade  2 mode  1 : 0.00 %, Blade  1 mode  4 : 0.00 %, Blade  1 mode  1 : 0.00 %, Blade  2 mode  4 : 0.00 %, Blade  3 mode  4 : 0.00 %, Tower mode 1 : 0.00 %, Blade  3 mode  3 : 0.00 %, Blade  2 mode  3 : 0.00 %, LSS rotation : 0.00 %, Blade  1 mode  3 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 5 : 0.00 %, Drive train damper mode 1 : 0.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.352
+DAMP	 0.0074079
+LABEL	 'LSS rotation : 79.77 %, Tower mode 1 : 8.98 %, Blade  3 mode  1 : 3.18 %, Blade  2 mode  1 : 3.17 %, Tower mode 3 : 2.94 %, Blade  1 mode  1 : 1.77 %,'
+OMEGA	 0
+FREQ	 10.957
+DAMP	 0.011426
+LABEL	 'Blade  2 mode  1 : 50.37 %, Blade  3 mode  1 : 46.92 %, Tower mode 4 : 1.48 %, Blade  1 mode  2 : 0.21 %, Blade  3 mode  2 : 0.17 %,'
+OMEGA	 0
+FREQ	 11.34
+DAMP	 0.01177
+LABEL	 'Blade  1 mode  1 : 66.09 %, Blade  3 mode  1 : 18.49 %, Blade  2 mode  1 : 14.15 %, Tower mode 1 : 0.26 %, Tower mode 4 : 0.19 %,'
+OMEGA	 0
+FREQ	 12.625
+DAMP	 0.0089645
+LABEL	 'Tower mode 4 : 37.56 %, Blade  1 mode  2 : 33.73 %, Blade  3 mode  2 : 13.10 %, Blade  2 mode  2 : 12.73 %, Blade  2 mode  1 : 1.45 %, Blade  3 mode  1 : 0.56 %,'
+OMEGA	 0
+FREQ	 15.518
+DAMP	 0.012182
+LABEL	 'Blade  2 mode  2 : 49.98 %, Blade  3 mode  2 : 49.83 %,'
+OMEGA	 0
+FREQ	 16.536
+DAMP	 0.012494
+LABEL	 'Blade  1 mode  2 : 35.65 %, Blade  2 mode  2 : 31.42 %, Blade  3 mode  2 : 31.00 %, Tower mode 2 : 0.80 %, Tower mode 4 : 0.71 %,'
+OMEGA	 0
+FREQ	 19.451
+DAMP	 0.24995
+LABEL	 'Drive train damper mode 1 : 100.00 %,'
+OMEGA	 0
+FREQ	 30.382
+DAMP	 0.0080731
+LABEL	 'Tower mode 3 : 54.99 %, Tower mode 5 : 42.62 %, LSS rotation : 2.80 %,'
+OMEGA	 0
+FREQ	 32.993
+DAMP	 0.010217
+LABEL	 'Tower mode 6 : 43.14 %, Tower mode 4 : 29.95 %, Blade  1 mode  2 : 20.28 %, Blade  3 mode  2 : 3.07 %, Blade  2 mode  2 : 2.96 %,'
+OMEGA	 0
+FREQ	 46.403
+DAMP	 0.027816
+LABEL	 'Blade  2 mode  1 : 18.11 %, Blade  3 mode  1 : 18.11 %, Blade  1 mode  1 : 18.02 %, Blade  2 mode  3 : 13.58 %, Blade  3 mode  3 : 13.57 %, Blade  1 mode  3 : 13.45 %, LSS rotation : 4.32 %,'
+OMEGA	 0
+FREQ	 68.053
+DAMP	 0.010356
+LABEL	 'Blade  2 mode  3 : 48.74 %, Blade  3 mode  3 : 43.46 %, Tower mode 6 : 4.62 %, Tower mode 4 : 1.29 %, Blade  1 mode  2 : 0.40 %, Blade  1 mode  4 : 0.34 %, Blade  1 mode  3 : 0.15 %,'
+OMEGA	 0
+FREQ	 69.589
+DAMP	 0.010353
+LABEL	 'Blade  1 mode  3 : 66.18 %, Blade  3 mode  3 : 19.63 %, Blade  2 mode  3 : 13.52 %,'
+OMEGA	 0
+FREQ	 82.225
+DAMP	 0.013957
+LABEL	 'Tower mode 6 : 29.50 %, Blade  1 mode  4 : 29.05 %, Tower mode 4 : 13.25 %, Blade  3 mode  4 : 7.99 %, Blade  2 mode  4 : 7.29 %, Blade  1 mode  2 : 4.34 %, Blade  2 mode  3 : 3.59 %, Blade  3 mode  3 : 2.86 %, Blade  3 mode  2 : 1.12 %, Blade  2 mode  2 : 1.09 %,'
+OMEGA	 0
+FREQ	 97.266
+DAMP	 0.010397
+LABEL	 'Blade  2 mode  4 : 50.55 %, Blade  3 mode  4 : 49.48 %,'
+OMEGA	 0
+FREQ	 99.501
+DAMP	 0.010606
+LABEL	 'Blade  2 mode  4 : 34.35 %, Blade  3 mode  4 : 33.91 %, Blade  1 mode  4 : 31.72 %,'
+OMEGA	 0
+FREQ	 125.81
+DAMP	 0.02176
+LABEL	 'Blade  1 mode  4 : 38.46 %, Tower mode 6 : 21.96 %, Tower mode 4 : 15.54 %, Blade  3 mode  4 : 8.02 %, Blade  2 mode  4 : 7.22 %, Blade  1 mode  2 : 5.14 %, Blade  3 mode  2 : 1.22 %, Blade  2 mode  2 : 1.18 %, Blade  2 mode  3 : 0.77 %,'
+OMEGA	 0
+FREQ	 131.37
+DAMP	 0.029175
+LABEL	 'Tower mode 5 : 56.84 %, Tower mode 3 : 41.30 %, LSS rotation : 2.16 %,'
+OMEGA	 0
+FREQ	 188.66
+DAMP	 0.085274
+LABEL	 'Blade  1 mode  3 : 19.67 %, Blade  3 mode  3 : 19.65 %, Blade  2 mode  3 : 19.64 %, Blade  3 mode  1 : 12.27 %, Blade  2 mode  1 : 12.27 %, Blade  1 mode  1 : 12.25 %, LSS rotation : 3.39 %,'
+OMEGA	 0
+FREQ	 0
+DAMP	 0
+LABEL	 'Gearbox LSS rotation : 98.66 %, Drive train damper mode 1 : 0.00 %, Blade  1 mode  1 : 0.00 %, Blade  2 mode  1 : 0.00 %, Blade  3 mode  1 : 0.00 %, LSS rotation : 0.00 %, Tower mode 1 : 0.00 %, Tower mode 2 : 0.00 %, Blade  3 mode  2 : 0.00 %, Blade  1 mode  3 : 0.00 %, Blade  2 mode  2 : 0.00 %, Blade  2 mode  3 : 0.00 %, Blade  3 mode  3 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 4 : 0.00 %, Blade  1 mode  2 : 0.00 %, Blade  2 mode  4 : 0.00 %, Blade  3 mode  4 : 0.00 %, Blade  1 mode  4 : 0.00 %, Tower mode 5 : 0.00 %, Tower mode 6 : 0.00 %,'
+OMEGA	 0
+FREQ	 2.251
+DAMP	 0.0092577
+LABEL	 'Tower mode 2 : 98.78 %, Blade  1 mode  2 : 0.08 %, Tower mode 4 : 0.02 %, Blade  2 mode  2 : 0.01 %, Blade  3 mode  2 : 0.01 %, Tower mode 6 : 0.00 %, Blade  3 mode  1 : 0.00 %, Blade  2 mode  1 : 0.00 %, Blade  1 mode  4 : 0.00 %, Blade  1 mode  1 : 0.00 %, Blade  2 mode  4 : 0.00 %, Blade  3 mode  4 : 0.00 %, Tower mode 1 : 0.00 %, Blade  3 mode  3 : 0.00 %, Blade  2 mode  3 : 0.00 %, Blade  1 mode  3 : 0.00 %, Gearbox LSS rotation : 0.00 %, Drive train damper mode 1 : 0.00 %, LSS rotation : 0.00 %, Tower mode 5 : 0.00 %, Tower mode 3 : 0.00 %,'
+OMEGA	 0
+FREQ	 2.2895
+DAMP	 0.0062263
+LABEL	 'Tower mode 1 : 98.96 %, Blade  1 mode  1 : 0.06 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 10.957
+DAMP	 0.011557
+LABEL	 'Blade  2 mode  1 : 50.56 %, Blade  3 mode  1 : 46.99 %, Tower mode 4 : 1.59 %,'
+OMEGA	 0
+FREQ	 11.338
+DAMP	 0.011897
+LABEL	 'Blade  1 mode  1 : 65.36 %, Blade  3 mode  1 : 18.74 %, Blade  2 mode  1 : 14.36 %, Tower mode 1 : 0.96 %,'
+OMEGA	 0
+FREQ	 12.625
+DAMP	 0.0091788
+LABEL	 'Tower mode 4 : 37.41 %, Blade  1 mode  2 : 33.77 %, Blade  3 mode  2 : 13.20 %, Blade  2 mode  2 : 12.80 %, Blade  2 mode  1 : 1.35 %, Blade  3 mode  1 : 0.52 %,'
+OMEGA	 0
+FREQ	 15.515
+DAMP	 0.012515
+LABEL	 'Blade  2 mode  2 : 49.84 %, Blade  3 mode  2 : 49.49 %,'
+OMEGA	 0
+FREQ	 16.528
+DAMP	 0.10697
+LABEL	 'LSS rotation : 50.19 %, Drive train damper mode 1 : 39.87 %, Tower mode 3 : 3.30 %, Blade  1 mode  1 : 2.03 %, Blade  3 mode  1 : 1.95 %, Blade  2 mode  1 : 1.93 %,'
+OMEGA	 0
+FREQ	 16.535
+DAMP	 0.012784
+LABEL	 'Blade  1 mode  2 : 35.40 %, Blade  2 mode  2 : 31.17 %, Blade  3 mode  2 : 31.14 %, Tower mode 2 : 0.85 %, Tower mode 4 : 0.70 %,'
+OMEGA	 0
+FREQ	 21.73
+DAMP	 0.15335
+LABEL	 'Drive train damper mode 1 : 59.88 %, LSS rotation : 32.12 %, Tower mode 3 : 3.17 %, Blade  3 mode  1 : 1.49 %, Blade  2 mode  1 : 1.48 %, Blade  1 mode  1 : 1.39 %,'
+OMEGA	 0
+FREQ	 30.594
+DAMP	 0.0090953
+LABEL	 'Tower mode 3 : 51.54 %, Tower mode 5 : 41.98 %, LSS rotation : 5.78 %,'
+OMEGA	 0
+FREQ	 32.993
+DAMP	 0.010241
+LABEL	 'Tower mode 6 : 42.97 %, Tower mode 4 : 29.91 %, Blade  1 mode  2 : 20.36 %, Blade  3 mode  2 : 3.10 %, Blade  2 mode  2 : 2.99 %,'
+OMEGA	 0
+FREQ	 46.644
+DAMP	 0.027866
+LABEL	 'Blade  2 mode  1 : 17.47 %, Blade  1 mode  1 : 17.46 %, Blade  3 mode  1 : 17.46 %, Blade  2 mode  3 : 13.70 %, Blade  3 mode  3 : 13.67 %, Blade  1 mode  3 : 13.44 %, LSS rotation : 6.28 %,'
+OMEGA	 0
+FREQ	 68.053
+DAMP	 0.010377
+LABEL	 'Blade  2 mode  3 : 48.68 %, Blade  3 mode  3 : 43.35 %, Tower mode 6 : 4.91 %, Tower mode 4 : 1.37 %, Blade  1 mode  2 : 0.43 %, Blade  1 mode  4 : 0.36 %,'
+OMEGA	 0
+FREQ	 69.589
+DAMP	 0.010373
+LABEL	 'Blade  1 mode  3 : 66.25 %, Blade  3 mode  3 : 19.77 %, Blade  2 mode  3 : 13.63 %,'
+OMEGA	 0
+FREQ	 82.225
+DAMP	 0.013982
+LABEL	 'Tower mode 6 : 29.48 %, Blade  1 mode  4 : 29.17 %, Tower mode 4 : 13.27 %, Blade  3 mode  4 : 8.06 %, Blade  2 mode  4 : 7.36 %, Blade  1 mode  2 : 4.37 %, Blade  2 mode  3 : 3.37 %, Blade  3 mode  3 : 2.68 %, Blade  3 mode  2 : 1.14 %, Blade  2 mode  2 : 1.10 %,'
+OMEGA	 0
+FREQ	 97.266
+DAMP	 0.010428
+LABEL	 'Blade  2 mode  4 : 50.45 %, Blade  3 mode  4 : 49.38 %,'
+OMEGA	 0
+FREQ	 99.501
+DAMP	 0.010635
+LABEL	 'Blade  2 mode  4 : 34.37 %, Blade  3 mode  4 : 33.92 %, Blade  1 mode  4 : 31.57 %,'
+OMEGA	 0
+FREQ	 125.81
+DAMP	 0.02177
+LABEL	 'Blade  1 mode  4 : 38.46 %, Tower mode 6 : 21.86 %, Tower mode 4 : 15.51 %, Blade  3 mode  4 : 8.06 %, Blade  2 mode  4 : 7.26 %, Blade  1 mode  2 : 5.16 %, Blade  3 mode  2 : 1.23 %, Blade  2 mode  2 : 1.19 %, Blade  2 mode  3 : 0.72 %,'
+OMEGA	 0
+FREQ	 131.37
+DAMP	 0.029202
+LABEL	 'Tower mode 5 : 56.90 %, Tower mode 3 : 41.36 %, LSS rotation : 1.85 %,'
+OMEGA	 0
+FREQ	 188.69
+DAMP	 0.085352
+LABEL	 'Blade  2 mode  3 : 19.74 %, Blade  3 mode  3 : 19.74 %, Blade  1 mode  3 : 19.63 %, Blade  1 mode  1 : 12.32 %, Blade  3 mode  1 : 12.28 %, Blade  2 mode  1 : 12.27 %, LSS rotation : 3.51 %,'
+OMEGA	 0
+FREQ	 0
+DAMP	 0
+LABEL	 'Gearbox LSS rotation : 100.00 %,'
+OMEGA	 0
+FREQ	 2.1618
+DAMP	 0.0073452
+LABEL	 'Tower mode 1 : 90.73 %, LSS rotation : 7.53 %, Blade  1 mode  1 : 0.77 %,'
+OMEGA	 0
+FREQ	 2.251
+DAMP	 0.0095875
+LABEL	 'Tower mode 2 : 98.85 %, Blade  1 mode  2 : 0.08 %, Tower mode 4 : 0.02 %, Blade  2 mode  2 : 0.01 %, Blade  3 mode  2 : 0.01 %, Tower mode 6 : 0.00 %, Blade  3 mode  1 : 0.00 %, Blade  2 mode  1 : 0.00 %, Blade  1 mode  4 : 0.00 %, Blade  1 mode  1 : 0.00 %, Blade  2 mode  4 : 0.00 %, Blade  3 mode  4 : 0.00 %, Tower mode 1 : 0.00 %, Blade  3 mode  3 : 0.00 %, Blade  2 mode  3 : 0.00 %, LSS rotation : 0.00 %, Blade  1 mode  3 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 5 : 0.00 %, Drive train damper mode 1 : 0.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.352
+DAMP	 0.0081385
+LABEL	 'LSS rotation : 79.77 %, Tower mode 1 : 8.98 %, Blade  3 mode  1 : 3.18 %, Blade  2 mode  1 : 3.17 %, Tower mode 3 : 2.95 %, Blade  1 mode  1 : 1.77 %,'
+OMEGA	 0
+FREQ	 10.957
+DAMP	 0.011689
+LABEL	 'Blade  2 mode  1 : 50.37 %, Blade  3 mode  1 : 46.92 %, Tower mode 4 : 1.48 %, Blade  1 mode  2 : 0.21 %, Blade  3 mode  2 : 0.17 %,'
+OMEGA	 0
+FREQ	 11.34
+DAMP	 0.012009
+LABEL	 'Blade  1 mode  1 : 66.09 %, Blade  3 mode  1 : 18.49 %, Blade  2 mode  1 : 14.15 %, Tower mode 1 : 0.26 %, Tower mode 4 : 0.19 %,'
+OMEGA	 0
+FREQ	 12.625
+DAMP	 0.0093919
+LABEL	 'Tower mode 4 : 37.56 %, Blade  1 mode  2 : 33.73 %, Blade  3 mode  2 : 13.10 %, Blade  2 mode  2 : 12.73 %, Blade  2 mode  1 : 1.45 %, Blade  3 mode  1 : 0.56 %,'
+OMEGA	 0
+FREQ	 15.518
+DAMP	 0.012556
+LABEL	 'Blade  2 mode  2 : 49.98 %, Blade  3 mode  2 : 49.83 %,'
+OMEGA	 0
+FREQ	 16.536
+DAMP	 0.012802
+LABEL	 'Blade  1 mode  2 : 35.65 %, Blade  2 mode  2 : 31.42 %, Blade  3 mode  2 : 31.00 %, Tower mode 2 : 0.80 %, Tower mode 4 : 0.71 %,'
+OMEGA	 0
+FREQ	 19.451
+DAMP	 0.24995
+LABEL	 'Drive train damper mode 1 : 100.00 %,'
+OMEGA	 0
+FREQ	 30.382
+DAMP	 0.0080935
+LABEL	 'Tower mode 3 : 54.99 %, Tower mode 5 : 42.62 %, LSS rotation : 2.80 %,'
+OMEGA	 0
+FREQ	 32.993
+DAMP	 0.010265
+LABEL	 'Tower mode 6 : 43.14 %, Tower mode 4 : 29.95 %, Blade  1 mode  2 : 20.28 %, Blade  3 mode  2 : 3.07 %, Blade  2 mode  2 : 2.96 %,'
+OMEGA	 0
+FREQ	 46.403
+DAMP	 0.027877
+LABEL	 'Blade  2 mode  1 : 18.11 %, Blade  3 mode  1 : 18.10 %, Blade  1 mode  1 : 18.02 %, Blade  2 mode  3 : 13.59 %, Blade  3 mode  3 : 13.57 %, Blade  1 mode  3 : 13.45 %, LSS rotation : 4.32 %,'
+OMEGA	 0
+FREQ	 68.053
+DAMP	 0.010398
+LABEL	 'Blade  2 mode  3 : 48.74 %, Blade  3 mode  3 : 43.46 %, Tower mode 6 : 4.62 %, Tower mode 4 : 1.29 %, Blade  1 mode  2 : 0.40 %, Blade  1 mode  4 : 0.34 %, Blade  1 mode  3 : 0.15 %, Blade  3 mode  4 : 0.15 %,'
+OMEGA	 0
+FREQ	 69.589
+DAMP	 0.010394
+LABEL	 'Blade  1 mode  3 : 66.17 %, Blade  3 mode  3 : 19.63 %, Blade  2 mode  3 : 13.52 %,'
+OMEGA	 0
+FREQ	 82.225
+DAMP	 0.014008
+LABEL	 'Tower mode 6 : 29.50 %, Blade  1 mode  4 : 29.05 %, Tower mode 4 : 13.25 %, Blade  3 mode  4 : 7.99 %, Blade  2 mode  4 : 7.29 %, Blade  1 mode  2 : 4.34 %, Blade  2 mode  3 : 3.59 %, Blade  3 mode  3 : 2.85 %, Blade  3 mode  2 : 1.12 %, Blade  2 mode  2 : 1.09 %,'
+OMEGA	 0
+FREQ	 97.266
+DAMP	 0.010458
+LABEL	 'Blade  2 mode  4 : 50.55 %, Blade  3 mode  4 : 49.48 %,'
+OMEGA	 0
+FREQ	 99.501
+DAMP	 0.010663
+LABEL	 'Blade  2 mode  4 : 34.35 %, Blade  3 mode  4 : 33.91 %, Blade  1 mode  4 : 31.72 %,'
+OMEGA	 0
+FREQ	 125.82
+DAMP	 0.021781
+LABEL	 'Blade  1 mode  4 : 38.46 %, Tower mode 6 : 21.96 %, Tower mode 4 : 15.54 %, Blade  3 mode  4 : 8.02 %, Blade  2 mode  4 : 7.22 %, Blade  1 mode  2 : 5.14 %, Blade  3 mode  2 : 1.22 %, Blade  2 mode  2 : 1.18 %, Blade  2 mode  3 : 0.77 %,'
+OMEGA	 0
+FREQ	 131.36
+DAMP	 0.02918
+LABEL	 'Tower mode 5 : 56.84 %, Tower mode 3 : 41.30 %, LSS rotation : 2.15 %,'
+OMEGA	 0
+FREQ	 188.66
+DAMP	 0.085288
+LABEL	 'Blade  1 mode  3 : 19.67 %, Blade  3 mode  3 : 19.65 %, Blade  2 mode  3 : 19.64 %, Blade  3 mode  1 : 12.27 %, Blade  2 mode  1 : 12.27 %, Blade  1 mode  1 : 12.25 %, LSS rotation : 3.39 %,'
+OMEGA	 0
+FREQ	 0
+DAMP	 0
+LABEL	 'Gearbox LSS rotation : 100.00 %,'
+OMEGA	 0
+FREQ	 2.1618
+DAMP	 0.007544
+LABEL	 'Tower mode 1 : 90.73 %, LSS rotation : 7.53 %, Blade  1 mode  1 : 0.77 %,'
+OMEGA	 0
+FREQ	 2.251
+DAMP	 0.0099146
+LABEL	 'Tower mode 2 : 98.85 %, Blade  1 mode  2 : 0.08 %, Tower mode 4 : 0.02 %, Blade  2 mode  2 : 0.01 %, Blade  3 mode  2 : 0.01 %, Tower mode 6 : 0.00 %, Blade  3 mode  1 : 0.00 %, Blade  2 mode  1 : 0.00 %, Blade  1 mode  4 : 0.00 %, Blade  1 mode  1 : 0.00 %, Blade  2 mode  4 : 0.00 %, Blade  3 mode  4 : 0.00 %, Tower mode 1 : 0.00 %, Blade  3 mode  3 : 0.00 %, Blade  2 mode  3 : 0.00 %, LSS rotation : 0.00 %, Blade  1 mode  3 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 5 : 0.00 %, Drive train damper mode 1 : 0.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.352
+DAMP	 0.0085032
+LABEL	 'LSS rotation : 79.77 %, Tower mode 1 : 8.98 %, Blade  3 mode  1 : 3.18 %, Blade  2 mode  1 : 3.17 %, Tower mode 3 : 2.95 %, Blade  1 mode  1 : 1.77 %,'
+OMEGA	 0
+FREQ	 10.957
+DAMP	 0.01182
+LABEL	 'Blade  2 mode  1 : 50.37 %, Blade  3 mode  1 : 46.92 %, Tower mode 4 : 1.48 %, Blade  1 mode  2 : 0.21 %, Blade  3 mode  2 : 0.17 %,'
+OMEGA	 0
+FREQ	 11.34
+DAMP	 0.012128
+LABEL	 'Blade  1 mode  1 : 66.09 %, Blade  3 mode  1 : 18.49 %, Blade  2 mode  1 : 14.15 %, Tower mode 1 : 0.26 %, Tower mode 4 : 0.19 %,'
+OMEGA	 0
+FREQ	 12.625
+DAMP	 0.0096049
+LABEL	 'Tower mode 4 : 37.56 %, Blade  1 mode  2 : 33.73 %, Blade  3 mode  2 : 13.10 %, Blade  2 mode  2 : 12.73 %, Blade  2 mode  1 : 1.45 %, Blade  3 mode  1 : 0.56 %,'
+OMEGA	 0
+FREQ	 15.518
+DAMP	 0.012741
+LABEL	 'Blade  2 mode  2 : 49.98 %, Blade  3 mode  2 : 49.83 %,'
+OMEGA	 0
+FREQ	 16.536
+DAMP	 0.012956
+LABEL	 'Blade  1 mode  2 : 35.65 %, Blade  2 mode  2 : 31.42 %, Blade  3 mode  2 : 31.00 %, Tower mode 2 : 0.80 %, Tower mode 4 : 0.71 %,'
+OMEGA	 0
+FREQ	 19.451
+DAMP	 0.24995
+LABEL	 'Drive train damper mode 1 : 100.00 %,'
+OMEGA	 0
+FREQ	 30.382
+DAMP	 0.0081037
+LABEL	 'Tower mode 3 : 54.99 %, Tower mode 5 : 42.62 %, LSS rotation : 2.80 %,'
+OMEGA	 0
+FREQ	 32.993
+DAMP	 0.010289
+LABEL	 'Tower mode 6 : 43.14 %, Tower mode 4 : 29.95 %, Blade  1 mode  2 : 20.28 %, Blade  3 mode  2 : 3.07 %, Blade  2 mode  2 : 2.96 %,'
+OMEGA	 0
+FREQ	 46.403
+DAMP	 0.027909
+LABEL	 'Blade  2 mode  1 : 18.11 %, Blade  3 mode  1 : 18.10 %, Blade  1 mode  1 : 18.02 %, Blade  2 mode  3 : 13.59 %, Blade  3 mode  3 : 13.57 %, Blade  1 mode  3 : 13.46 %, LSS rotation : 4.32 %,'
+OMEGA	 0
+FREQ	 68.053
+DAMP	 0.010419
+LABEL	 'Blade  2 mode  3 : 48.74 %, Blade  3 mode  3 : 43.46 %, Tower mode 6 : 4.62 %, Tower mode 4 : 1.29 %, Blade  1 mode  2 : 0.40 %, Blade  1 mode  4 : 0.34 %, Blade  1 mode  3 : 0.15 %, Blade  3 mode  4 : 0.15 %,'
+OMEGA	 0
+FREQ	 69.589
+DAMP	 0.010414
+LABEL	 'Blade  1 mode  3 : 66.17 %, Blade  3 mode  3 : 19.63 %, Blade  2 mode  3 : 13.52 %,'
+OMEGA	 0
+FREQ	 82.225
+DAMP	 0.014033
+LABEL	 'Tower mode 6 : 29.50 %, Blade  1 mode  4 : 29.05 %, Tower mode 4 : 13.25 %, Blade  3 mode  4 : 7.99 %, Blade  2 mode  4 : 7.29 %, Blade  1 mode  2 : 4.34 %, Blade  2 mode  3 : 3.59 %, Blade  3 mode  3 : 2.85 %, Blade  3 mode  2 : 1.12 %, Blade  2 mode  2 : 1.09 %,'
+OMEGA	 0
+FREQ	 97.266
+DAMP	 0.010487
+LABEL	 'Blade  2 mode  4 : 50.55 %, Blade  3 mode  4 : 49.48 %,'
+OMEGA	 0
+FREQ	 99.501
+DAMP	 0.01069
+LABEL	 'Blade  2 mode  4 : 34.35 %, Blade  3 mode  4 : 33.91 %, Blade  1 mode  4 : 31.72 %,'
+OMEGA	 0
+FREQ	 125.82
+DAMP	 0.021791
+LABEL	 'Blade  1 mode  4 : 38.46 %, Tower mode 6 : 21.96 %, Tower mode 4 : 15.54 %, Blade  3 mode  4 : 8.02 %, Blade  2 mode  4 : 7.22 %, Blade  1 mode  2 : 5.14 %, Blade  3 mode  2 : 1.22 %, Blade  2 mode  2 : 1.18 %, Blade  2 mode  3 : 0.77 %,'
+OMEGA	 0
+FREQ	 131.36
+DAMP	 0.029182
+LABEL	 'Tower mode 5 : 56.84 %, Tower mode 3 : 41.30 %, LSS rotation : 2.15 %,'
+OMEGA	 0
+FREQ	 188.66
+DAMP	 0.085296
+LABEL	 'Blade  1 mode  3 : 19.67 %, Blade  3 mode  3 : 19.65 %, Blade  2 mode  3 : 19.64 %, Blade  3 mode  1 : 12.27 %, Blade  2 mode  1 : 12.26 %, Blade  1 mode  1 : 12.25 %, LSS rotation : 3.39 %,'
+OMEGA	 0
+FREQ	 0
+DAMP	 0
+LABEL	 'Gearbox LSS rotation : 100.00 %,'
+OMEGA	 0
+FREQ	 2.1618
+DAMP	 0.0077382
+LABEL	 'Tower mode 1 : 90.73 %, LSS rotation : 7.52 %, Blade  1 mode  1 : 0.77 %,'
+OMEGA	 0
+FREQ	 2.251
+DAMP	 0.010244
+LABEL	 'Tower mode 2 : 98.85 %, Blade  1 mode  2 : 0.08 %, Tower mode 4 : 0.02 %, Blade  2 mode  2 : 0.01 %, Blade  3 mode  2 : 0.01 %, Tower mode 6 : 0.00 %, Blade  3 mode  1 : 0.00 %, Blade  2 mode  1 : 0.00 %, Blade  1 mode  4 : 0.00 %, Blade  1 mode  1 : 0.00 %, Blade  2 mode  4 : 0.00 %, Blade  3 mode  4 : 0.00 %, Tower mode 1 : 0.00 %, Blade  3 mode  3 : 0.00 %, Blade  2 mode  3 : 0.00 %, LSS rotation : 0.00 %, Blade  1 mode  3 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 5 : 0.00 %, Drive train damper mode 1 : 0.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.352
+DAMP	 0.0088727
+LABEL	 'LSS rotation : 79.77 %, Tower mode 1 : 8.98 %, Blade  3 mode  1 : 3.17 %, Blade  2 mode  1 : 3.17 %, Tower mode 3 : 2.95 %, Blade  1 mode  1 : 1.77 %,'
+OMEGA	 0
+FREQ	 10.957
+DAMP	 0.011952
+LABEL	 'Blade  2 mode  1 : 50.37 %, Blade  3 mode  1 : 46.92 %, Tower mode 4 : 1.48 %, Blade  1 mode  2 : 0.21 %, Blade  3 mode  2 : 0.17 %,'
+OMEGA	 0
+FREQ	 11.34
+DAMP	 0.012247
+LABEL	 'Blade  1 mode  1 : 66.09 %, Blade  3 mode  1 : 18.49 %, Blade  2 mode  1 : 14.15 %, Tower mode 1 : 0.26 %, Tower mode 4 : 0.19 %,'
+OMEGA	 0
+FREQ	 12.625
+DAMP	 0.0098161
+LABEL	 'Tower mode 4 : 37.56 %, Blade  1 mode  2 : 33.74 %, Blade  3 mode  2 : 13.10 %, Blade  2 mode  2 : 12.73 %, Blade  2 mode  1 : 1.45 %, Blade  3 mode  1 : 0.56 %,'
+OMEGA	 0
+FREQ	 15.518
+DAMP	 0.01292
+LABEL	 'Blade  2 mode  2 : 49.98 %, Blade  3 mode  2 : 49.82 %,'
+OMEGA	 0
+FREQ	 16.536
+DAMP	 0.013105
+LABEL	 'Blade  1 mode  2 : 35.65 %, Blade  2 mode  2 : 31.42 %, Blade  3 mode  2 : 31.00 %, Tower mode 2 : 0.80 %, Tower mode 4 : 0.71 %,'
+OMEGA	 0
+FREQ	 19.451
+DAMP	 0.24995
+LABEL	 'Drive train damper mode 1 : 100.00 %,'
+OMEGA	 0
+FREQ	 30.382
+DAMP	 0.0081139
+LABEL	 'Tower mode 3 : 54.99 %, Tower mode 5 : 42.62 %, LSS rotation : 2.80 %,'
+OMEGA	 0
+FREQ	 32.993
+DAMP	 0.010313
+LABEL	 'Tower mode 6 : 43.14 %, Tower mode 4 : 29.95 %, Blade  1 mode  2 : 20.28 %, Blade  3 mode  2 : 3.07 %, Blade  2 mode  2 : 2.96 %,'
+OMEGA	 0
+FREQ	 46.403
+DAMP	 0.027939
+LABEL	 'Blade  2 mode  1 : 18.10 %, Blade  3 mode  1 : 18.10 %, Blade  1 mode  1 : 18.01 %, Blade  2 mode  3 : 13.59 %, Blade  3 mode  3 : 13.57 %, Blade  1 mode  3 : 13.46 %, LSS rotation : 4.32 %,'
+OMEGA	 0
+FREQ	 68.053
+DAMP	 0.010439
+LABEL	 'Blade  2 mode  3 : 48.74 %, Blade  3 mode  3 : 43.46 %, Tower mode 6 : 4.62 %, Tower mode 4 : 1.29 %, Blade  1 mode  2 : 0.40 %, Blade  1 mode  4 : 0.34 %, Blade  1 mode  3 : 0.15 %, Blade  3 mode  4 : 0.15 %,'
+OMEGA	 0
+FREQ	 69.589
+DAMP	 0.010434
+LABEL	 'Blade  1 mode  3 : 66.17 %, Blade  3 mode  3 : 19.63 %, Blade  2 mode  3 : 13.52 %,'
+OMEGA	 0
+FREQ	 82.225
+DAMP	 0.014057
+LABEL	 'Tower mode 6 : 29.50 %, Blade  1 mode  4 : 29.05 %, Tower mode 4 : 13.25 %, Blade  3 mode  4 : 7.99 %, Blade  2 mode  4 : 7.29 %, Blade  1 mode  2 : 4.34 %, Blade  2 mode  3 : 3.59 %, Blade  3 mode  3 : 2.85 %, Blade  3 mode  2 : 1.12 %, Blade  2 mode  2 : 1.09 %,'
+OMEGA	 0
+FREQ	 97.266
+DAMP	 0.010516
+LABEL	 'Blade  2 mode  4 : 50.55 %, Blade  3 mode  4 : 49.48 %,'
+OMEGA	 0
+FREQ	 99.501
+DAMP	 0.010717
+LABEL	 'Blade  2 mode  4 : 34.35 %, Blade  3 mode  4 : 33.91 %, Blade  1 mode  4 : 31.72 %,'
+OMEGA	 0
+FREQ	 125.82
+DAMP	 0.021802
+LABEL	 'Blade  1 mode  4 : 38.46 %, Tower mode 6 : 21.96 %, Tower mode 4 : 15.54 %, Blade  3 mode  4 : 8.02 %, Blade  2 mode  4 : 7.22 %, Blade  1 mode  2 : 5.14 %, Blade  3 mode  2 : 1.22 %, Blade  2 mode  2 : 1.18 %, Blade  2 mode  3 : 0.76 %,'
+OMEGA	 0
+FREQ	 131.36
+DAMP	 0.029185
+LABEL	 'Tower mode 5 : 56.84 %, Tower mode 3 : 41.30 %, LSS rotation : 2.15 %,'
+OMEGA	 0
+FREQ	 188.66
+DAMP	 0.085302
+LABEL	 'Blade  1 mode  3 : 19.67 %, Blade  3 mode  3 : 19.65 %, Blade  2 mode  3 : 19.64 %, Blade  3 mode  1 : 12.27 %, Blade  2 mode  1 : 12.26 %, Blade  1 mode  1 : 12.25 %, LSS rotation : 3.39 %,'
+OMEGA	 0
+FREQ	 0
+DAMP	 0
+LABEL	 'Gearbox LSS rotation : 100.00 %,'
+OMEGA	 0
+FREQ	 2.1618
+DAMP	 0.0079385
+LABEL	 'Tower mode 1 : 90.73 %, LSS rotation : 7.52 %, Blade  1 mode  1 : 0.77 %,'
+OMEGA	 0
+FREQ	 2.251
+DAMP	 0.010579
+LABEL	 'Tower mode 2 : 98.85 %, Blade  1 mode  2 : 0.08 %, Tower mode 4 : 0.02 %, Blade  2 mode  2 : 0.01 %, Blade  3 mode  2 : 0.01 %, Tower mode 6 : 0.00 %, Blade  3 mode  1 : 0.00 %, Blade  2 mode  1 : 0.00 %, Blade  1 mode  4 : 0.00 %, Blade  1 mode  1 : 0.00 %, Blade  2 mode  4 : 0.00 %, Blade  3 mode  4 : 0.00 %, Tower mode 1 : 0.00 %, Blade  3 mode  3 : 0.00 %, Blade  2 mode  3 : 0.00 %, LSS rotation : 0.00 %, Blade  1 mode  3 : 0.00 %, Tower mode 3 : 0.00 %, Tower mode 5 : 0.00 %, Drive train damper mode 1 : 0.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 1 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 2 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.3333
+DAMP	 1
+LABEL	 'Blade 3 actuator position : 100.00 %,'
+OMEGA	 0
+FREQ	 3.352
+DAMP	 0.0092358
+LABEL	 'LSS rotation : 79.77 %, Tower mode 1 : 8.98 %, Blade  3 mode  1 : 3.17 %, Blade  2 mode  1 : 3.17 %, Tower mode 3 : 2.95 %, Blade  1 mode  1 : 1.77 %,'
+OMEGA	 0
+FREQ	 10.957
+DAMP	 0.012083
+LABEL	 'Blade  2 mode  1 : 50.37 %, Blade  3 mode  1 : 46.92 %, Tower mode 4 : 1.48 %, Blade  1 mode  2 : 0.21 %, Blade  3 mode  2 : 0.17 %,'
+OMEGA	 0
+FREQ	 11.34
+DAMP	 0.012366
+LABEL	 'Blade  1 mode  1 : 66.09 %, Blade  3 mode  1 : 18.49 %, Blade  2 mode  1 : 14.15 %, Tower mode 1 : 0.26 %, Tower mode 4 : 0.19 %,'
+OMEGA	 0
+FREQ	 12.625
+DAMP	 0.010033
+LABEL	 'Tower mode 4 : 37.56 %, Blade  1 mode  2 : 33.74 %, Blade  3 mode  2 : 13.10 %, Blade  2 mode  2 : 12.74 %, Blade  2 mode  1 : 1.44 %, Blade  3 mode  1 : 0.56 %,'
+OMEGA	 0
+FREQ	 15.518
+DAMP	 0.013114
+LABEL	 'Blade  2 mode  2 : 49.98 %, Blade  3 mode  2 : 49.82 %,'
+OMEGA	 0
+FREQ	 16.536
+DAMP	 0.013262
+LABEL	 'Blade  1 mode  2 : 35.65 %, Blade  2 mode  2 : 31.42 %, Blade  3 mode  2 : 31.00 %, Tower mode 2 : 0.80 %, Tower mode 4 : 0.71 %,'
+OMEGA	 0
+FREQ	 19.451
+DAMP	 0.24995
+LABEL	 'Drive train damper mode 1 : 100.00 %,'
+OMEGA	 0
+FREQ	 30.382
+DAMP	 0.0081241
+LABEL	 'Tower mode 3 : 54.99 %, Tower mode 5 : 42.62 %, LSS rotation : 2.80 %,'
+OMEGA	 0
+FREQ	 32.993
+DAMP	 0.010337
+LABEL	 'Tower mode 6 : 43.14 %, Tower mode 4 : 29.95 %, Blade  1 mode  2 : 20.28 %, Blade  3 mode  2 : 3.07 %, Blade  2 mode  2 : 2.96 %,'
+OMEGA	 0
+FREQ	 46.403
+DAMP	 0.02797
+LABEL	 'Blade  2 mode  1 : 18.10 %, Blade  3 mode  1 : 18.10 %, Blade  1 mode  1 : 18.01 %, Blade  2 mode  3 : 13.59 %, Blade  3 mode  3 : 13.57 %, Blade  1 mode  3 : 13.46 %, LSS rotation : 4.32 %,'
+OMEGA	 0
+FREQ	 68.053
+DAMP	 0.01046
+LABEL	 'Blade  2 mode  3 : 48.74 %, Blade  3 mode  3 : 43.46 %, Tower mode 6 : 4.62 %, Tower mode 4 : 1.29 %, Blade  1 mode  2 : 0.40 %, Blade  1 mode  4 : 0.34 %, Blade  1 mode  3 : 0.15 %, Blade  3 mode  4 : 0.15 %,'
+OMEGA	 0
+FREQ	 69.589
+DAMP	 0.010454
+LABEL	 'Blade  1 mode  3 : 66.17 %, Blade  3 mode  3 : 19.63 %, Blade  2 mode  3 : 13.52 %,'
+OMEGA	 0
+FREQ	 82.226
+DAMP	 0.014084
+LABEL	 'Tower mode 6 : 29.50 %, Blade  1 mode  4 : 29.05 %, Tower mode 4 : 13.25 %, Blade  3 mode  4 : 7.99 %, Blade  2 mode  4 : 7.29 %, Blade  1 mode  2 : 4.34 %, Blade  2 mode  3 : 3.59 %, Blade  3 mode  3 : 2.85 %, Blade  3 mode  2 : 1.12 %, Blade  2 mode  2 : 1.09 %,'
+OMEGA	 0
+FREQ	 97.266
+DAMP	 0.010546
+LABEL	 'Blade  2 mode  4 : 50.55 %, Blade  3 mode  4 : 49.48 %,'
+OMEGA	 0
+FREQ	 99.501
+DAMP	 0.010745
+LABEL	 'Blade  2 mode  4 : 34.35 %, Blade  3 mode  4 : 33.91 %, Blade  1 mode  4 : 31.72 %,'
+OMEGA	 0
+FREQ	 125.82
+DAMP	 0.021811
+LABEL	 'Blade  1 mode  4 : 38.46 %, Tower mode 6 : 21.96 %, Tower mode 4 : 15.54 %, Blade  3 mode  4 : 8.02 %, Blade  2 mode  4 : 7.22 %, Blade  1 mode  2 : 5.14 %, Blade  3 mode  2 : 1.22 %, Blade  2 mode  2 : 1.18 %, Blade  2 mode  3 : 0.76 %,'
+OMEGA	 0
+FREQ	 131.36
+DAMP	 0.029187
+LABEL	 'Tower mode 5 : 56.83 %, Tower mode 3 : 41.30 %, LSS rotation : 2.15 %,'
+OMEGA	 0
+FREQ	 188.66
+DAMP	 0.085309
+LABEL	 'Blade  1 mode  3 : 19.67 %, Blade  3 mode  3 : 19.66 %, Blade  2 mode  3 : 19.64 %, Blade  3 mode  1 : 12.27 %, Blade  2 mode  1 : 12.26 %, Blade  1 mode  1 : 12.24 %, LSS rotation : 3.39 %,'
+NUMLINES	 24          
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 0,0,0,0,0,0,0,0
+DEFLEGEND	 'Rotor rotation'
+USERLEGEND	 'Rotor rotation'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 2.1618,2.1618,2.1618,2.2895,2.1618,2.1618,2.1618,2.1618
+DEFLEGEND	 'Tower mode 1'
+USERLEGEND	 'Tower mode 1'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 2.251,2.251,2.251,2.251,2.251,2.251,2.251,2.251
+DEFLEGEND	 'Tower mode 2'
+USERLEGEND	 'Tower mode 2'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 3.3333,3.3333,3.3333,3.3333,3.3333,3.3333,3.3333,3.3333
+DEFLEGEND	 'Blade 1 actuator position'
+USERLEGEND	 'Blade 1 actuator position'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 3.3333,3.3333,3.3333,3.3333,3.3333,3.3333,3.3333,3.3333
+DEFLEGEND	 'Blade 2 actuator position'
+USERLEGEND	 'Blade 2 actuator position'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 3.3333,3.3333,3.3333,3.3333,3.3333,3.3333,3.3333,3.3333
+DEFLEGEND	 'Blade 3 actuator position'
+USERLEGEND	 'Blade 3 actuator position'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 3.352,3.352,3.352,12.625,3.352,3.352,3.352,3.352
+DEFLEGEND	 'Drive train'
+USERLEGEND	 'Drive train'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 10.957,10.957,10.957,10.957,10.957,10.957,10.957,10.957
+DEFLEGEND	 'Blade mode  1A'
+USERLEGEND	 'Blade mode  1A'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 11.34,11.34,11.34,11.338,11.34,11.34,11.34,11.34
+DEFLEGEND	 'Blade mode  1B'
+USERLEGEND	 'Blade mode  1B'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 12.625,12.625,12.625,15.515,12.625,12.625,12.625,12.625
+DEFLEGEND	 'Tower mode 4'
+USERLEGEND	 'Tower mode 4'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 15.519,15.519,15.518,16.528,15.518,15.518,15.518,15.518
+DEFLEGEND	 'Blade mode  2A'
+USERLEGEND	 'Blade mode  2A'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 16.536,16.536,16.536,16.535,16.536,16.536,16.536,16.536
+DEFLEGEND	 'Blade mode  2B'
+USERLEGEND	 'Blade mode  2B'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 19.451,19.451,19.451,21.73,19.451,19.451,19.451,19.451
+DEFLEGEND	 'Drive train damper mode 1'
+USERLEGEND	 'Drive train damper mode 1'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 30.382,30.382,30.382,30.594,30.382,30.382,30.382,30.382
+DEFLEGEND	 'Tower mode 3'
+USERLEGEND	 'Tower mode 3'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 32.993,32.993,32.993,32.993,32.993,32.993,32.993,32.993
+DEFLEGEND	 'Tower mode 6'
+USERLEGEND	 'Tower mode 6'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 46.403,46.403,46.403,46.644,46.403,46.403,46.403,46.403
+DEFLEGEND	 'Blade mode  1C'
+USERLEGEND	 'Blade mode  1C'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 68.052,68.053,68.053,68.053,68.053,68.053,68.053,68.053
+DEFLEGEND	 'Blade mode  3A'
+USERLEGEND	 'Blade mode  3A'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 69.589,69.589,69.589,69.589,69.589,69.589,69.589,69.589
+DEFLEGEND	 'Blade mode  3B'
+USERLEGEND	 'Blade mode  3B'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 82.225,82.225,82.225,82.225,82.225,82.225,82.225,82.226
+DEFLEGEND	 'Blade mode  2C'
+USERLEGEND	 'Blade mode  2C'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 97.266,97.266,97.266,97.266,97.266,97.266,97.266,97.266
+DEFLEGEND	 'Blade mode  4A'
+USERLEGEND	 'Blade mode  4A'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 99.501,99.501,99.501,99.501,99.501,99.501,99.501,99.501
+DEFLEGEND	 'Blade mode  4B'
+USERLEGEND	 'Blade mode  4B'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 125.81,125.81,125.81,125.81,125.82,125.82,125.82,125.82
+DEFLEGEND	 'Blade mode  4C'
+USERLEGEND	 'Blade mode  4C'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 131.37,131.37,131.37,131.37,131.36,131.36,131.36,131.36
+DEFLEGEND	 'Tower mode 5'
+USERLEGEND	 'Tower mode 5'
+NPTS	 8           
+XVALS	 0,0,0,0,0,0,0,0
+YVALS	 188.66,188.66,188.66,188.69,188.66,188.66,188.66,188.66
+DEFLEGEND	 'Blade mode  3C'
+USERLEGEND	 'Blade mode  3C'

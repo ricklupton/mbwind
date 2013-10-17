@@ -1,0 +1,224 @@
+'Operating point: Rotor speed 0 rpm, Wind speed 5 m\s' 
+'Mode' 'Frequency' 'Damp factor' 'Tower mode 1' 'Tower mode 2' 'Tower mode 3' 'Tower mode 4' 'Tower mode 5' 'Tower mode 6' 'Gearbox LSS rotation' 'LSS rotation' 'Blade  1 mode  1' 'Blade  1 mode  2' 'Blade  1 mode  3' 'Blade  1 mode  4' 'Blade  2 mode  1' 'Blade  2 mode  2' 'Blade  2 mode  3' 'Blade  2 mode  4' 'Blade  3 mode  1' 'Blade  3 mode  2' 'Blade  3 mode  3' 'Blade  3 mode  4' 'Blade 1 actuator position' 'Blade 2 actuator position' 'Blade 3 actuator position' 'Drive train damper mode 1'  
+- Hz - % % % % % % % % % % % % % % % % % % % % % % % %  
+'Rotor rotation' 0.000 0.000 0 0 0 0 0 0 100 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 1' 0.344 0.007 91 0 0 0 0 0 0 8 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 2' 0.358 0.008 0 99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade 1 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0 0  
+'Blade 2 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0  
+'Blade 3 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0  
+'Drive train' 0.533 0.007 9 0 3 0 0 0 0 80 2 0 0 0 3 0 0 0 3 0 0 0 0 0 0 0  
+'Blade mode  1A' 1.744 0.011 0 0 0 1 0 0 0 0 0 0 0 0 50 0 0 0 47 0 0 0 0 0 0 0  
+'Blade mode  1B' 1.805 0.012 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 18 0 0 0 0 0 0 0  
+'Tower mode 4' 2.009 0.009 0 0 0 38 0 0 0 0 0 34 0 0 1 13 0 0 1 13 0 0 0 0 0 0  
+'Blade mode  2A' 2.470 0.012 0 0 0 0 0 0 0 0 0 0 0 0 0 50 0 0 0 50 0 0 0 0 0 0  
+'Blade mode  2B' 2.632 0.012 0 1 0 1 0 0 0 0 0 36 0 0 0 31 0 0 0 31 0 0 0 0 0 0  
+'Drive train damper mode 1' 3.096 0.250 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100  
+'Tower mode 3' 4.835 0.008 0 0 55 0 43 0 0 3 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 6' 5.251 0.010 0 0 0 30 0 43 0 0 0 20 0 0 0 3 0 0 0 3 0 0 0 0 0 0  
+'Blade mode  1C' 7.385 0.028 0 0 0 0 0 0 0 4 18 0 13 0 18 0 14 0 18 0 14 0 0 0 0 0  
+'Blade mode  3A' 10.831 0.010 0 0 0 1 0 5 0 0 0 0 0 0 0 0 49 0 0 0 43 0 0 0 0 0  
+'Blade mode  3B' 11.075 0.010 0 0 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 20 0 0 0 0 0  
+'Blade mode  2C' 13.086 0.014 0 0 0 13 0 30 0 0 0 4 0 29 0 1 4 7 0 1 3 8 0 0 0 0  
+'Blade mode  4A' 15.480 0.010 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 51 0 0 0 49 0 0 0 0  
+'Blade mode  4B' 15.836 0.011 0 0 0 0 0 0 0 0 0 0 0 32 0 0 0 34 0 0 0 34 0 0 0 0  
+'Blade mode  4C' 20.024 0.022 0 0 0 16 0 22 0 0 0 5 0 38 0 1 1 7 0 1 1 8 0 0 0 0  
+'Tower mode 5' 20.907 0.029 0 0 41 0 57 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade mode  3C' 30.026 0.085 0 0 0 0 0 0 0 3 12 0 20 0 12 0 20 0 12 0 20 0 0 0 0 0  
+ 
+'Operating point: Rotor speed 0 rpm, Wind speed 5.5 m\s' 
+'Mode' 'Frequency' 'Damp factor' 'Tower mode 1' 'Tower mode 2' 'Tower mode 3' 'Tower mode 4' 'Tower mode 5' 'Tower mode 6' 'Gearbox LSS rotation' 'LSS rotation' 'Blade  1 mode  1' 'Blade  1 mode  2' 'Blade  1 mode  3' 'Blade  1 mode  4' 'Blade  2 mode  1' 'Blade  2 mode  2' 'Blade  2 mode  3' 'Blade  2 mode  4' 'Blade  3 mode  1' 'Blade  3 mode  2' 'Blade  3 mode  3' 'Blade  3 mode  4' 'Blade 1 actuator position' 'Blade 2 actuator position' 'Blade 3 actuator position' 'Drive train damper mode 1'  
+- Hz - % % % % % % % % % % % % % % % % % % % % % % % %  
+'Rotor rotation' 0.000 0.000 0 0 0 0 0 0 100 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 1' 0.344 0.007 91 0 0 0 0 0 0 8 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 2' 0.358 0.009 0 99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade 1 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0 0  
+'Blade 2 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0  
+'Blade 3 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0  
+'Drive train' 0.533 0.007 9 0 3 0 0 0 0 80 2 0 0 0 3 0 0 0 3 0 0 0 0 0 0 0  
+'Blade mode  1A' 1.744 0.011 0 0 0 1 0 0 0 0 0 0 0 0 50 0 0 0 47 0 0 0 0 0 0 0  
+'Blade mode  1B' 1.805 0.012 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 18 0 0 0 0 0 0 0  
+'Tower mode 4' 2.009 0.009 0 0 0 38 0 0 0 0 0 34 0 0 1 13 0 0 1 13 0 0 0 0 0 0  
+'Blade mode  2A' 2.470 0.012 0 0 0 0 0 0 0 0 0 0 0 0 0 50 0 0 0 50 0 0 0 0 0 0  
+'Blade mode  2B' 2.632 0.012 0 1 0 1 0 0 0 0 0 36 0 0 0 31 0 0 0 31 0 0 0 0 0 0  
+'Drive train damper mode 1' 3.096 0.250 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100  
+'Tower mode 3' 4.835 0.008 0 0 55 0 43 0 0 3 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 6' 5.251 0.010 0 0 0 30 0 43 0 0 0 20 0 0 0 3 0 0 0 3 0 0 0 0 0 0  
+'Blade mode  1C' 7.385 0.028 0 0 0 0 0 0 0 4 18 0 13 0 18 0 14 0 18 0 14 0 0 0 0 0  
+'Blade mode  3A' 10.831 0.010 0 0 0 1 0 5 0 0 0 0 0 0 0 0 49 0 0 0 43 0 0 0 0 0  
+'Blade mode  3B' 11.075 0.010 0 0 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 20 0 0 0 0 0  
+'Blade mode  2C' 13.087 0.014 0 0 0 13 0 30 0 0 0 4 0 29 0 1 4 7 0 1 3 8 0 0 0 0  
+'Blade mode  4A' 15.480 0.010 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 51 0 0 0 49 0 0 0 0  
+'Blade mode  4B' 15.836 0.011 0 0 0 0 0 0 0 0 0 0 0 32 0 0 0 34 0 0 0 34 0 0 0 0  
+'Blade mode  4C' 20.024 0.022 0 0 0 16 0 22 0 0 0 5 0 38 0 1 1 7 0 1 1 8 0 0 0 0  
+'Tower mode 5' 20.907 0.029 0 0 41 0 57 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade mode  3C' 30.026 0.085 0 0 0 0 0 0 0 3 12 0 20 0 12 0 20 0 12 0 20 0 0 0 0 0  
+ 
+'Operating point: Rotor speed 0 rpm, Wind speed 6 m\s' 
+'Mode' 'Frequency' 'Damp factor' 'Tower mode 1' 'Tower mode 2' 'Tower mode 3' 'Tower mode 4' 'Tower mode 5' 'Tower mode 6' 'Gearbox LSS rotation' 'LSS rotation' 'Blade  1 mode  1' 'Blade  1 mode  2' 'Blade  1 mode  3' 'Blade  1 mode  4' 'Blade  2 mode  1' 'Blade  2 mode  2' 'Blade  2 mode  3' 'Blade  2 mode  4' 'Blade  3 mode  1' 'Blade  3 mode  2' 'Blade  3 mode  3' 'Blade  3 mode  4' 'Blade 1 actuator position' 'Blade 2 actuator position' 'Blade 3 actuator position' 'Drive train damper mode 1'  
+- Hz - % % % % % % % % % % % % % % % % % % % % % % % %  
+'Rotor rotation' 0.000 0.000 0 0 0 0 0 0 100 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 1' 0.344 0.007 91 0 0 0 0 0 0 8 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 2' 0.358 0.009 0 99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade 1 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0 0  
+'Blade 2 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0  
+'Blade 3 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0  
+'Drive train' 0.533 0.007 9 0 3 0 0 0 0 80 2 0 0 0 3 0 0 0 3 0 0 0 0 0 0 0  
+'Blade mode  1A' 1.744 0.011 0 0 0 1 0 0 0 0 0 0 0 0 50 0 0 0 47 0 0 0 0 0 0 0  
+'Blade mode  1B' 1.805 0.012 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 18 0 0 0 0 0 0 0  
+'Tower mode 4' 2.009 0.009 0 0 0 38 0 0 0 0 0 34 0 0 1 13 0 0 1 13 0 0 0 0 0 0  
+'Blade mode  2A' 2.470 0.012 0 0 0 0 0 0 0 0 0 0 0 0 0 50 0 0 0 50 0 0 0 0 0 0  
+'Blade mode  2B' 2.632 0.012 0 1 0 1 0 0 0 0 0 36 0 0 0 31 0 0 0 31 0 0 0 0 0 0  
+'Drive train damper mode 1' 3.096 0.250 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100  
+'Tower mode 3' 4.835 0.008 0 0 55 0 43 0 0 3 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 6' 5.251 0.010 0 0 0 30 0 43 0 0 0 20 0 0 0 3 0 0 0 3 0 0 0 0 0 0  
+'Blade mode  1C' 7.385 0.028 0 0 0 0 0 0 0 4 18 0 13 0 18 0 14 0 18 0 14 0 0 0 0 0  
+'Blade mode  3A' 10.831 0.010 0 0 0 1 0 5 0 0 0 0 0 0 0 0 49 0 0 0 43 0 0 0 0 0  
+'Blade mode  3B' 11.075 0.010 0 0 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 20 0 0 0 0 0  
+'Blade mode  2C' 13.087 0.014 0 0 0 13 0 29 0 0 0 4 0 29 0 1 4 7 0 1 3 8 0 0 0 0  
+'Blade mode  4A' 15.480 0.010 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 51 0 0 0 49 0 0 0 0  
+'Blade mode  4B' 15.836 0.011 0 0 0 0 0 0 0 0 0 0 0 32 0 0 0 34 0 0 0 34 0 0 0 0  
+'Blade mode  4C' 20.024 0.022 0 0 0 16 0 22 0 0 0 5 0 38 0 1 1 7 0 1 1 8 0 0 0 0  
+'Tower mode 5' 20.907 0.029 0 0 41 0 57 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade mode  3C' 30.026 0.085 0 0 0 0 0 0 0 3 12 0 20 0 12 0 20 0 12 0 20 0 0 0 0 0  
+ 
+'Operating point: Rotor speed 0 rpm, Wind speed 6.5 m\s' 
+'Mode' 'Frequency' 'Damp factor' 'Tower mode 1' 'Tower mode 2' 'Tower mode 3' 'Tower mode 4' 'Tower mode 5' 'Tower mode 6' 'Gearbox LSS rotation' 'LSS rotation' 'Blade  1 mode  1' 'Blade  1 mode  2' 'Blade  1 mode  3' 'Blade  1 mode  4' 'Blade  2 mode  1' 'Blade  2 mode  2' 'Blade  2 mode  3' 'Blade  2 mode  4' 'Blade  3 mode  1' 'Blade  3 mode  2' 'Blade  3 mode  3' 'Blade  3 mode  4' 'Blade 1 actuator position' 'Blade 2 actuator position' 'Blade 3 actuator position' 'Drive train damper mode 1'  
+- Hz - % % % % % % % % % % % % % % % % % % % % % % % %  
+'Rotor rotation' 0.000 0.000 0 0 0 0 0 0 99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 2' 0.358 0.009 0 99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 1' 0.364 0.006 99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade 1 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0 0  
+'Blade 2 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0  
+'Blade 3 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0  
+'Blade mode  1A' 1.744 0.012 0 0 0 2 0 0 0 0 0 0 0 0 51 0 0 0 47 0 0 0 0 0 0 0  
+'Blade mode  1B' 1.805 0.012 1 0 0 0 0 0 0 0 65 0 0 0 14 0 0 0 19 0 0 0 0 0 0 0  
+'Drive train' 2.009 0.009 0 0 0 37 0 0 0 0 0 34 0 0 1 13 0 0 1 13 0 0 0 0 0 0  
+'Tower mode 4' 2.469 0.013 0 0 0 0 0 0 0 0 0 0 0 0 0 50 0 0 0 49 0 0 0 0 0 0  
+'Blade mode  2A' 2.630 0.107 0 0 3 0 0 0 1 50 2 0 0 0 2 0 0 0 2 0 0 0 0 0 0 40  
+'Blade mode  2B' 2.632 0.013 0 1 0 1 0 0 0 0 0 35 0 0 0 31 0 0 0 31 0 0 0 0 0 0  
+'Drive train damper mode 1' 3.458 0.153 0 0 3 0 0 0 1 32 1 0 0 0 1 0 0 0 1 0 0 0 0 0 0 60  
+'Tower mode 3' 4.869 0.009 0 0 52 0 42 0 0 6 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 6' 5.251 0.010 0 0 0 30 0 43 0 0 0 20 0 0 0 3 0 0 0 3 0 0 0 0 0 0  
+'Blade mode  1C' 7.424 0.028 0 0 0 0 0 0 0 6 17 0 13 0 17 0 14 0 17 0 14 0 0 0 0 0  
+'Blade mode  3A' 10.831 0.010 0 0 0 1 0 5 0 0 0 0 0 0 0 0 49 0 0 0 43 0 0 0 0 0  
+'Blade mode  3B' 11.075 0.010 0 0 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 20 0 0 0 0 0  
+'Blade mode  2C' 13.087 0.014 0 0 0 13 0 29 0 0 0 4 0 29 0 1 3 7 0 1 3 8 0 0 0 0  
+'Blade mode  4A' 15.480 0.010 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 50 0 0 0 49 0 0 0 0  
+'Blade mode  4B' 15.836 0.011 0 0 0 0 0 0 0 0 0 0 0 32 0 0 0 34 0 0 0 34 0 0 0 0  
+'Blade mode  4C' 20.024 0.022 0 0 0 16 0 22 0 0 0 5 0 38 0 1 1 7 0 1 1 8 0 0 0 0  
+'Tower mode 5' 20.908 0.029 0 0 41 0 57 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade mode  3C' 30.032 0.085 0 0 0 0 0 0 0 4 12 0 20 0 12 0 20 0 12 0 20 0 0 0 0 0  
+ 
+'Operating point: Rotor speed 0 rpm, Wind speed 7 m\s' 
+'Mode' 'Frequency' 'Damp factor' 'Tower mode 1' 'Tower mode 2' 'Tower mode 3' 'Tower mode 4' 'Tower mode 5' 'Tower mode 6' 'Gearbox LSS rotation' 'LSS rotation' 'Blade  1 mode  1' 'Blade  1 mode  2' 'Blade  1 mode  3' 'Blade  1 mode  4' 'Blade  2 mode  1' 'Blade  2 mode  2' 'Blade  2 mode  3' 'Blade  2 mode  4' 'Blade  3 mode  1' 'Blade  3 mode  2' 'Blade  3 mode  3' 'Blade  3 mode  4' 'Blade 1 actuator position' 'Blade 2 actuator position' 'Blade 3 actuator position' 'Drive train damper mode 1'  
+- Hz - % % % % % % % % % % % % % % % % % % % % % % % %  
+'Rotor rotation' 0.000 0.000 0 0 0 0 0 0 100 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 1' 0.344 0.007 91 0 0 0 0 0 0 8 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 2' 0.358 0.010 0 99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade 1 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0 0  
+'Blade 2 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0  
+'Blade 3 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0  
+'Drive train' 0.533 0.008 9 0 3 0 0 0 0 80 2 0 0 0 3 0 0 0 3 0 0 0 0 0 0 0  
+'Blade mode  1A' 1.744 0.012 0 0 0 1 0 0 0 0 0 0 0 0 50 0 0 0 47 0 0 0 0 0 0 0  
+'Blade mode  1B' 1.805 0.012 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 18 0 0 0 0 0 0 0  
+'Tower mode 4' 2.009 0.009 0 0 0 38 0 0 0 0 0 34 0 0 1 13 0 0 1 13 0 0 0 0 0 0  
+'Blade mode  2A' 2.470 0.013 0 0 0 0 0 0 0 0 0 0 0 0 0 50 0 0 0 50 0 0 0 0 0 0  
+'Blade mode  2B' 2.632 0.013 0 1 0 1 0 0 0 0 0 36 0 0 0 31 0 0 0 31 0 0 0 0 0 0  
+'Drive train damper mode 1' 3.096 0.250 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100  
+'Tower mode 3' 4.835 0.008 0 0 55 0 43 0 0 3 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 6' 5.251 0.010 0 0 0 30 0 43 0 0 0 20 0 0 0 3 0 0 0 3 0 0 0 0 0 0  
+'Blade mode  1C' 7.385 0.028 0 0 0 0 0 0 0 4 18 0 13 0 18 0 14 0 18 0 14 0 0 0 0 0  
+'Blade mode  3A' 10.831 0.010 0 0 0 1 0 5 0 0 0 0 0 0 0 0 49 0 0 0 43 0 0 0 0 0  
+'Blade mode  3B' 11.075 0.010 0 0 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 20 0 0 0 0 0  
+'Blade mode  2C' 13.087 0.014 0 0 0 13 0 29 0 0 0 4 0 29 0 1 4 7 0 1 3 8 0 0 0 0  
+'Blade mode  4A' 15.480 0.010 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 51 0 0 0 49 0 0 0 0  
+'Blade mode  4B' 15.836 0.011 0 0 0 0 0 0 0 0 0 0 0 32 0 0 0 34 0 0 0 34 0 0 0 0  
+'Blade mode  4C' 20.024 0.022 0 0 0 16 0 22 0 0 0 5 0 38 0 1 1 7 0 1 1 8 0 0 0 0  
+'Tower mode 5' 20.907 0.029 0 0 41 0 57 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade mode  3C' 30.026 0.085 0 0 0 0 0 0 0 3 12 0 20 0 12 0 20 0 12 0 20 0 0 0 0 0  
+ 
+'Operating point: Rotor speed 0 rpm, Wind speed 7.5 m\s' 
+'Mode' 'Frequency' 'Damp factor' 'Tower mode 1' 'Tower mode 2' 'Tower mode 3' 'Tower mode 4' 'Tower mode 5' 'Tower mode 6' 'Gearbox LSS rotation' 'LSS rotation' 'Blade  1 mode  1' 'Blade  1 mode  2' 'Blade  1 mode  3' 'Blade  1 mode  4' 'Blade  2 mode  1' 'Blade  2 mode  2' 'Blade  2 mode  3' 'Blade  2 mode  4' 'Blade  3 mode  1' 'Blade  3 mode  2' 'Blade  3 mode  3' 'Blade  3 mode  4' 'Blade 1 actuator position' 'Blade 2 actuator position' 'Blade 3 actuator position' 'Drive train damper mode 1'  
+- Hz - % % % % % % % % % % % % % % % % % % % % % % % %  
+'Rotor rotation' 0.000 0.000 0 0 0 0 0 0 100 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 1' 0.344 0.008 91 0 0 0 0 0 0 8 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 2' 0.358 0.010 0 99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade 1 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0 0  
+'Blade 2 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0  
+'Blade 3 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0  
+'Drive train' 0.533 0.009 9 0 3 0 0 0 0 80 2 0 0 0 3 0 0 0 3 0 0 0 0 0 0 0  
+'Blade mode  1A' 1.744 0.012 0 0 0 1 0 0 0 0 0 0 0 0 50 0 0 0 47 0 0 0 0 0 0 0  
+'Blade mode  1B' 1.805 0.012 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 18 0 0 0 0 0 0 0  
+'Tower mode 4' 2.009 0.010 0 0 0 38 0 0 0 0 0 34 0 0 1 13 0 0 1 13 0 0 0 0 0 0  
+'Blade mode  2A' 2.470 0.013 0 0 0 0 0 0 0 0 0 0 0 0 0 50 0 0 0 50 0 0 0 0 0 0  
+'Blade mode  2B' 2.632 0.013 0 1 0 1 0 0 0 0 0 36 0 0 0 31 0 0 0 31 0 0 0 0 0 0  
+'Drive train damper mode 1' 3.096 0.250 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100  
+'Tower mode 3' 4.835 0.008 0 0 55 0 43 0 0 3 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 6' 5.251 0.010 0 0 0 30 0 43 0 0 0 20 0 0 0 3 0 0 0 3 0 0 0 0 0 0  
+'Blade mode  1C' 7.385 0.028 0 0 0 0 0 0 0 4 18 0 13 0 18 0 14 0 18 0 14 0 0 0 0 0  
+'Blade mode  3A' 10.831 0.010 0 0 0 1 0 5 0 0 0 0 0 0 0 0 49 0 0 0 43 0 0 0 0 0  
+'Blade mode  3B' 11.075 0.010 0 0 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 20 0 0 0 0 0  
+'Blade mode  2C' 13.087 0.014 0 0 0 13 0 29 0 0 0 4 0 29 0 1 4 7 0 1 3 8 0 0 0 0  
+'Blade mode  4A' 15.480 0.010 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 51 0 0 0 49 0 0 0 0  
+'Blade mode  4B' 15.836 0.011 0 0 0 0 0 0 0 0 0 0 0 32 0 0 0 34 0 0 0 34 0 0 0 0  
+'Blade mode  4C' 20.024 0.022 0 0 0 16 0 22 0 0 0 5 0 38 0 1 1 7 0 1 1 8 0 0 0 0  
+'Tower mode 5' 20.907 0.029 0 0 41 0 57 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade mode  3C' 30.026 0.085 0 0 0 0 0 0 0 3 12 0 20 0 12 0 20 0 12 0 20 0 0 0 0 0  
+ 
+'Operating point: Rotor speed 0 rpm, Wind speed 8 m\s' 
+'Mode' 'Frequency' 'Damp factor' 'Tower mode 1' 'Tower mode 2' 'Tower mode 3' 'Tower mode 4' 'Tower mode 5' 'Tower mode 6' 'Gearbox LSS rotation' 'LSS rotation' 'Blade  1 mode  1' 'Blade  1 mode  2' 'Blade  1 mode  3' 'Blade  1 mode  4' 'Blade  2 mode  1' 'Blade  2 mode  2' 'Blade  2 mode  3' 'Blade  2 mode  4' 'Blade  3 mode  1' 'Blade  3 mode  2' 'Blade  3 mode  3' 'Blade  3 mode  4' 'Blade 1 actuator position' 'Blade 2 actuator position' 'Blade 3 actuator position' 'Drive train damper mode 1'  
+- Hz - % % % % % % % % % % % % % % % % % % % % % % % %  
+'Rotor rotation' 0.000 0.000 0 0 0 0 0 0 100 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 1' 0.344 0.008 91 0 0 0 0 0 0 8 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 2' 0.358 0.010 0 99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade 1 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0 0  
+'Blade 2 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0  
+'Blade 3 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0  
+'Drive train' 0.533 0.009 9 0 3 0 0 0 0 80 2 0 0 0 3 0 0 0 3 0 0 0 0 0 0 0  
+'Blade mode  1A' 1.744 0.012 0 0 0 1 0 0 0 0 0 0 0 0 50 0 0 0 47 0 0 0 0 0 0 0  
+'Blade mode  1B' 1.805 0.012 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 18 0 0 0 0 0 0 0  
+'Tower mode 4' 2.009 0.010 0 0 0 38 0 0 0 0 0 34 0 0 1 13 0 0 1 13 0 0 0 0 0 0  
+'Blade mode  2A' 2.470 0.013 0 0 0 0 0 0 0 0 0 0 0 0 0 50 0 0 0 50 0 0 0 0 0 0  
+'Blade mode  2B' 2.632 0.013 0 1 0 1 0 0 0 0 0 36 0 0 0 31 0 0 0 31 0 0 0 0 0 0  
+'Drive train damper mode 1' 3.096 0.250 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100  
+'Tower mode 3' 4.835 0.008 0 0 55 0 43 0 0 3 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 6' 5.251 0.010 0 0 0 30 0 43 0 0 0 20 0 0 0 3 0 0 0 3 0 0 0 0 0 0  
+'Blade mode  1C' 7.385 0.028 0 0 0 0 0 0 0 4 18 0 13 0 18 0 14 0 18 0 14 0 0 0 0 0  
+'Blade mode  3A' 10.831 0.010 0 0 0 1 0 5 0 0 0 0 0 0 0 0 49 0 0 0 43 0 0 0 0 0  
+'Blade mode  3B' 11.075 0.010 0 0 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 20 0 0 0 0 0  
+'Blade mode  2C' 13.087 0.014 0 0 0 13 0 29 0 0 0 4 0 29 0 1 4 7 0 1 3 8 0 0 0 0  
+'Blade mode  4A' 15.480 0.011 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 51 0 0 0 49 0 0 0 0  
+'Blade mode  4B' 15.836 0.011 0 0 0 0 0 0 0 0 0 0 0 32 0 0 0 34 0 0 0 34 0 0 0 0  
+'Blade mode  4C' 20.024 0.022 0 0 0 16 0 22 0 0 0 5 0 38 0 1 1 7 0 1 1 8 0 0 0 0  
+'Tower mode 5' 20.907 0.029 0 0 41 0 57 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade mode  3C' 30.026 0.085 0 0 0 0 0 0 0 3 12 0 20 0 12 0 20 0 12 0 20 0 0 0 0 0  
+ 
+'Operating point: Rotor speed 0 rpm, Wind speed 8.5 m\s' 
+'Mode' 'Frequency' 'Damp factor' 'Tower mode 1' 'Tower mode 2' 'Tower mode 3' 'Tower mode 4' 'Tower mode 5' 'Tower mode 6' 'Gearbox LSS rotation' 'LSS rotation' 'Blade  1 mode  1' 'Blade  1 mode  2' 'Blade  1 mode  3' 'Blade  1 mode  4' 'Blade  2 mode  1' 'Blade  2 mode  2' 'Blade  2 mode  3' 'Blade  2 mode  4' 'Blade  3 mode  1' 'Blade  3 mode  2' 'Blade  3 mode  3' 'Blade  3 mode  4' 'Blade 1 actuator position' 'Blade 2 actuator position' 'Blade 3 actuator position' 'Drive train damper mode 1'  
+- Hz - % % % % % % % % % % % % % % % % % % % % % % % %  
+'Rotor rotation' 0.000 0.000 0 0 0 0 0 0 100 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 1' 0.344 0.008 91 0 0 0 0 0 0 8 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 2' 0.358 0.011 0 99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade 1 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0 0  
+'Blade 2 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0 0  
+'Blade 3 actuator position' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100 0  
+'Drive train' 0.533 0.009 9 0 3 0 0 0 0 80 2 0 0 0 3 0 0 0 3 0 0 0 0 0 0 0  
+'Blade mode  1A' 1.744 0.012 0 0 0 1 0 0 0 0 0 0 0 0 50 0 0 0 47 0 0 0 0 0 0 0  
+'Blade mode  1B' 1.805 0.012 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 18 0 0 0 0 0 0 0  
+'Tower mode 4' 2.009 0.010 0 0 0 38 0 0 0 0 0 34 0 0 1 13 0 0 1 13 0 0 0 0 0 0  
+'Blade mode  2A' 2.470 0.013 0 0 0 0 0 0 0 0 0 0 0 0 0 50 0 0 0 50 0 0 0 0 0 0  
+'Blade mode  2B' 2.632 0.013 0 1 0 1 0 0 0 0 0 36 0 0 0 31 0 0 0 31 0 0 0 0 0 0  
+'Drive train damper mode 1' 3.096 0.250 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100  
+'Tower mode 3' 4.835 0.008 0 0 55 0 43 0 0 3 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 6' 5.251 0.010 0 0 0 30 0 43 0 0 0 20 0 0 0 3 0 0 0 3 0 0 0 0 0 0  
+'Blade mode  1C' 7.385 0.028 0 0 0 0 0 0 0 4 18 0 13 0 18 0 14 0 18 0 14 0 0 0 0 0  
+'Blade mode  3A' 10.831 0.010 0 0 0 1 0 5 0 0 0 0 0 0 0 0 49 0 0 0 43 0 0 0 0 0  
+'Blade mode  3B' 11.075 0.010 0 0 0 0 0 0 0 0 0 0 66 0 0 0 14 0 0 0 20 0 0 0 0 0  
+'Blade mode  2C' 13.087 0.014 0 0 0 13 0 29 0 0 0 4 0 29 0 1 4 7 0 1 3 8 0 0 0 0  
+'Blade mode  4A' 15.480 0.011 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 51 0 0 0 49 0 0 0 0  
+'Blade mode  4B' 15.836 0.011 0 0 0 0 0 0 0 0 0 0 0 32 0 0 0 34 0 0 0 34 0 0 0 0  
+'Blade mode  4C' 20.024 0.022 0 0 0 16 0 22 0 0 0 5 0 38 0 1 1 7 0 1 1 8 0 0 0 0  
+'Tower mode 5' 20.907 0.029 0 0 41 0 57 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  
+'Blade mode  3C' 30.026 0.085 0 0 0 0 0 0 0 3 12 0 20 0 12 0 20 0 12 0 20 0 0 0 0 0  
+ 

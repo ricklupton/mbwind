@@ -1,0 +1,17 @@
+'Operating point: Rotor speed 0 rpm, Wind speed 0 m\s, Azimuth 0 deg' 
+'Mode' 'Frequency' 'Damp factor' 'Tower mode 1' 'Tower mode 2' 'Tower mode 3' 'Tower mode 4' 'Tower mode 5' 'Tower mode 6' 'Gearbox' 'Blade 1 Transfer Function State 1' 'Blade 1 Transfer Function State 2' 'Blade 2 Transfer Function State 1' 'Blade 2 Transfer Function State 2' 'Blade 3 Transfer Function State 1' 'Blade 3 Transfer Function State 2'  
+- Hz - % % % % % % % % % % % % %  
+'Gearbox' 0.000 NaN 0 0 0 0 0 0 100 0 0 0 0 0 0  
+'Tower mode 1' 0.353 0.005 98 0 0 0 0 0 0 0 0 0 0 0 0  
+'Tower mode 2' 0.359 0.005 0 98 0 0 0 0 0 0 0 0 0 0 0  
+'Blade 3 Transfer Function State 2' 0.531 1.000 0 0 0 0 0 0 0 0 0 0 0 9 91  
+'Blade 1 Transfer Function State 2' 0.531 1.000 0 0 0 0 0 0 0 9 91 0 0 0 0  
+'Blade 2 Transfer Function State 2' 0.531 1.000 0 0 0 0 0 0 0 0 0 9 91 0 0  
+'Tower mode 3' 2.329 0.005 2 0 98 0 0 2 0 0 0 0 0 0 0  
+'Tower mode 4' 2.916 0.005 0 1 0 95 5 0 0 0 0 0 0 0 0  
+'Blade 3 Transfer Function State 1' 5.305 1.000 0 0 0 0 0 0 0 0 0 0 0 91 9  
+'Blade 1 Transfer Function State 1' 5.305 1.000 0 0 0 0 0 0 0 91 9 0 0 0 0  
+'Blade 2 Transfer Function State 1' 5.305 1.000 0 0 0 0 0 0 0 0 0 91 9 0 0  
+'Tower mode 6' 7.793 0.006 0 0 2 0 0 98 0 0 0 0 0 0 0  
+'Tower mode 5' 8.233 0.006 0 1 0 5 95 0 0 0 0 0 0 0 0  
+ 
