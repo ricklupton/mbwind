@@ -142,7 +142,6 @@ class Blade(object):
         try:
             mmodes = BladedModule(prj, 'RMODE')
         except ModuleNotFoundError as e:
-            print e
             self.nmodes = 0
             self.mode_types = []
             self.mode_freqs = []

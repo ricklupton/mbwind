@@ -427,7 +427,9 @@ class System(object):
                    self.qd.indices(element.istrain))
         if part is not None:
             dofs = np.asarray(dofs)[part]
-        for iq,iqd in np.atleast_2d(dofs):
+        if len(dofs) == 0:
+            return
+        for iq, iqd in dofs:
             self.prescribed_dofs[iqd] = (vel, acc)
             self.q_dof[iqd] = iq
         self._update_indices()
@@ -502,22 +504,37 @@ class System(object):
     def dof_index(self, element, strain_number):
         """Return the DOF number for strain ``strain_number`` of ``element``"""
         strains = self.elements[element]._istrain
-        return self.qd.dofs.subset.index(strains[strain_number])
+        try:
+            return self.qd.dofs.subset.index(strains[strain_number])
+        except IndexError:
+            raise IndexError('Strain number {} out of range ({})'
+                             .format(strain_number, len(strains)))
+        except ValueError:
+            raise ValueError('Strain is prescribed')
+
+    def free_dof_indices(self, element):
+        """Return DOF numbers for all free strains of ``element``"""
+        def iterfunc():
+            try:
+                for istrain in itertools.count():
+                    yield self.dof_index(element, istrain)
+            except (IndexError, ValueError):
+                return  # run out of strains, or strain was prescribed
+        return list(iterfunc())
 
     def convert_mbc_dofs_to_blade(self, v, elements, azimuth):
         """Convert MBC DOFs in ``v`` to blade DOFs, at ``azimuth``"""
         if len(elements) != 3:
             raise NotImplementedError("Only 3 blade MBC is implemented")
         vb = v.copy()
-        for imode in itertools.count():
-            try:
-                dofs = [self.dof_index(element, imode) for element in elements]
-            except IndexError:
-                break  # run out of blade modes
-            for j in range(3):
-                psi = azimuth + 2*pi*j/3
-                vb[dofs[j]] = v[dofs[0]] + (cos(psi)*v[dofs[1]] +
-                                            sin(psi)*v[dofs[2]])
+        dofs_by_elem = [self.free_dof_indices(element) for element in elements]
+        dofs_by_strain = zip(*dofs_by_elem)
+        for dofs in dofs_by_strain:                 # loop through strains/modes
+            for j in range(3):                      # loop through blades
+                psi = azimuth + 2*pi*j/3            # azimuth of blade j
+                vb[dofs[j]] = (v[dofs[0]] +         # combine MBC back to blade
+                               cos(psi)*v[dofs[1]] +
+                               sin(psi)*v[dofs[2]])
         return vb
 
 
