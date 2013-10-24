@@ -4,7 +4,8 @@ Flexible beam elements
 
 import numpy as np
 from numpy import array, zeros, eye, dot, pi
-from .base import Element
+from ..core import Element, euler_param_E, qrot3
+from ..utils import skewmat, rotmat_x, rotmat_y, rotmat_z
 
 # Slices to refer to parts of matrices
 VP = slice(0,3)
@@ -16,7 +17,7 @@ WD = slice(9,12)
 class UniformBeam(Element):
     _ndistal = 1
     _nstrain = 6
-    _nconstraints = NQD
+    _nconstraints = 6
 
     def __init__(self, name, length, density, EA, EIy, EIz, GIx=0.0, Jx=0.0,
                  wind=None, distal_load=None):
@@ -49,20 +50,20 @@ class UniformBeam(Element):
         l0 = self.length
         # Integrals of interpolating factors
         # with t2 = l0*(xi - p1 + p2)
+        # self._mass_coeffs = array([
+        #     [13*l0*m/35, 11*l0**2*m/210, 9*l0*m/70, 13*l0**2*m/420],
+        #     [0, l0**3*m/105, 13*l0**2*m/420, l0**3*m/140],
+        #     [0, 0, 13*l0*m/35, 11*l0**2*m/210],
+        #     [0, 0, 0, l0**3*m/105]
+        # ])
+
+        # with t2 = l0*(xi - p1 - p2)
         self._mass_coeffs = array([
-            [13*l0*m/35, 11*l0**2*m/210, 9*l0*m/70, 13*l0**2*m/420],
-            [0, l0**3*m/105, 13*l0**2*m/420, l0**3*m/140],
+            [13*l0*m/35, -l0**2*m/105, 9*l0*m/70, 13*l0**2*m/420],
+            [0, 2*l0**3*m/105, -31*l0**2*m/420, -l0**3*m/84],
             [0, 0, 13*l0*m/35, 11*l0**2*m/210],
             [0, 0, 0, l0**3*m/105]
         ])
-
-        # with t2 = l0*(xi - p1 - p2)
-#        self._mass_coeffs = array([
-#            [13*l0*m/35, -l0**2*m/105, 9*l0*m/70, 13*l0**2*m/420],
-#            [0, 2*l0**3*m/105, -31*l0**2*m/420, -l0**3*m/84],
-#            [0, 0, 13*l0*m/35, 11*l0**2*m/210],
-#            [0, 0, 0, l0**3*m/105]
-#        ])
 
     def _initial_calcs(self):
         self._calc_mass_coeffs()
