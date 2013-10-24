@@ -202,7 +202,7 @@ class StateArray(object):
         return None
 
 class System(object):
-    def __init__(self, first_element):
+    def __init__(self):
         # State vectors
         self.q = StateArray()
         self.qd = StateArray()
@@ -210,7 +210,7 @@ class System(object):
         self.joint_reactions = StateArray() # Joint reaction forces (ON prox node)
 
         # Bookkeeping
-        self.first_element = first_element
+        self.first_elements = []
         self.time = 0.0
         self._node_counter = 0
 
@@ -228,11 +228,16 @@ class System(object):
 
         #### Set up ####
         # Set up first node
-        ground_ind = self._new_states(None, 'ground', NQD, NQ, 'ground')
+        self.ground_ind = self._new_states(None, 'ground', NQD, NQ, 'ground')
 
-        # Set up first element to use first node as its proximal node, and set up
-        # all its children (who will call request_new_states)
-        self.first_element.setup_chain(self, ground_ind)
+    def add_leaf(self, element):
+        self.first_elements.append(element)
+
+    def setup(self):
+        # Set up first element to use first node as its proximal node,
+        # and set up all its children (who will call request_new_states)
+        for elem in self.first_elements:
+            elem.setup_chain(self, self.ground_ind)
 
         # Now number of states is known, can size matrices and vectors
         for states in (self.q, self.qd, self.qdd, self.joint_reactions):
@@ -264,9 +269,10 @@ class System(object):
                 i[0], i[-1], self.qd.owners[i[0]], self.qd.types[i[0]], name, pstr)
 
     def iter_elements(self):
-        yield self.first_element
-        for el in self.first_element.iter_leaves():
-            yield el
+        for elem in self.first_elements:
+            yield elem
+            for elem2 in elem.iter_leaves():
+                yield elem2
 
     def print_info(self):
         print 'System:\n'
