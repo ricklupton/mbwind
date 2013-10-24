@@ -4,7 +4,7 @@ Misc functions
 """
 
 from __future__ import division
-from numpy import array, zeros, zeros_like, cos, sin
+from numpy import array, zeros, zeros_like, cos, sin, eye, dot
 
 eps_ijk = zeros((3, 3, 3))
 eps_ijk[0, 1, 2] = eps_ijk[1, 2, 0] = eps_ijk[2, 0, 1] = 1
@@ -33,6 +33,17 @@ def rotmat_z(theta):
         [sin(theta),  cos(theta), 0],
         [0,              0,             1],
     ])
+
+
+def rotations(*rotation_list):
+    """Applies the rotations in turn about the updated intermediate axes.
+
+    e.g.     rotations(('z', pi/2), ('x', pi/2))
+         --> dot(rotmat_x(pi/2), rotmat_z(pi/2))
+    """
+    rotmat = dict(x=rotmat_x, y=rotmat_y, z=rotmat_z)
+    mats = [rotmat[direction](angle) for direction, angle in rotation_list]
+    return reduce(dot, mats, eye(3))
 
 
 def skewmat(vec):

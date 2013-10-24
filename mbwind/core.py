@@ -18,7 +18,7 @@ import scipy.optimize
 from scipy.integrate import ode, simps
 
 from . import assemble
-from .utils import update_skewmat, skewmat
+from .utils import update_skewmat, skewmat, rotations
 
 ###########################
 ##  OPTIONS  ##############
