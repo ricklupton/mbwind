@@ -1,12 +1,11 @@
 from numpy import zeros, array, eye, pi, dot, sqrt, c_, diag, cos, sin, asarray, arange
 from numpy.testing import assert_array_equal, assert_array_almost_equal
-from unittest import TestCase
 
 from mbwind.modes import ModesFromScratch
 from mbwind.utils import rotmat_z
 
 
-class ModesFromScratchTestCase(TestCase):
+class ModesFromScratch_:
     def test_transform(self):
         """
         Test transformation matrix from global to local coordinates
@@ -74,9 +73,9 @@ class ModesFromScratchTestCase(TestCase):
 from mbwind.blade import Blade
 from mbwind.modes import cumulative_mass_moment
 
-class ModesFromBladedTestCase(TestCase):
-    def test_I0(self):
-        blade = Blade('tests/parked_blade_nrel.$PJ')
+class Importing_modes_from_Bladed:
+    def moment_of_inertia_is_loaded_correctly(self):
+        blade = Blade('_data/parked_blade_nrel.$PJ')
         modes = blade.modal_rep()
 
         expected = array([

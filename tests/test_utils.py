@@ -1,11 +1,11 @@
 from mbwind.utils import (skewmat, update_skewmat, rotmat_x, rotmat_y,
-                          rotmat_z, discont_trapz)
-from numpy import ones, zeros, array, arange, eye, pi, dot, sqrt
+                          rotmat_z, rotations, discont_trapz)
+from numpy import ones, zeros, array, arange, eye, pi, dot, sqrt, transpose
 from numpy.testing import assert_array_equal, assert_array_almost_equal
-from unittest import TestCase
 
+assert_aae = assert_array_almost_equal
 
-class UtilsTestCase(TestCase):
+class UtilsTestCase:
     def test_skew(self):
         assert_array_equal(skewmat(zeros(3)), zeros((3, 3)))
         assert_array_equal(skewmat([1, 2, 3]), array([
@@ -31,12 +31,22 @@ class UtilsTestCase(TestCase):
         assert_array_equal(rotmat_z(0), eye(3))
 
         # Rotate 45 deg about each axis
-        assert_array_almost_equal(dot(rotmat_x(pi / 4), [1, 1, 1]),
-                                  [1, 0, sqrt(2)])
-        assert_array_almost_equal(dot(rotmat_y(pi / 4), [1, 1, 1]),
-                                  [sqrt(2), 1, 0])
-        assert_array_almost_equal(dot(rotmat_z(pi / 4), [1, 1, 1]),
-                                  [0, sqrt(2), 1])
+        assert_aae(dot(rotmat_x(pi / 4), [1, 1, 1]), [1, 0, sqrt(2)])
+        assert_aae(dot(rotmat_y(pi / 4), [1, 1, 1]), [sqrt(2), 1, 0])
+        assert_aae(dot(rotmat_z(pi / 4), [1, 1, 1]), [0, sqrt(2), 1])
+
+
+    def test_rotations(self):
+        # Work these two examples out by hand: apply the rotations in
+        # turn about the updated axes, and see where the body axes end
+        # up pointing.
+        assert_aae(rotations(('z', pi/2), ('x', pi/2)),
+                   transpose([[0,1,0], [0,0,1], [1,0,0]]))
+        assert_aae(rotations(('z', pi/2), ('x', pi/2), ('z', pi/2)),
+                   transpose([[0,0,1], [0,-1,0], [1,0,0]]))
+
+        assert_aae(rotations(('x', pi/2), ('z', pi/2)),
+                   transpose([[0,0,1], [-1,0,0], [0,-1,0]]))
 
     def test_discont_trapz(self):
         x = arange(0, 2.6, 0.5)
