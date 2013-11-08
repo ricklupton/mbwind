@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import array, dot, pi
-from mbwind.elements import FreeJoint, RigidConnection, RigidBody, Hinge
-from mbwind.elements.modal import ModalElement, DistalModalElementFromScratch
+from mbwind.elements import (FreeJoint, RigidConnection, RigidBody, Hinge,
+                             ModalElement, DistalModalElementFromScratch)
 
 
 # class PrismaticJointView(object):
@@ -173,7 +173,7 @@ class SystemView(object):
 
         self.artists = []
         for view in self.views:
-            self.artists.extend(view.create_artists())
+            self.artists.extend(view.artists)
 
     def reset(self):
         for view in self.views:

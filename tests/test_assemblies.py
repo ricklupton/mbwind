@@ -15,11 +15,7 @@ assert_aae = assert_array_almost_equal
 def _mock_rigid_uniform_modes(density, length):
     """Return empty modal representation of 20m long rigid beam"""
     x = arange(0, length + 0.01)
-    shapes = zeros((len(x), 3, 0))
-    density = ones_like(x) * density
-    freqs = zeros(0)
-    blade = ModalRepresentation(x, shapes, shapes, density, freqs)
-    return blade
+    return ModalRepresentation(x, ones_like(x) * density)
 
 
 class AssembliesOfRigidElements(Spec):

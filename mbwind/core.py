@@ -24,12 +24,6 @@ from .utils import update_skewmat, skewmat, rotations
 ##  OPTIONS  ##############
 ###########################
 
-# Gravity?
-#OPT_GRAVITY = True
-constants = {
-    'gravity': 9.81,
-}
-
 # Include centrifugal stiffening in modal elements?
 OPT_GEOMETRIC_STIFFNESS = True
 
@@ -202,7 +196,9 @@ class StateArray(object):
         return None
 
 class System(object):
-    def __init__(self):
+    def __init__(self, gravity=0.0):
+        self.gravity = gravity
+
         # State vectors
         self.q = StateArray()
         self.qd = StateArray()
@@ -566,6 +562,7 @@ class Element(object):
     def __init__(self, name):
         self.name = name
         self.children = [[]] * self._ndistal
+        self.system = None
 
         self.rp = zeros(3)
         self.Rp = eye(3)
@@ -605,9 +602,6 @@ class Element(object):
         self.applied_forces = zeros(6 * (1 + self._ndistal))
         self.applied_stress = zeros(self._nstrain)
 
-        # Gravity acceleration
-        self._gravacc = np.tile([0, 0, -constants['gravity'], 0, 0, 0],
-                                1 + self._ndistal)
 
     def __str__(self):
         return self.name
@@ -730,8 +724,17 @@ class Element(object):
         self.system.joint_reactions[self.system.qd.named_indices[self.iprox]] \
             += np.r_[ Fprox, Mprox ]
 
+    def gravity_acceleration(self):
+        if self.system:
+            g = self.system.gravity
+        else:
+            g = 0
+        return array([0, 0, -g, 0, 0, 0])
+
     def _set_gravity_force(self):
-        self.applied_forces[:] = dot(self.mass_vv, self._gravacc)
+        # Gravity acceleration
+        acc = np.tile(self.gravity_acceleration(), 1 + self._ndistal)
+        self.applied_forces[:] = dot(self.mass_vv, acc)
 
     def calc_kinematics(self):
         """

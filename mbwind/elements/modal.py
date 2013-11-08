@@ -190,33 +190,11 @@ class ModalElement(Element):
 #        assert np.allclose(test_ge, self.quad_stress)
 #
 
-    def _get_loading(self):
-        assert self.loading is not None
-        # Positions and orientations of all stations in prox. coords
-        global_pos = self.station_positions()
-        global_vel = self.station_velocities()
-
-        if OPT_BEAM_LOADS_IN_SECTION_COORDS:
-            global_rot = self.station_rotations()
-        else:
-            global_rot = np.tile(self.Rp, (len(self.modes.x),1,1))
-
-        P_station = self.loading(self.system.time, global_pos,
-                                 global_rot, global_vel)
-
-        if OPT_BEAM_LOADS_IN_SECTION_COORDS:
-            # P is in local stations coords -- transform back to prox frame
-            prox_rot = self.modes.R(self.xstrain)
-            P_prox = np.einsum('hji,hj->hi', prox_rot, P_station)
-        else:
-            P_prox = P_station
-
-        return P_prox
-
     def calc_external_loading(self):
-        # Gravity loads
-        self.applied_forces[:] = dot(self.mass_vv,   self._gravacc)
-        self.applied_stress[:] = -dot(self.mass_ve.T, self._gravacc)
+        # Gravity acceleration
+        acc = np.tile(self.gravity_acceleration(), 1 + self._ndistal)
+        self.applied_forces[:] = dot(self.mass_vv, acc)
+        self.applied_stress[:] = -dot(self.mass_ve.T, acc)
         # XXX NB applied_stresses are negative (so they are as expected for
         #     elastic stresses, but opposite for applied stresses)
 
@@ -237,11 +215,12 @@ class ModalElement(Element):
 
         # External loading
         if self.loading is not None:
-            # Positions and orientations of all stations
-            P_prox = self._get_loading()
-            Fext,Mext,Sext = self.modes.distributed_loading(P_prox, self.xstrain)
-            self.applied_forces[VP] += Fext
-            self.applied_forces[WP] += Mext
+            time = self.system.time if self.system else 0
+            P_prox = self.loading(self, time)
+            Fext, Mext, Sext = self.modes.distributed_loading(P_prox,
+                                                              self.xstrain)
+            self.applied_forces[VP] += dot(self.Rp, Fext)
+            self.applied_forces[WP] += dot(self.Rp, Mext)
             self.applied_stress[:]  += Sext
 
     # Declare some standard custom outputs
@@ -365,9 +344,10 @@ class DistalModalElementFromScratch(Element):
         self.quad_stress[6:] = (term1 + term2 + term3)[12:]
 
     def calc_external_loading(self):
-        # Gravity loads
-        self.applied_forces[:] = dot(self.mass_vv,   self._gravacc)
-        self.applied_stress[:] = -dot(self.mass_ve.T, self._gravacc)
+        # Gravity acceleration
+        acc = np.tile(self.gravity_acceleration(), 1 + self._ndistal)
+        self.applied_forces[:] = dot(self.mass_vv, acc)
+        self.applied_stress[:] = -dot(self.mass_ve.T, acc)
         # XXX NB applied_stresses are negative (so they are as expected for
         #     elastic stresses, but opposite for applied stresses)
 
@@ -623,8 +603,9 @@ class DistalModalElement(Element):
 
     def calc_external_loading(self):
         # Gravity loads
-        self.applied_forces[:] = dot(self.mass_vv,   self._gravacc)
-        self.applied_stress[:] = -dot(self.mass_ve.T, self._gravacc)
+        acc = np.tile(self.gravity_acceleration(), 1 + self._ndistal)
+        self.applied_forces[:] = dot(self.mass_vv, acc)
+        self.applied_stress[:] = -dot(self.mass_ve.T, acc)
         # XXX NB applied_stresses are negative (so they are as expected for
         #     elastic stresses, but opposite for applied stresses)
 

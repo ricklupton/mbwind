@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 from numpy import array, zeros, eye, newaxis, dot, r_, ix_
-from scipy.integrate import trapz
+from scipy.integrate import trapz, simps
 from scipy import linalg
 from .utils import eps_ijk, discont_trapz, skewmat
 from .core import qrot3
@@ -54,7 +54,25 @@ def integrate_mass_moments(X0, density):
     return m, I, J
 
 
+def bisect_points(x):
+    """Return x with new points linearly interpolated into each gap along
+    the 1st axis"""
+    xx = np.repeat(x, 2, axis=0)[1:-1]
+    x2 = r_[xx[0:1], (xx[1:] + xx[:-1]) / 2, xx[-1:]]
+    return x2
+
+
+# def integrate_first_moment(y1, y2, x):
+#     """Integrate xy dx, by first bisecting intervals then Simpson's rule"""
+#     # interpolate midpoints of quadratics so they integrate properly
+#     xx = bisect_points(x)
+#     yy1 = bisect_points(y1)
+#     yy2 = bisect_points(y2)
+#     XcrossP = np.einsum('ijk,hj,hk->hi', eps_ijk, X2, P2)
+#         Qw = simps(XcrossP, x2, axis=0)
+
 def cumulative_mass_moment(X0, density):
+
     """
     Calculate cumulative 1st moments of mass using exact formulae
     (trapz or simps not exact because of x or x**2 in integrand)
@@ -190,9 +208,10 @@ class ModalRepresentation(object):
             \rho(s) \, ds
 
     """
-    def __init__(self, x, shapes, rotations, density, freqs, mass_axis=None,
-                 section_inertia=None, gyration_ratio=1.0,
-                 damping=None, mode_names=None):
+    def __init__(self, x, density=None, shapes=None, rotations=None,
+                 freqs=None, damping=None, mode_names=None,
+                 mass_axis=None,
+                 section_inertia=None, gyration_ratio=1.0):
         r"""
         Setup modal representation for a 1-dimensional element.
 
@@ -201,14 +220,20 @@ class ModalRepresentation(object):
         x : array (`N_x`)
             Coordinates where mode shapes and densities are defined
 
+        density : array (`N_x`)
+            Linear density distribution at points defined in `x`
+
         shapes : array (`N_x` x 3 x `N_modes`)
             Array of mode shapes defined at points in `x`
 
         rotations : array (`N_x` x 3 x `N_modes`)
             Array of mode rotations defined at points in `x`
 
-        density : array (`N_x`)
-            Linear density distribution at points defined in `x`
+        freqs : array (`N_modes`)
+            Array of modal frequencies
+
+        damping : array (`N_modes`), default zeros
+            Array of modal damping factors
 
         mass_axis : array(`N_x` x 2)
             Y- and Z- coordinates of centre of mass at each point
@@ -223,13 +248,18 @@ class ModalRepresentation(object):
 
             If None, transverse inertias are zero.
 
-        freqs : array (`N_modes`)
-            Array of modal frequencies
-
-        damping : array (`N_modes`), default zeros
-            Array of modal damping factors
-
         """
+
+        # Provide defaults that represent a light rigid beam (no flexible modes)
+        if density is None:
+            density = zeros(len(x))
+        if shapes is None:
+            shapes = zeros((len(x), 3, 0))
+        if rotations is None:
+            rotations = zeros((len(x), 3, 0))
+        if freqs is None:
+            freqs = zeros(0)
+
         assert len(x) == shapes.shape[0] == rotations.shape[0]
         assert len(freqs) == shapes.shape[2] == rotations.shape[2]
         assert shapes.shape[1] == rotations.shape[1] == 3
@@ -434,12 +464,21 @@ class ModalRepresentation(object):
 
         Returns a tuple (Q_r, Q_w, Q_e) of forces/moments/stresses.
         """
+
+        # force is linear so can be directly integrated
+        Qr = trapz(P, self.x, axis=0)
+
+        # interpolate midpoints of quadratics so they integrate properly
         X = self.X(q)  # length x 3
-        XcrossP = np.einsum('ijk,hj,hk->hi', eps_ijk, X, P)  # length x 3
-        UTP = np.einsum('hip,hi->hp', self.shapes, P)
-        Qr = -trapz(P,       self.x, axis=0)
-        Qw = trapz(XcrossP, self.x, axis=0)
-        Qe = -trapz(UTP,     self.x, axis=0)
+        XcrossP = np.einsum('ijk,hj,hk->hi', eps_ijk,
+                            bisect_points(X), bisect_points(P))
+        Qw = simps(XcrossP, bisect_points(self.x), axis=0)
+
+        # applied stress - also 2 linear shapes so need to bisect
+        UTP = np.einsum('hip,hi->hp', bisect_points(self.shapes),
+                        bisect_points(P))
+        Qe = simps(UTP, bisect_points(self.x), axis=0)
+        
         return Qr, Qw, Qe
 
     def geometric_stiffness(self, N):

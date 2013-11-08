@@ -176,12 +176,14 @@ class Blade(object):
         rotations = self.mode_data[:,3:,:]
         #kgyr = np.zeros_like(bmf.radii)
         #mass_axis = bmf.mass_axis
-        rep = ModalRepresentation(self.radii, shapes, rotations,
-            density=self.density,
-            freqs  =self.mode_freqs,
-            damping=self.mode_damping,
-#            section_inertia=kgyr,
-        )
+        rep = ModalRepresentation(self.radii,
+                                  shapes=shapes,
+                                  rotations=rotations,
+                                  density=self.density,
+                                  freqs  =self.mode_freqs,
+                                  damping=self.mode_damping,
+                                  #            section_inertia=kgyr,
+                              )
         return rep
 
 class Tower(object):

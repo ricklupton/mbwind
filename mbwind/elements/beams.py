@@ -1,7 +1,7 @@
 """
 Flexible beam elements
 """
-
+from __future__ import division
 import numpy as np
 from numpy import array, zeros, eye, dot, pi
 from ..core import Element, euler_param_E, qrot3
@@ -213,8 +213,8 @@ class UniformBeam(Element):
         # XXX check this is right - also add perpendicular inertia of cross-
         #     section, assumed to be half (ok for uniform laminar)
         Jbar = self.Jx * np.diag([1.0, 0.5, 0.5])
-        Jxxp = dot(self.Rp, dot(Jbar, self.Rp.T))
-        Jxxd = dot(self.Rd, dot(Jbar, self.Rd.T))
+        Jxxp = dot(self.Rp, dot(Jbar, self.Rp.T)) / 2
+        Jxxd = dot(self.Rd, dot(Jbar, self.Rd.T)) / 2
 
         # shorthand
         c = self._mass_coeffs
@@ -297,6 +297,78 @@ class UniformBeam(Element):
             self.applied_forces[VP] += Qrp
             self.applied_forces[WP] += Qwp
             self.applied_stress[:]  += Qstrain
+
+
+class TaperedBeam(UniformBeam):
+    _ndistal = 1
+    _nstrain = 6
+    _nconstraints = 6
+
+    def __init__(self, name, length, density, EA, EIy, EIz, GIx=0.0, Jx=0.0):
+        '''
+        Euler beam element.
+
+         - length  : undeformed length of beam
+         - density : mass per unit length
+         - EA      : Extensional stiffness
+         - EIy     : bending stiffness about y axis
+         - EIz     : bending stiffness about z axis
+         - GIx     : torsional stiffness (G*Ix*kx)
+
+        '''
+        Element.__init__(self, name)
+        self.length = length
+        self.linear_density = density
+        self.damping = 0.1
+        self.EA = EA
+        self.GIx = GIx
+        self.EIy = EIy
+        self.EIz = EIz
+        self.Jx = Jx
+        self._initial_calcs()
+
+    def _calc_mass_coeffs(self):
+        m1, m2 = map(float, self.linear_density) # mass per unit length
+        l = self.length
+        self._mass_coeffs = l * array([
+            [2*m1/7 + 3*m2/35, l*(m1 - 5*m2)/420, 9*m1/140 + 9*m2/140, l*(7*m1 + 6*m2)/420],
+            [l*(m1 - 5*m2)/420, l**2*(5*m1 + 11*m2)/840, -l*(8*m1 + 23*m2)/420, -l**2*(m1/280 + m2/120)],
+            [9*m1/140 + 9*m2/140, -l*(8*m1 + 23*m2)/420, 3*m1/35 + 2*m2/7, l*(7*m1 + 15*m2)/420],
+            [l*(7*m1 + 6*m2)/420, -l**2*(m1/280 + m2/120), l*(7*m1 + 15*m2)/420, l**2*(m1/280 + m2/168)]
+        ])
+
+    def _initial_calcs(self):
+        self._calc_mass_coeffs()
+        # Set constant parts of mass matrix
+        c = self._mass_coeffs
+        I = eye(3)
+        self.mass_vv[VP,VP] = c[0,0]*I
+        self.mass_vv[VP,VD] = c[0,2]*I
+        self.mass_vv[VD,VP] = c[0,2]*I
+        self.mass_vv[VD,VD] = c[2,2]*I
+
+        # Shape functions at distal node
+        self.Sr_d = self._beam_rfuncs(1.0)
+        self.Sq_d = self._beam_qfuncs(1.0)
+
+        # Stiffness matrix
+        EA = self.EA
+        GIx,EIy,EIz = self.GIx, self.EIy[0], self.EIz[0]
+        l = self.length
+        self.stiffness = array([
+            [EA, 0,           0,           0,     0,          0         ],
+            [0,  12*EIz/l**3, 0,           0,     0,         -6*EIz/l**2],
+            [0,  0,           12*EIy/l**3, 0,     6*EIy/l**2, 0,        ],
+            [0,  0,           0,           GIx/l, 0,          0         ],
+            [0,  0,           6*EIy/l**2,  0,     4*EIy/l,    0         ],
+            [0, -6*EIz/l**2,  0,           0,     0,          4*EIz/l   ],
+        ])
+
+    def calc_external_loading(self):
+        # Gravity loads
+        self._set_gravity_force()
+
+
 
 #==============================================================================
 # class EulerBeam(UniformBeam):

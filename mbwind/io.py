@@ -96,10 +96,13 @@ def load_modes_from_Bladed(filename):
     shapes_rotations = shapes_rotations[:, permute_axes, :]
     kgyr = np.zeros_like(bmf.radii)
     #mass_axis = bmf.mass_axis
-    rep = ModalRepresentation(bmf.radii, shapes_rotations[:, :3, :],
-                              shapes_rotations[:, 3:, :], bmf.density,
-                              bmf.freqs, section_inertia=kgyr,
-                              damping=bmf.damping)
+    rep = ModalRepresentation(bmf.radii,
+                              bmf.density,
+                              shapes_rotations[:, :3, :],
+                              shapes_rotations[:, 3:, :],
+                              bmf.freqs,
+                              bmf.damping,
+                              section_inertia=kgyr)
     # , mass_axis=mass_axis)
     return rep
 
