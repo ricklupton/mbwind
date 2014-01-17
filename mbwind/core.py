@@ -222,6 +222,7 @@ class System(object):
         # called with the current time at each step.
         self.prescribed_dofs = {}
         self.q_dof = {}
+        self.hooks = []
 
         #### Set up ####
         # Set up first node
@@ -396,9 +397,11 @@ class System(object):
 
         # Update prescribed strains
         for dof,(b,c) in self.prescribed_dofs.items():
+            if callable(b): b = b(self.time)
             if callable(c): c = c(self.time)
             self.qdd[dof] = c
-            # leave velocity for the integration, don't use b
+            # leave velocity for the integration, don't use b?
+            self.qd[dof] = b
 
         # Reset mass and constraint matrices if updating
         if calculate_matrices:
@@ -413,9 +416,16 @@ class System(object):
         for element in self.iter_elements():
             element.update(calculate_matrices)
 
+        # Call loading hooks
+        for hook in self.hooks:
+            hook(self, time)
+
         # Assemble mass matrices, constraint matrices and RHS vectors
         if calculate_matrices:
             assemble.assemble(self.iter_elements(), self.lhs, self.rhs)
+
+    def assemble(self):
+        assemble.assemble(self.iter_elements(), self.lhs, self.rhs)
 
     def prescribe(self, element, acc=0.0, vel=None, part=None):
         """
@@ -862,7 +872,7 @@ class Integrator(object):
     """
     Solve and integrate a system, keeping track of which outputs are required.
     """
-    def __init__(self, system, outputs=('pos',), method='dopri5'):
+    def __init__(self, system, outputs=('pos',), method=None):
         self.system = system
         self.t = np.zeros(0)
         self.y = []
@@ -888,12 +898,17 @@ class Integrator(object):
     def labels(self):
         return [str(output) for output in self._outputs]
 
-    def integrate(self, tvals, dt=None, t0=0.0, nprint=20):
+    def integrate(self, tvals, dt=None, t0=0.0, callback=None,
+                  extra_states=None, nprint=20):
+
         if not np.iterable(tvals):
             assert dt is not None and t0 is not None
             tvals = np.arange(0.0, tvals, dt)
         out_tvals = tvals[tvals >= t0]
         it0 = np.nonzero(tvals >= t0)[0][0]
+
+        if extra_states is None:
+            extra_states = zeros(0)
 
         # prepare for first outputs
         #self.system.update_kinematics(0.0) # work out kinematics
@@ -903,38 +918,54 @@ class Integrator(object):
         self.y = []
         for y0 in self.outputs():
             self.y.append(zeros( (len(out_tvals),) + y0.shape ))
+        if len(extra_states) > 0:
+            self.y.append(zeros((len(out_tvals), len(extra_states))))
 
         iDOF_q  = self.system.q.indices_by_type('strain')
         iDOF_qd = self.system.qd.indices_by_type('strain')
         assert len(iDOF_q) == len(iDOF_qd)
-        nDOF = len(iDOF_q)
-        #DOF = len(self.system.q.dofs)
+        nStruct = len(iDOF_q)
+        nOther = len(extra_states)
 
         # Gradient function
         def _func(ti, yi):
             # update system state with states and state rates
-            # y constains [strains, d(strains)/dt]
-            #elf.system.q.dofs[:]  = yi[:nDOF]
-            #elf.system.qd.dofs[:] = yi[nDOF:]
-            self.system.q [iDOF_q]  = yi[:nDOF]
-            self.system.qd[iDOF_qd] = yi[nDOF:]
-            self.system.update_kinematics(ti) # kinematics and dynamics
+            # y constains [other, strains, d(strains)/dt]
+            q_other = yi[:nOther]
+            self.system.q [iDOF_q]  = yi[nOther:nOther+nStruct]
+            self.system.qd[iDOF_qd] = yi[nOther+nStruct:]
+            self.system.update_kinematics(ti, calculate_matrices=False)
+
+            # Callback may e.g. set element loading
+            if callback:
+                qd_other = callback(self.system, ti, q_other)
+                assert len(qd_other) == nOther
+            else:
+                qd_other = []
 
             # solve system
+            self.system.update_kinematics(ti, calculate_matrices=True)
             self.system.solve_accelerations()
 
-            # new state vector is [strains_dot, strains_dotdot]
-            #return np.r_[ self.system.qd.dofs[:], self.system.qdd.dofs[:] ]
-            return np.r_[ self.system.qd[iDOF_qd], self.system.qdd[iDOF_qd] ]
+            # new state vector is [other_dot, strains_dot, strains_dotdot]
+            return np.r_[
+                qd_other,
+                self.system.qd[iDOF_qd],
+                self.system.qdd[iDOF_qd]
+            ]
 
         # Initial conditions
         self.system.set_initial_velocities(time=0.0)
-        z0 = np.r_[ self.system.q[iDOF_q], self.system.qd[iDOF_qd] ]
-        #z0 = np.r_[ self.system.q.dofs[:], self.system.qd.dofs[:] ]
+        z0 = np.r_[
+            extra_states,
+            self.system.q[iDOF_q],
+            self.system.qd[iDOF_qd]
+        ]
 
         # Setup actual integrator
         integrator = ode(_func)
-        integrator.set_integrator(self.method)
+        if self.method:
+            integrator.set_integrator(self.method)
         integrator.set_initial_value(z0, 0.0)
 
         if nprint is not None:
@@ -965,6 +996,8 @@ class Integrator(object):
                 # Save outputs
                 for y,out in zip(self.y, self.outputs()):
                     y[it-it0] = out
+                if len(extra_states) > 0:
+                    self.y[-1][it-it0] = integrator.y[:nOther]
                 if nprint is not None and (it % nprint) == 0:
                     sys.stdout.write('.'); sys.stdout.flush()
             else:
