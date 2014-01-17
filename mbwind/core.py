@@ -708,7 +708,7 @@ class Element(object):
         # inertial and applied forces acting ON all element nodes
         a_nodal = np.r_[ self.ap, self.ad ]
         elem = -dot(self.mass_vv, a_nodal) + -dot(self.mass_ve, self.astrain) +\
-                       -self.quad_forces + self.applied_forces
+               self.quad_forces + self.applied_forces
 
         # calculate forces acting ON proximal nodes:
         #   Fprox + elem_forces_on_prox + sum of distal_forces = 0
