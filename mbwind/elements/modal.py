@@ -4,10 +4,11 @@ Modal elements
 
 import numpy as np
 from numpy import array, zeros, eye, dot, pi
+from scipy import linalg
 from ..core import Element, CustomOutput
 from ..utils import eps_ijk, skewmat
 from ..modes import cumulative_mass_moment
-import _modal_calcs
+from . import _modal_calcs
 
 # Slices to refer to parts of matrices
 VP = slice(0, 3)
@@ -71,8 +72,9 @@ class ModalElement(Element):
 
         # Geometric stiffness matrix
         # Use int rdm as axial force, multiply by omega**2 later
-        cenfug_force = cumulative_mass_moment(self.modes.X0, self.modes.density)
-        self.kG = self.modes.geometric_stiffness(cenfug_force[:, 0])
+        # cenfug_force = cumulative_mass_moment(self.modes.X0, self.modes.density)
+        # self.kG = self.modes.geometric_stiffness(cenfug_force[:, 0])
+        self.kGe, self.kGw = self.modes.centrifugal_stiffness()
 
     def station_positions(self):
         prox_pos = self.modes.X(self.xstrain)
@@ -190,6 +192,14 @@ class ModalElement(Element):
 #        assert np.allclose(test_ge, self.quad_stress)
 #
 
+    def apply_distributed_loading(self, load):
+        # XXX this may not work well with +=: when is it reset?
+        Qr, Qw, Qs = self.modes.distributed_loading(load, self.xstrain)
+        self.applied_forces[VP] += dot(self.Rp, Qr)
+        self.applied_forces[WP] += dot(self.Rp, Qw)
+        # XXX sign? applied stresses are negative
+        self.applied_stress[:]  += -Qs
+
     def calc_external_loading(self):
         # Gravity acceleration
         acc = np.tile(self.gravity_acceleration(), 1 + self._ndistal)
@@ -211,17 +221,14 @@ class ModalElement(Element):
         if True or OPT_GEOMETRIC_STIFFNESS:
             # Calculate magnitude of angular velocity perpendicular to beam
             local_wp_sq = np.sum(dot(self.Rp.T, self.vp[WP])[1:]**2)
-            self.applied_stress[:] += local_wp_sq * dot(self.kG, self.xstrain)
+            self.applied_forces[3:] += -local_wp_sq * dot(self.kGw, self.xstrain)
+            self.applied_stress[:] += local_wp_sq * dot(self.kGe, self.xstrain)
 
         # External loading
         if self.loading is not None:
             time = self.system.time if self.system else 0
             P_prox = self.loading(self, time)
-            Fext, Mext, Sext = self.modes.distributed_loading(P_prox,
-                                                              self.xstrain)
-            self.applied_forces[VP] += dot(self.Rp, Fext)
-            self.applied_forces[WP] += dot(self.Rp, Mext)
-            self.applied_stress[:]  += Sext
+            self.apply_distributed_loading(P_prox)
 
     # Declare some standard custom outputs
     def output_deflections(self, stations=(-1,)):
