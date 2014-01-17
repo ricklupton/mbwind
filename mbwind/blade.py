@@ -8,7 +8,7 @@ Represent a wind turbine blade, including mass and aerodynamic properties.
 """
 
 import numpy as np
-from numpy import asarray
+from numpy import asarray, zeros_like
 import re
 from .modes import ModalRepresentation
 from .old_io import convert_Bladed_attachment_modes
@@ -119,7 +119,7 @@ class Blade(object):
             prj = f.read()
         mgeom = BladedModule(prj, 'BGEOMMB')
         mmass = BladedModule(prj, 'BMASSMB')
-
+        mstiff = BladedModule(prj, 'BSTIFFMB')
 
         # Geometry
         self.name = mgeom.bladename
@@ -132,8 +132,15 @@ class Blade(object):
         # Mass
         self.density = mmass.mass
 
+        # Stiffness
+        self.EA = [0] * len(self.radii)
+        self.EI_flap = mstiff.eiflap
+        self.EI_edge = mstiff.eiedge
+
         # Remove repeated stations -- assume no split stations
-        for xx in ('radii', 'chord', 'thickness', 'twist', 'density'):
+        properties = ('radii', 'chord', 'thickness', 'twist', 'density',
+                      'EA', 'EI_flap', 'EI_edge')
+        for xx in properties:
             y = getattr(self, xx)
             assert y[::2] == y[1::2], "Cannot deal with split stations"
             setattr(self, xx, asarray(y[::2]))
