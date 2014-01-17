@@ -2,7 +2,7 @@ import numpy as np
 from numpy import array, dot, pi
 from mbwind.elements import (FreeJoint, RigidConnection, RigidBody, Hinge,
                              ModalElement, DistalModalElementFromScratch)
-
+from mbwind.elements.modal import ModalElementFromFE
 
 # class PrismaticJointView(object):
 #     def shape(self, joint):
@@ -329,6 +329,30 @@ class ModalElementView(ElementView):
         local_axis = np.r_[
             [e.rp],
             [e.rp + dot(e.Rp, e.modes.X0[-1])],
+            [shape[-1]]
+        ]
+        self.shape.set_data(shape[:, self.x], shape[:, self.y])
+        self.local_axis.set_data(local_axis[:, self.x], local_axis[:, self.y])
+
+
+class ModalElementFromFEView(ElementView):
+    element = ModalElementFromFE
+
+    def create_artists(self):
+        self.shape, = self.axes.plot([], [], c='g', marker='o', lw=2, ms=1)
+        self.local_axis, = self.axes.plot([], [], c='k', lw=2, alpha=0.3)
+        return (self.shape, self.local_axis)
+
+    def reset(self):
+        self.shape.set_data([], [])
+        self.local_axis.set_data([], [])
+
+    def update(self):
+        e = self.element
+        shape = self.element.station_positions()
+        local_axis = np.r_[
+            [e.rp],
+            [e.rp + dot(e.Rp, e.fe.q0[-6:-3])],
             [shape[-1]]
         ]
         self.shape.set_data(shape[:, self.x], shape[:, self.y])
