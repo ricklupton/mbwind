@@ -2,6 +2,7 @@
 Simple elements
 """
 
+from functools import reduce
 import numpy as np
 from numpy import zeros, eye, dot, pi, sin, cos
 from ..core import Element
@@ -225,5 +226,8 @@ class RigidBody(Element):
     def calc_external_loading(self):
         self._set_gravity_force()
         if self.nodal_load is not None:
-            global_force = self.nodal_load(self.system.time)
+            if callable(self.nodal_load):
+                global_force = self.nodal_load(self.system.time)
+            else:
+                global_force = self.nodal_load
             self.applied_forces[VP] += global_force
