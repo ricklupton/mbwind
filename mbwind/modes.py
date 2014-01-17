@@ -284,20 +284,22 @@ class ModalRepresentation(object):
 
         # If only one set of density values is given, assume it's continuous.
         # Otherwise, values should be given at start and end of each section.
-        if density.ndim == 1:
+        if np.isscalar(density):
+            self.density = zeros((len(x)-1, 2)) + density
+        elif density.ndim == 1:
             self.density = zeros((len(x)-1, 2))
             self.density[:, 0] = density[:-1]
             self.density[:, 1] = density[1:]
         elif density.ndim == 2:
             self.density = density
         else:
-            raise ValueError('density should be Nx x 1 or Nx x 2')
+            raise ValueError('density should be scalar, Nx x 1 or Nx x 2')
 
-        self.x = x
+        self.x = np.asarray(x)
         self.shapes = shapes
         self.rotations = rotations
-        self.freqs = freqs
-        self.damping = damping
+        self.freqs = np.asarray(freqs)
+        self.damping = np.asarray(damping)
         self.mass_axis = mass_axis
 
         # describe mode shapes
@@ -475,13 +477,51 @@ class ModalRepresentation(object):
         Qw = simps(XcrossP, bisect_points(self.x), axis=0)
 
         # applied stress - also 2 linear shapes so need to bisect
-        UTP = np.einsum('hip,hi->hp', bisect_points(self.shapes),
-                        bisect_points(P))
-        Qe = simps(UTP, bisect_points(self.x), axis=0)
-        
+        # UTP = np.einsum('hip,hi->hp', bisect_points(self.shapes),
+        #                 bisect_points(P))
+        # Qe = simps(UTP, bisect_points(self.x), axis=0, even='last')
+        UTP = np.einsum('hip,hi->hp', self.shapes, P)
+        Qe = trapz(UTP, self.x, axis=0)
+
         return Qr, Qw, Qe
 
+    def centrifugal_stiffness(self):
+        """Return strain-strain and moment-strain centrifugal stiffness matrices
+
+        Valid for an axial centrifugal force with unit angular
+        velocity; scale by omega^2.
+
+        """
+        # Axial force
+        N = cumulative_mass_moment(self.X0, self.density)[:, 0]
+
+        # Strain-strain matrix
+        V = self.rotations
+        Vkp_Vkq = np.einsum('hkp,hkq->hpq', V[:, 1:, :], V[:, 1:, :])
+        Kee = trapz(Vkp_Vkq * N[:, newaxis, newaxis], x=self.x, axis=0)
+
+        # Moment-strain matrix
+        Vjp_Vkq = np.einsum('hjp,hkq->hjkpq', V, V)
+        Vint = trapz(Vjp_Vkq * N[:, newaxis, newaxis, newaxis, newaxis],
+                     x=self.x, axis=0)
+
+        # For now assume calculating at undisturbed position, making this term 0
+        # xstrain = zeros(V.shape[2])
+        # Qw1 = np.einsum('pq,p->q', Vint[1, 2] - Vint[2, 1], xstrain)
+
+        Vjp = trapz(V * N[:, newaxis, newaxis], x=self.x, axis=0)
+        # Qw2 = 2 * Vjp[1]
+        # Qw3 = 2 * Vjp[2]
+        Qw1 = zeros(V.shape[2])
+        Qw2 = -Vjp[1]
+        Qw3 = -Vjp[2]
+        Kwe = np.vstack((Qw1, Qw2, Qw3))
+
+        return Kee, Kwe
+
+
     def geometric_stiffness(self, N):
+
         """
         Calculate the geometric stiffening matrix corresponding to an applied
         force N.
