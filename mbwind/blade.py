@@ -11,7 +11,7 @@ import numpy as np
 from numpy import asarray
 import re
 from .modes import ModalRepresentation
-from .io import convert_Bladed_attachment_modes
+from .old_io import convert_Bladed_attachment_modes
 #from .elements import UniformBeam
 
 def rotation_matrix_to_quaternions(R):
@@ -247,7 +247,7 @@ class Tower(object):
         try:
             mmodes = BladedModule(prj, 'RMODE')
         except ModuleNotFoundError as e:
-            print e
+            print(e)
             self.nmodes = 0
             self.mode_types = []
             self.mode_freqs = []

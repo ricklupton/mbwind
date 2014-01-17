@@ -5,7 +5,7 @@ Created on Fri May 04 17:56:18 2012
 @author: Rick Lupton
 """
 
-from visual import *
+from .visual import *
 from numpy import *
 
 scene.background = (1,1,1)

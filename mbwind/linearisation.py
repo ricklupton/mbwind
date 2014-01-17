@@ -68,7 +68,7 @@ def _create_strain_array(system, initial_values_dict):
             try:
                 z[idofs.index(i)] = dof
             except ValueError:
-                print "(skipping prescribed state {})".format(i)
+                print("(skipping prescribed state {})".format(i))
                 pass  # this dof of the element must be prescribed
     return z
 
@@ -276,7 +276,7 @@ class LinearisedSystem(object):
         # Initial conditions
         y0 = np.r_[ z0, zd0 ]
 
-        print 'Running simulation:',
+        print('Running simulation:', end='')
         sys.stdout.flush()
         tstart = time.clock()
 
@@ -289,12 +289,12 @@ class LinearisedSystem(object):
         for it,t in enumerate(tvals[1:], start=1):
             integrator.integrate(t)
             if not integrator.successful():
-                print 'stopping'
+                print('stopping')
                 break
             result[it,:] = integrator.y
             if (it % nprint) == 0:
                 sys.stdout.write('.'); sys.stdout.flush()
 
-        print 'done (%.1f seconds)' % (time.clock() - tstart)
+        print('done (%.1f seconds)' % (time.clock() - tstart))
 
         return result

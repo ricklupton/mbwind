@@ -90,7 +90,7 @@ class ArrayProxy(object):
     """Delegate getitem and setitem to a reduced part of the target array"""
     def __init__(self, target, subset=None):
         if subset is None:
-            subset = range(len(target))
+            subset = list(range(len(target)))
         self.subset = subset
         self._target = target
 
@@ -114,7 +114,7 @@ class StateArray(object):
         self.reset()
 
     def _slice(self, index):
-        if isinstance(index, basestring):
+        if isinstance(index, str):
             index = self.named_indices[index]
         if isinstance(index, int):
             index = slice(index, index+1)
@@ -122,7 +122,7 @@ class StateArray(object):
 
     def indices(self, index):
         s = self._slice(index)
-        return range(s.start, s.stop)
+        return list(range(s.start, s.stop))
 
     def __getitem__(self, index):
         if self._array is None:
@@ -179,7 +179,8 @@ class StateArray(object):
         "Return all named states of the given type"
         if not isinstance(types, (list,tuple)):
             types = (types,)
-        return [name for name,ind in sorted(self.named_indices.iteritems(), key=operator.itemgetter(1))
+        return [name for name,ind in sorted(self.named_indices.items(),
+                                            key=operator.itemgetter(1))
                 if self.get_type(name) in types]
 
     def by_type(self, types):
@@ -250,19 +251,20 @@ class System(object):
             element.finish_setup()
 
     def print_states(self):
-        print '      Element        Type           ID             Prescribed'
-        print '-------------------------------------------------------------'
+        print('      Element        Type           ID             Prescribed')
+        print('-------------------------------------------------------------')
         #for i,(el,type_) in enumerate(zip(states.owners, states.types)):
         #    prescribed = (i in states.dofs) and '*' or ' '
         #    print '{:<5}{:<15}{:<12}{:<15} {}'.format(i,el, type_, prescribed)
         for name,indices in sorted(self.qd.named_indices.items(), key=operator.itemgetter(1)):
-            i = range(indices.start, indices.stop)
+            i = list(range(indices.start, indices.stop))
             if indices.start == indices.stop: continue
             if name == 'ground': prescribed = [True]
             else: prescribed = [(j in self.prescribed_dofs) for j in i]
             pstr = ' * ' if all(prescribed) else '(*)' if any(prescribed) else '   '
-            print '{:>3}-{:<3} {:<15}{:<15}{:<20} {}'.format(
-                i[0], i[-1], self.qd.owners[i[0]], self.qd.types[i[0]], name, pstr)
+            print('{:>3}-{:<3} {:<15}{:<15}{:<20} {}'
+                  .format(i[0], i[-1], self.qd.owners[i[0]],
+                          self.qd.types[i[0]], name, pstr))
 
     def iter_elements(self):
         for elem in self.first_elements:
@@ -271,10 +273,10 @@ class System(object):
                 yield elem2
 
     def print_info(self):
-        print 'System:\n'
+        print('System:\n')
         for element in self.iter_elements():
             element.print_info()
-            print
+            print()
 
     ##################################################################
     ###   Book-keeping   #############################################
@@ -312,7 +314,7 @@ class System(object):
         # prescribed strains
         self.iNotPrescribed = np.ones(len(self.qd), dtype=bool)
         self.iNotPrescribed[0:6] = False # ground node
-        self.iNotPrescribed[self.prescribed_dofs.keys()] = False
+        self.iNotPrescribed[list(self.prescribed_dofs)] = False
 
         # real coords, node and strains
         ir = self.qd.indices_by_type(('ground', 'node', 'strain'))
@@ -425,8 +427,8 @@ class System(object):
 
         The specified DOFs will be removed from the matrices when solving.
         """
-        dofs = zip(self.q .indices(element.istrain),
-                   self.qd.indices(element.istrain))
+        dofs = list(zip(self.q .indices(element.istrain),
+                        self.qd.indices(element.istrain)))
         if part is not None:
             dofs = np.asarray(dofs)[part]
         if len(dofs) == 0:
@@ -619,14 +621,14 @@ class Element(object):
                     yield descendent
 
     def print_info(self):
-        print '{!r}:'.format(self)
-        print '    prox node: {}'.format(self.iprox)
+        print('{!r}:'.format(self))
+        print('    prox node: {}'.format(self.iprox))
         if self._nstrain:
-            print '    strains: {} ({})'.format(self._nstrain, self.istrain)
+            print('    strains: {} ({})'.format(self._nstrain, self.istrain))
         if self._nconstraints:
-            print '    constraints: {} ({})'.format(self._nconstraints, self.imult)
+            print('    constraints: {} ({})'.format(self._nconstraints, self.imult))
         if self._ndistal:
-            print '    distal nodes: {}'.format(', '.join(self.idist))
+            print('    distal nodes: {}'.format(', '.join(self.idist)))
 
     def setup_chain(self, system, prox_indices):
         self.system = system
@@ -936,7 +938,7 @@ class Integrator(object):
         integrator.set_initial_value(z0, 0.0)
 
         if nprint is not None:
-            print 'Running simulation:',
+            print('Running simulation:',)
             sys.stdout.flush()
             tstart = time.clock()
 
@@ -947,7 +949,7 @@ class Integrator(object):
             if t > 0:
                 integrator.integrate(t)
                 if not integrator.successful():
-                    print 'stopping'
+                    print('stopping')
                     break
 
             # Wrap joint angles etc
@@ -971,7 +973,7 @@ class Integrator(object):
 
         if nprint is not None:
             elapsed_time = time.clock() - tstart
-            print 'done (%.1f seconds, %d%% of simulation time)' % \
-                (elapsed_time, 100*elapsed_time/tvals[-1])
+            print('done (%.1f seconds, %d%% of simulation time)' %
+                  (elapsed_time, 100*elapsed_time/tvals[-1]))
 
         return self.t, self.y

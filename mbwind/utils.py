@@ -42,8 +42,10 @@ def rotations(*rotation_list):
          --> dot(rotmat_x(pi/2), rotmat_z(pi/2))
     """
     rotmat = dict(x=rotmat_x, y=rotmat_y, z=rotmat_z)
-    mats = [rotmat[direction](angle) for direction, angle in rotation_list]
-    return reduce(dot, mats, eye(3))
+    A = eye(3)
+    for direction, angle in rotation_list:
+        A = dot(rotmat[direction](angle), A)
+    return A
 
 
 def skewmat(vec):

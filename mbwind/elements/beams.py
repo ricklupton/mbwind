@@ -290,10 +290,6 @@ class UniformBeam(Element):
             Qrp = global_force
             Qwp = dot(skewmat(self.rd - self.rp), global_force[:3])
             Qstrain = dot(np.eye(6,3), dot(self.Rp.T, global_force[:3]))
-            print Qrp
-            print Qwp
-            print Qstrain
-            print
             self.applied_forces[VP] += Qrp
             self.applied_forces[WP] += Qwp
             self.applied_stress[:]  += Qstrain
