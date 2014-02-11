@@ -976,37 +976,45 @@ class Integrator(object):
         # Update for first outputs
         _func(0.0, z0)
 
-        for it,t in enumerate(tvals):
-            if t > 0:
-                integrator.integrate(t)
-                if not integrator.successful():
-                    print('stopping')
-                    break
+        try:
+            for it,t in enumerate(tvals):
+                if t > 0:
+                    integrator.integrate(t)
+                    if not integrator.successful():
+                        print('stopping')
+                        break
 
-            # Wrap joint angles etc
-            self.system.q.wrap_states()
+                # Wrap joint angles etc
+                self.system.q.wrap_states()
 
-            if t >= t0:
-                # Update nodal accelerations from strains' (DOFs') accelerations
-                self.system.update_kinematics()
+                if t >= t0:
+                    # Update nodal accelerations from strains' (DOFs') accelerations
+                    self.system.update_kinematics()
 
-                # Calculate reaction forces by backwards iteration down tree
-                self.system.solve_reactions()
+                    # Calculate reaction forces by backwards iteration down tree
+                    self.system.solve_reactions()
 
-                # Save outputs
-                for y,out in zip(self.y, self.outputs()):
-                    y[it-it0] = out
-                if len(extra_states) > 0:
-                    self.y[-1][it-it0] = integrator.y[:nOther]
-                if nprint is not None and (it % nprint) == 0:
-                    sys.stdout.write('.'); sys.stdout.flush()
-            else:
-                if nprint is not None and (it % nprint) == 0:
-                    sys.stdout.write('-'); sys.stdout.flush()
+                    # Save outputs
+                    for y,out in zip(self.y, self.outputs()):
+                        y[it-it0] = out
+                    if len(extra_states) > 0:
+                        self.y[-1][it-it0] = integrator.y[:nOther]
+                    if nprint is not None and (it % nprint) == 0:
+                        sys.stdout.write('.'); sys.stdout.flush()
+                else:
+                    if nprint is not None and (it % nprint) == 0:
+                        sys.stdout.write('-'); sys.stdout.flush()
+
+        except KeyboardInterrupt:
+            if nprint is not None:
+                print('stopping')
+        else:
+            if nprint is not None:
+                print('done')
 
         if nprint is not None:
             elapsed_time = time.clock() - tstart
-            print('done (%.1f seconds, %d%% of simulation time)' %
+            print(' (%.1f seconds, %d%% of simulation time)' %
                   (elapsed_time, 100*elapsed_time/tvals[-1]))
 
         return self.t, self.y
