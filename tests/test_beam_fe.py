@@ -6,7 +6,7 @@ from mbwind.modes import ModalRepresentation
 from mbwind.elements.modal import ModalElementFromFE
 from mbwind.utils import rotmat_x, rotmat_y, rotmat_z
 import sys; sys.path.insert(0, '../beamfe')
-from beamfe import BeamFE
+from beamfe import BeamFE, interleave
 
 assert_aae = assert_array_almost_equal
 
@@ -21,7 +21,8 @@ class ModalElementFromFE_Tests:
         fe = BeamFE(x, density=1, EA=0, EIy=1, EIz=0)
         fe.set_boundary_conditions('C', 'F')
         fe.set_dofs([False, False, True, False, True, False])
-        element = ModalElementFromFE('elem', fe)
+        modal = fe.modal_matrices()
+        element = ModalElementFromFE('elem', modal)
         Mmodal = element.mass_ee
         Kmodal = np.diag(element.stiffness)
         w = np.sqrt(np.diag(Kmodal / Mmodal))
@@ -36,7 +37,8 @@ class ModalElementFromFE_Tests:
         fe = BeamFE(x, density=10, EA=0, EIy=EI, EIz=0)
         fe.set_boundary_conditions('C', 'F')
         fe.set_dofs([False, False, True, False, True, False])
-        element = ModalElementFromFE('elem', fe, 3)
+        modal = fe.modal_matrices()
+        element = ModalElementFromFE('elem', modal)
 
         # Distributed load, linearly interpolated
         load = np.zeros((3, 3))
@@ -45,7 +47,7 @@ class ModalElementFromFE_Tests:
         defl = -element.applied_stress / element.stiffness
 
         # Check against directly calculating static deflection from FE
-        Q = fe.distribute_load(load)
+        Q = fe.distribute_load(interleave(load, 6))
         defl_fe, reactions_fe = fe.static_deflection(Q)
         assert_aae(dot(element.modal.shapes, defl), defl_fe, decimal=2)
 
@@ -54,7 +56,8 @@ class ModalElementFromFE_Tests:
         fe = BeamFE(linspace(0, 1, 11), density=1, EA=0, EIy=1, EIz=0)
         fe.set_boundary_conditions('C', 'F')
         fe.set_dofs([False, False, True, False, True, False])
-        element = ModalElementFromFE('elem', fe, 0)
+        modal = fe.modal_matrices(0)
+        element = ModalElementFromFE('elem', modal)
 
         # Distributed load, linearly interpolated
         load = np.zeros((11, 3))

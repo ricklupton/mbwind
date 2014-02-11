@@ -2,7 +2,8 @@ from nose.tools import *
 import numpy as np
 from numpy import zeros, array, eye, pi, dot, sqrt, c_, diag, cos, sin
 from numpy import linalg
-from numpy.testing import assert_array_equal, assert_array_almost_equal
+from numpy.testing import (assert_array_equal, assert_array_almost_equal,
+                           assert_allclose)
 
 from mbwind.utils import rotmat_x, rotmat_y, rotmat_z, update_skewmat
 from mbwind import RigidBody, PrismaticJoint, System, Integrator
@@ -56,23 +57,32 @@ class MassOnSpring_Tests:
         t, solution = integrate(self.system)
         assert_array_equal(solution[0], solution[-1])
 
-    def test_solution_with_time_varying_force(self):
-        # Calculate starting position
-        Fz = 3.4
-        self.system.q.dofs[:] = -Fz / self.K
-        force_func = lambda t: 3.4 * sin(2*pi*t/20)
+    def test_step_response(self):
+        # Calculate system parameters
+        zeta = self.damping_coeff
+        wn = np.sqrt(self.K / self.M)
+        wd = wn * np.sqrt(1 - zeta**2)
+        psi = np.arcsin(zeta)
+
+        # Forcing - step function
+        force_amp = 3.4
+        t0 = 2.3
+        force_func = lambda t: (force_amp if t >= t0 else 0)
 
         def callback(system, time, q_other):
             self.body.nodal_load = [0, 0, force_func(time)]
-            print(time, self.body.nodal_load)
             return []
         t, solution = integrate(self.system, callback)
 
-        expected_defl = -cos(2*pi*t/20) * Fz / self.K
-        assert_array_equal(solution[:, 0], expected_defl)
+        decay = np.exp(-zeta * wn * (t - t0))
+        expected_defl = 1 - decay * cos(wd * (t - t0) - psi) / cos(psi)
+        X = force_amp / self.K
+        expected_defl[t < t0] = 0
+        assert_allclose(solution[:, 0], X * expected_defl, atol=1e-8)
 
 
 def integrate(system, callback=None):
-    integ = Integrator(system)
+    # dopri5 gives exact result for step response
+    integ = Integrator(system, method='dopri5')
     t, y = integ.integrate(10, 0.5, nprint=None, callback=callback)
     return t, y[0]
