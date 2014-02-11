@@ -304,6 +304,10 @@ class ModalElementFromFE(Element):
         global_pos = self.rp[None,:] + np.einsum('ij,hj', self.Rp, X)
         return global_pos
 
+    def elastic_deflections(self):
+        X = dot(self.modal.shapes, self.xstrain)
+        return np.c_[X[0::6], X[1::6], X[2::6]]
+
     def elastic_velocities(self):
         V = dot(self.modal.shapes, self.vstrain)
         return np.c_[V[0::6], V[1::6], V[2::6]]
@@ -428,6 +432,12 @@ class ModalElementFromFE(Element):
                 P_prox = np.asarray(self.loading)
             self.apply_distributed_loading(P_prox)
 
+    # Declare some standard custom outputs
+    def output_deflections(self, stations=(-1,)):
+        def f(system):
+            X = self.elastic_deflections()
+            return X[stations]
+        return CustomOutput(f, label="{} deflections".format(self.name))
 
 
 class DistalModalElementFromScratch(Element):
