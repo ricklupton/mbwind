@@ -31,6 +31,7 @@ class Hinge(Element):
         if post_transform is None:
             post_transform = np.eye(3)
         self.post_transform = post_transform
+        self.loading = None
 
     def _set_wrapping(self):
         self.system.q.wrap_levels[self.system.q.indices(self.istrain)[0]] = 2*pi
@@ -56,7 +57,15 @@ class Hinge(Element):
         self.F_v2[3:] = thd*dot(self.wps, n)
 
     def calc_external_loading(self):
-        self.applied_stress[0] = self.stiffness*self.xstrain[0] + self.damping*self.vstrain[0]
+        self.applied_stress[0] = (self.stiffness * self.xstrain[0] +
+                                  self.damping   * self.vstrain[0])
+        if self.loading is not None:
+            if callable(self.loading):
+                time = self.system.time if self.system else 0
+                loading = self.loading(self, time)
+            else:
+                loading = np.asarray(self.loading)
+            self.applied_stress[0] += -loading  # NB minus sign
 
 
 class PrismaticJoint(Element):
