@@ -329,6 +329,16 @@ class System(object):
             B[iz,iq] = True
         self.B = B[:,self.iReal]
 
+    def get_state(self):
+        return np.concatenate([self.q.dofs[:], self.qd.dofs[:]])
+
+    def set_state(self, state):
+        N = len(self.q.dofs[:])
+        assert len(state) == 2 * N
+        self.q.dofs[:] = state[:N]
+        self.qd.dofs[:] = state[N:]
+        self.update_kinematics()
+
     def get_constraints(self):
         """
         Return constraint jacobian \Phi_q and the vectors b and c
