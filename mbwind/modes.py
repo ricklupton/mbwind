@@ -3,8 +3,7 @@ import numpy as np
 from numpy import array, zeros, eye, newaxis, dot, r_, ix_
 from scipy.integrate import trapz, simps
 from scipy import linalg
-from .utils import eps_ijk, discont_trapz, skewmat
-from .core import qrot3
+from .utils import eps_ijk, discont_trapz, skewmat, qrot3
 
 
 def e_ikl_S_kl(S):

@@ -5,7 +5,8 @@ from numpy.testing import assert_array_equal, assert_array_almost_equal
 
 assert_aae = assert_array_almost_equal
 
-class UtilsTestCase:
+
+class Utils_tests:
     def test_skew(self):
         assert_array_equal(skewmat(zeros(3)), zeros((3, 3)))
         assert_array_equal(skewmat([1, 2, 3]), array([
@@ -16,14 +17,9 @@ class UtilsTestCase:
 
     def test_update_skew(self):
         x = zeros((3, 3))
-        update_skewmat(x, [0, 0, 0])
-        assert_array_equal(x, zeros((3, 3)))
-        update_skewmat(x, [1, 2, 3])
-        assert_array_equal(x, array([
-            [0, -3,  2],
-            [3,  0, -1],
-            [-2, 1,  0],
-        ]))
+        for v in ([0, 0, 0], [1, 2, 3]):
+            update_skewmat(x, v)
+            assert_array_equal(x, skewmat(v))
 
     def test_rotmats(self):
         assert_array_equal(rotmat_x(0), eye(3))
@@ -35,18 +31,26 @@ class UtilsTestCase:
         assert_aae(dot(rotmat_y(pi / 4), [1, 1, 1]), [sqrt(2), 1, 0])
         assert_aae(dot(rotmat_z(pi / 4), [1, 1, 1]), [0, sqrt(2), 1])
 
-
     def test_rotations(self):
+        assert_aae(rotations(('z', pi/2)),
+                   [[0, -1, 0],
+                    [1,  0, 0],
+                    [0,  0, 1]])
         # Work these two examples out by hand: apply the rotations in
         # turn about the updated axes, and see where the body axes end
         # up pointing.
         assert_aae(rotations(('z', pi/2), ('x', pi/2)),
-                   transpose([[0,1,0], [0,0,1], [1,0,0]]))
+                   [[0, 0, 1],
+                    [1, 0, 0],
+                    [0, 1, 0]])
         assert_aae(rotations(('z', pi/2), ('x', pi/2), ('z', pi/2)),
-                   transpose([[0,0,1], [0,-1,0], [1,0,0]]))
-
+                   [[0,  0, 1],
+                    [0, -1, 0],
+                    [1,  0, 0]])
         assert_aae(rotations(('x', pi/2), ('z', pi/2)),
-                   transpose([[0,0,1], [-1,0,0], [0,-1,0]]))
+                   [[0, -1,  0],
+                    [0,  0, -1],
+                    [1,  0,  0]])
 
     def test_discont_trapz(self):
         x = arange(0, 2.6, 0.5)

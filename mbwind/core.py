@@ -21,57 +21,6 @@ from . import assemble
 from .utils import update_skewmat, skewmat
 
 
-def rotmatrix(xp):
-    #pos = xp[:3]
-    rot = xp[3:]
-    return rot.reshape((3, 3), order='F')  # xp contains columns of rot. matrix
-
-
-def combine_coords(rd, Rd):
-    return np.r_[rd, Rd.flatten(order='F')]
-
-
-def euler_param_mats(q):
-    E = array([
-        [-q[1],  q[0], -q[3],  q[2]],
-        [-q[2],  q[3],  q[0], -q[1]],
-        [-q[3], -q[2],  q[1],  q[0]],
-    ])
-    Ebar = array([
-        [-q[1],  q[0],  q[3], -q[2]],
-        [-q[2], -q[3],  q[0],  q[1]],
-        [-q[3],  q[2], -q[1],  q[0]],
-    ])
-    return E, Ebar
-
-
-def qrot3(q):
-    q1, q2, q3 = q
-    q0 = np.sqrt(1.0 - q1**2 - q2**2 - q3**2)
-    assert not np.isnan(q0)
-    return array([
-        [1 - 2*(q2**2 + q3**2), 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2)],
-        [2*(q1*q2 + q0*q3),     1 - 2*(q1**2 + q3**2), 2*(q2*q3 - q0*q1)],
-        [2*(q1*q3 - q0*q2),     2*(q2*q3 + q0*q1),     1 - 2*(q1**2 + q2**2)],
-    ])
-
-
-def rotation_matrix_to_quaternions(R):
-    q0 = 0.5 * np.sqrt(1 + R.trace())
-    q1 = (R[2, 1] - R[1, 2]) / (4*q0)
-    q2 = (R[0, 2] - R[2, 0]) / (4*q0)
-    q3 = (R[1, 0] - R[0, 1]) / (4*q0)
-    return array([q0, q1, q2, q3])
-
-
-def euler_param_E(q):
-    return array([
-        [-q[1],  q[0], -q[3],  q[2]],
-        [-q[2],  q[3],  q[0], -q[1]],
-        [-q[3], -q[2],  q[1],  q[0]],
-    ])
-
-
 # Number of generalised position and  velocity coordinates
 NQ = 12  # 3 spatial plus 9 rotation matrix entries
 NQD = 6  # 3 spatial plus 3 angular velocity

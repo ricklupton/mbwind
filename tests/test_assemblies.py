@@ -141,7 +141,7 @@ class offset_rigid_ModalElement_Tests:
         # Make 3 elements spaced by 120 deg about z axis
         for i in range(3):
             # Rotation of -pi/2 about y aligns local x axis of ModalElement
-            rotmat = rotations(('y', -pi/2), ('x', i * 2*pi/3))
+            rotmat = rotations(('x', i * 2*pi/3), ('y', -pi/2))
             offset_vector = dot(rotmat, [offset, 0, 0])  # offset // local x
             conn = RigidConnection('offset%d' % i, offset_vector, rotmat)
             element = ModalElement('element%d' % i, modes)
