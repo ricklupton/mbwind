@@ -21,3 +21,6 @@
 /.coverage
 /build/
 .ipynb_checkpoints
+
+.doit.db
+.noseids
