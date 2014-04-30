@@ -1,12 +1,17 @@
-from numpy import zeros, array, eye, pi, dot, sqrt, c_, diag, ones_like, arange
+import numpy as np
+from numpy import (zeros, array, eye, pi, dot, sqrt, c_, diag,
+                   ones_like, arange, linspace)
 from numpy import linalg
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 from nose import SkipTest
 
 from mbwind import System, ReducedSystem
 from mbwind.modes import ModalRepresentation
-from mbwind.elements import ModalElement, RigidConnection, FreeJoint
+from mbwind.elements import (ModalElement, ModalElementFromFE,
+                             RigidConnection, FreeJoint, Hinge)
 from mbwind.utils import rotations
+
+from beamfe import BeamFE, interleave
 
 assert_aae = assert_array_almost_equal
 
@@ -56,7 +61,7 @@ class offset_rigid_ModalElement_Tests:
         assert_aae(rsys.M[:3, 3:], expected_offdiag.T)
 
 
-    def test_three_elements_forming_a_disc_have_ends_in_right_place(self):
+    def test_three_rigid_elements_forming_a_disc_have_ends_in_right_place(self):
         length = 20.0
         offset = 5.0
 
@@ -165,3 +170,145 @@ class offset_rigid_ModalElement_Tests:
         assert_aae(rsys.M[:3, 3:], expected_offdiag.T)
 
 
+# These two test cases are meant to demonstrate the differences
+# between having a beam attached rigidly to ground, and being freely
+# hinged. In the first case, there is no acceleration and the reaction
+# forces are equal to the applied loads. In the second case, the beam
+# starts to accelerate and initially the applied moment is cancelled
+# by the d'Alembert inertial moment. There is however a reaction
+# force remaining.
+
+class hinged_beam_tests:
+    density = 5.0
+    length = 20.0
+    force = 34.2  # N/m
+    hinge_torque = 0.0
+    free_beam = False
+
+    def setup(self):
+        # FE model for beam
+        x = linspace(0, self.length, 20)
+        fe = BeamFE(x, density=self.density, EA=0, EIy=1, EIz=0)
+        fe.set_boundary_conditions('C', 'F')
+        modal = fe.modal_matrices(0)
+        self.beam = ModalElementFromFE('beam', modal)
+
+        # Set loading - in negative Z direction
+        load = np.zeros((len(x), 3))
+        load[:, 2] = -self.force
+        self.beam.loading = load
+
+        # Hinge with axis along Y axis
+        self.hinge = Hinge('hinge', [0, 1, 0])
+        self.hinge.loading = self.hinge_torque
+
+        # Build system
+        self.system = System()
+        self.system.add_leaf(self.hinge)
+        self.hinge.add_leaf(self.beam)
+        self.system.setup()
+
+        if not self.free_beam:
+            # Prescribe hinge to be fixed
+            self.system.prescribe(self.hinge)
+
+        # Initial calculations
+        self.recalc()
+
+    def recalc(self):
+        self.system.update_kinematics()   # Set up nodal values initially
+        self.system.solve_accelerations() # Calculate accelerations of DOFs
+        self.system.update_kinematics()   # Update nodal values based on DOFs
+        self.system.solve_reactions()     # Solve reactions including d'Alembert
+
+
+class fixed_hinged_beam_tests(hinged_beam_tests):
+    free_beam = False
+
+    def test_reaction_on_fixed_beam(self):
+        """Reaction force should balance applied force"""
+        # Applied force and moment (+ve in +Z and +Y)
+        Fa = -self.force * self.length
+        Ma = -Fa * self.length / 2
+
+        # Check equilibrium. No applied forces on hinge, so both nodes
+        # should be the same.
+        assert_aae(self.system.joint_reactions['node-0'],
+                   [0, 0, -Fa, 0, -Ma, 0])
+        assert_aae(self.system.joint_reactions['ground'],
+                   self.system.joint_reactions['node-0'])
+
+        # The base of the beam should have zero acceleration:
+        assert_aae(self.beam.ap, 0)
+
+    def test_coordinate_frames(self):
+        """Beam loading is in local frame, while reaction forces are
+        global. So by rotating the beam, the reaction forces should
+        change.
+        """
+        self.hinge.xstrain[0] = pi / 2
+        self.recalc()
+
+        # Applied force and moment
+        Fx = -self.force * self.length   # in -X direction
+        My = -Fx * self.length / 2       # in +Y direction
+
+        # Check equilibrium. No applied forces on hinge, so both nodes
+        # should be the same.
+        assert_aae(self.system.joint_reactions['node-0'],
+                   [-Fx, 0, 0, 0, -My, 0])
+        assert_aae(self.system.joint_reactions['ground'],
+                   self.system.joint_reactions['node-0'])
+
+
+class free_hinged_beam_tests(hinged_beam_tests):
+    free_beam = True
+
+    def test_reaction_on_hinged_beam(self):
+
+        """Reaction force should balance applied force"""
+        # Applied force and moment (+ve in +Z and +Y)
+        Fa = -self.force * self.length
+        Ma = -Fa * self.length / 2
+
+        # Acceleration
+        inertia = self.density * (self.length ** 3) / 3
+        ang_acc = Ma / inertia
+        assert_aae(self.hinge.astrain[0], ang_acc)
+
+        # Inertial d'Alembert force and moment
+        Mi = -Ma  # moments balance initially
+        Fi = self.density * self.length**2 * ang_acc / 2
+
+        # Check equilibrium. No applied forces on hinge, so both nodes
+        # should be the same.
+        assert_aae(self.system.joint_reactions['node-0'],
+                   [0, 0, -(Fa + Fi), 0, 0, 0])
+        assert_aae(self.system.joint_reactions['ground'],
+                   self.system.joint_reactions['node-0'])
+
+        # The base of the beam should have zero linear acceleration
+        # but should have an angular acceleration:
+        assert_aae(self.beam.ap, [0, 0, 0, 0, ang_acc, 0])
+
+
+class active_hinge_beam_tests(hinged_beam_tests):
+    free_beam = True
+    force = 0.0
+    hinge_torque = 3210.3
+
+    def test_reaction_on_forced_beam(self):
+        # Acceleration
+        inertia = self.density * (self.length ** 3) / 3
+        ang_acc = self.hinge_torque / inertia
+        assert_aae(self.hinge.astrain[0], ang_acc)
+
+        # Inertial d'Alembert force and moment
+        Mi = -inertia * ang_acc
+        Fi = self.density * self.length**2 * ang_acc / 2
+
+        # Check equilibrium.
+        assert_aae(self.system.joint_reactions['node-0'],
+                   [0, 0, -Fi, 0, -Mi, 0])
+        assert_aae(self.system.joint_reactions['ground'],
+                   [0, 0, -Fi, 0, -Mi, 0])

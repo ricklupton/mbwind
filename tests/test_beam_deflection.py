@@ -78,7 +78,7 @@ class BeamDeflection_Tests:
 
         # Now integrating in time should not change solution
         self.beam.loading = None
-        def callback(system, time, q_other):
+        def callback(system, time, q_struct, q_other):
             #self.beam.apply_distributed_loading(loading)
             self.beam.loading = loading
             print(self.beam.applied_stress)

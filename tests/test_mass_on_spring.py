@@ -69,7 +69,7 @@ class MassOnSpring_Tests:
         t0 = 2.3
         force_func = lambda t: (force_amp if t >= t0 else 0)
 
-        def callback(system, time, q_other):
+        def callback(system, time, q_struct, q_other):
             self.body.nodal_load = [0, 0, force_func(time)]
             return []
         t, solution = integrate(self.system, callback)
