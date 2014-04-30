@@ -411,7 +411,8 @@ class System(object):
             if callable(c): c = c(self.time)
             self.qdd[dof] = c
             # leave velocity for the integration, don't use b?
-            self.qd[dof] = b
+            if b is not None:
+                self.qd[dof] = b
 
         # Reset mass and constraint matrices if updating
         if calculate_matrices:
@@ -948,7 +949,8 @@ class Integrator(object):
 
             # Callback may e.g. set element loading
             if callback:
-                qd_other = callback(self.system, ti, q_other)
+                q_struct = self.system.get_state()
+                qd_other = callback(self.system, ti, q_struct, q_other)
                 assert len(qd_other) == nOther
             else:
                 qd_other = []
