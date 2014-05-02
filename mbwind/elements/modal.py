@@ -382,9 +382,8 @@ class ModalElementFromFE(Element):
         # self.force_comparison[3:6] /= np.max(np.abs(self.force_comparison[3:6]))
         # self.force_comparison[6:] /= np.max(np.abs(self.force_comparison[6:]))
 
-    def apply_distributed_loading(self, load):
-        # XXX this may not work well with +=: when is it reset?
-        F = np.zeros(self.fe.M.shape[1])
+    def calc_forces_from_distributed_loading(self, load):
+        F = np.zeros(self.fe.M.shape[1], dtype=load.dtype)
         for i in range(3):
             F[i::6] = load[:, i]
 
@@ -400,11 +399,19 @@ class ModalElementFromFE(Element):
             dot(self.Rp, self.fe.F1),
             dot(self.Rp, I),
         ))
-        self.applied_forces[:] += dot(Qmat, F)
+        applied_forces = dot(Qmat, F)
 
-        # Calculate equivalent nodal forces in FE model; NB sign is -ve
+        # Calculate equivalent nodal forces in FE model
         Q = self.fe.distribute_load(F)
-        self.applied_stress[:] += -dot(self.modal.shapes.T, Q)
+        applied_stress = dot(self.modal.shapes.T, Q)
+
+        return applied_forces, applied_stress
+
+    def apply_distributed_loading(self, load):
+        # XXX this may not work well with +=: when is it reset?
+        forces, stress = self.calc_forces_from_distributed_loading(load)
+        self.applied_forces[:] += forces
+        self.applied_stress[:] += -stress  # NB sign is -ve
 
     def calc_external_loading(self):
         # Gravity acceleration
