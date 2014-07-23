@@ -51,12 +51,9 @@ class BeamDeflection_Tests:
         self.beam.loading = loading
         self.system.find_equilibrium()
 
-        # Check the tip deflection of the mode shape is 1 as expected
-        mode_tip_value = self.beam.modal.shapes[-6:, 0][2]
-        eq_(abs(mode_tip_value), 1)
-        expected_tip_defl = Fz * (self.L ** 4) / (8 * self.EI) / mode_tip_value
-        assert_array_almost_equal(self.system.q.dofs[:], [expected_tip_defl],
-                                  decimal=2)
+        expected_tip_defl = Fz * (self.L ** 4) / (8 * self.EI)
+        tip_defl = self.beam.elastic_deflections()[-1, 2]
+        assert_array_almost_equal(tip_defl, expected_tip_defl, decimal=2)
 
         # Now integrating in time should not change solution
         solution = integrate(self.system)
@@ -69,15 +66,13 @@ class BeamDeflection_Tests:
         self.beam.loading = loading
         self.system.find_equilibrium()
 
-        # Check the tip deflection of the mode shape is 1 as expected
-        mode_tip_value = self.beam.modal.shapes[-6:, 0][2]
-        eq_(abs(mode_tip_value), 1)
-        expected_tip_defl = Fz * (self.L ** 4) / (8 * self.EI) / mode_tip_value
-        assert_array_almost_equal(self.system.q.dofs[:], [expected_tip_defl],
-                                  decimal=2)
+        expected_tip_defl = Fz * (self.L ** 4) / (8 * self.EI)
+        tip_defl = self.beam.elastic_deflections()[-1, 2]
+        assert_array_almost_equal(tip_defl, expected_tip_defl, decimal=2)
 
         # Now integrating in time should not change solution
         self.beam.loading = None
+
         def callback(system, time, q_struct, q_other):
             #self.beam.apply_distributed_loading(loading)
             self.beam.loading = loading
