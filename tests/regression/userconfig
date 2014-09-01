@@ -1,0 +1,8 @@
+[user]
+benchmark = b78f953
+
+[simple_pendulum]
+exe = simple_pendulum/run.py
+vcs = git
+extract_program = cat
+
