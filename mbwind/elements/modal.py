@@ -395,14 +395,16 @@ class ModalElementFromFE(Element):
             dot(q.T, (self.fe.F2[0, 1] - self.fe.F2[1, 0])),
         ))
 
-        Qmat = np.vstack((
-            dot(self.Rp, self.fe.F1),
-            dot(self.Rp, I),
-        ))
+        # Qmat = np.vstack((
+        #     dot(self.Rp, self.fe.F1),
+        #     dot(self.Rp, I),
+        # ))
+        Qmat = np.vstack((self.fe.F1, I))
         applied_forces = dot(Qmat, F)
 
         # Calculate equivalent nodal forces in FE model
-        Q = self.fe.distribute_load(F)
+        #Q = self.fe.distribute_load(F)
+        Q = dot(self.fe.F, F)
         applied_stress = dot(self.modal.shapes.T, Q)
 
         return applied_forces, applied_stress
@@ -410,7 +412,8 @@ class ModalElementFromFE(Element):
     def apply_distributed_loading(self, load):
         # XXX this may not work well with +=: when is it reset?
         forces, stress = self.calc_forces_from_distributed_loading(load)
-        self.applied_forces[:] += forces
+        self.applied_forces[:3] += dot(self.Rp, forces[:3])
+        self.applied_forces[3:] += dot(self.Rp, forces[3:])
         self.applied_stress[:] += -stress  # NB sign is -ve
 
     def calc_external_loading(self):
