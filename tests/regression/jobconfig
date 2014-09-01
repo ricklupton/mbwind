@@ -1,2 +1,5 @@
 [simple_pendulum]
-program = simple_pendulum
+inputs_args = ('run.py', '')
+
+[rigid_body_gyro]
+inputs_args = ('run.py', '')
