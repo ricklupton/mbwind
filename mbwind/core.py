@@ -855,7 +855,7 @@ class Integrator(object):
     """
     Solve and integrate a system, keeping track of which outputs are required.
     """
-    def __init__(self, system, outputs=('pos',), method=None):
+    def __init__(self, system, outputs=('pos',), method='dopri5'):
         self.system = system
         self.t = np.zeros(0)
         self.y = []
@@ -951,8 +951,7 @@ class Integrator(object):
 
         # Setup actual integrator
         integrator = ode(_func)
-        if self.method:
-            integrator.set_integrator(self.method)
+        integrator.set_integrator(self.method)
         integrator.set_initial_value(z0, 0.0)
 
         if nprint is not None:
