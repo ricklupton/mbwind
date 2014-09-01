@@ -1,17 +1,13 @@
+import unittest
 import numpy as np
-from numpy import (zeros, array, eye, pi, dot, sqrt, c_, diag,
-                   ones_like, arange, linspace)
-from numpy import linalg
-from numpy.testing import assert_array_equal, assert_array_almost_equal
-from nose import SkipTest
+from numpy import linspace
+from numpy.testing import assert_array_almost_equal
 
-from mbwind import System, ReducedSystem
-from mbwind.modes import ModalRepresentation
-from mbwind.elements import (ModalElement, ModalElementFromFE,
-                             RigidConnection, FreeJoint, Hinge)
-from mbwind.utils import rotations
+from mbwind import (System, LoadOutput, CustomOutput, PrismaticJoint,
+                    ModalElementFromFE, RigidBody, Integrator,
+                    RigidConnection, Hinge)
 
-from beamfe import BeamFE, interleave
+from beamfe import BeamFE
 
 assert_aae = assert_array_almost_equal
 
@@ -82,3 +78,145 @@ class blade_reaction_force_tests:
         My_expected = ((IG + m * Rg * (Ro + Rg)) * alpha +
                        self.force * L ** 2 / 2)
         assert_aae(P, [0, 0, Fz_expected, 0, My_expected, 0])
+
+
+class TestPendulumReactionLoadsTimeseries(unittest.TestCase):
+    def setUp(self):
+        # Parameters
+        mass = 11.234
+        length = 2.54
+        gravity = 9.81
+
+        # Build model
+        hinge = Hinge('hinge', [0, 1, 0])
+        link = RigidConnection('link', [length, 0, 0])
+        body = RigidBody('body', mass)
+
+        system = System(gravity=gravity)
+        system.add_leaf(hinge)
+        hinge.add_leaf(link)
+        link.add_leaf(body)
+        system.setup()
+
+        # Custom outputs to calculate correct answer
+        def force_body_prox_local(s):
+            theta = s.q[hinge.istrain][0]
+            thetadot = s.qd[hinge.istrain][0]
+            thetadotdot = s.qdd[hinge.istrain][0]
+            Fx = mass * (-gravity*np.sin(theta) - length*thetadot**2)
+            Fz = mass * (+gravity*np.cos(theta) - length*thetadotdot)
+            return [Fx, 0, Fz, 0, 0, 0]
+
+        def force_hinge_prox(s):
+            theta = s.q[hinge.istrain][0]
+            thetadot = s.qd[hinge.istrain][0]
+            thetadotdot = s.qdd[hinge.istrain][0]
+            A = np.array([[+np.cos(theta), np.sin(theta)],
+                          [-np.sin(theta), np.cos(theta)]])
+            Fxz = -mass * length * np.dot(A, [thetadot**2, thetadotdot])
+            return [Fxz[0], 0, Fxz[1] + gravity*mass, 0, 0, 0]
+
+        # Solver
+        integ = Integrator(system, ('pos', 'vel', 'acc'))
+        integ.add_output(LoadOutput(hinge.iprox))
+        integ.add_output(LoadOutput(link.iprox))
+        integ.add_output(LoadOutput(body.iprox))
+        integ.add_output(LoadOutput(body.iprox, local=True))
+        integ.add_output(CustomOutput(force_hinge_prox, "correct ground"))
+        integ.add_output(CustomOutput(force_body_prox_local,
+                                      "correct link distal local"))
+
+        self.system = system
+        self.integ = integ
+
+    def test_results(self):
+        t, y = self.integ.integrate(3.8, 0.03)
+
+        # reaction forces vs predictions - base
+        assert_aae(y[3], y[7])
+
+        # reaction forces vs predictions - local body prox
+        assert_aae(y[6], y[8])
+
+
+class TestSliderReactionLoadsTimeseries(unittest.TestCase):
+    def setUp(self):
+        # Parameters
+        mass = 11.234
+        length = 2.54
+        gravity = 9.81
+
+        # Build model
+        slider = PrismaticJoint('slider', [1, 0, 0])
+        link = RigidConnection('link', [0, 0, length])
+        body = RigidBody('body', mass)
+
+        system = System(gravity=gravity)
+        system.add_leaf(slider)
+        slider.add_leaf(link)
+        link.add_leaf(body)
+        system.setup()
+
+        # Prescribe motion -- sinusoidal acceleration
+        motion_frequency = 1    # Hz
+        motion_amplitude = 2.3  # m
+
+        # x =  motion_amplitude * np.cos(w*t)
+        # v = -motion_amplitude * np.sin(w*t) * w
+        # a = -motion_amplitude * np.cos(w*t) * w**2
+        def prescribed_velocity(t):
+            w = 2*np.pi*motion_frequency
+            return -w * motion_amplitude * np.sin(w*t)
+
+        def prescribed_acceleration(t):
+            w = 2*np.pi*motion_frequency
+            return -w**2 * motion_amplitude * np.cos(w*t)
+
+        system.prescribe(slider, acc=prescribed_acceleration,
+                         vel=prescribed_velocity)
+
+        # Set the correct initial condition
+        system.q[slider.istrain][0] = motion_amplitude
+
+        # Custom outputs to calculate correct answer
+        def force_body_prox(s):
+            a = prescribed_acceleration(s.time)
+            Fx = mass * a
+            Fz = mass * gravity
+            return [Fx, 0, Fz, 0, 0, 0]
+
+        def force_link_prox(s):
+            a = prescribed_acceleration(s.time)
+            Fx = mass * a
+            Fz = mass * gravity
+            My = length * Fx
+            return [Fx, 0, Fz, 0, My, 0]
+
+        def force_slider_prox(s):
+            a = prescribed_acceleration(s.time)
+            x = -a / (2*np.pi*motion_frequency)**2
+            Fx = mass * a
+            Fz = mass * gravity
+            My = length*Fx - x*Fz
+            return [Fx, 0, Fz, 0, My, 0]
+
+        # Solver
+        integ = Integrator(system, ('pos', 'vel', 'acc'))
+        integ.add_output(LoadOutput(slider.iprox))
+        integ.add_output(LoadOutput(link.iprox))
+        integ.add_output(LoadOutput(body.iprox))
+        integ.add_output(CustomOutput(force_slider_prox, "correct ground"))
+        integ.add_output(CustomOutput(force_link_prox, "correct slider dist"))
+        integ.add_output(CustomOutput(force_body_prox, "correct link dist"))
+
+        self.system = system
+        self.integ = integ
+
+    def test_results(self):
+        t, y = self.integ.integrate(3.8, 0.03)
+
+        # reaction forces vs predictions - base
+        results = y[3:6]
+        predictions = y[6:9]
+        for i in range(3):
+            assert_aae(results[i], predictions[i])
