@@ -269,12 +269,6 @@ class System(object):
         self.iReal = np.zeros(len(self.qd), dtype=bool)
         self.iReal[ir] = True
 
-        # update B matrix
-        dofs = self.qd.dofs.subset
-        B = zeros((len(dofs), len(self.qd)), dtype=bool)
-        for iz, iq in enumerate(dofs):
-            B[iz, iq] = True
-        self.B = B[:, self.iReal]
 
     def get_state(self):
         return np.concatenate([self.q.dofs[:], self.qd.dofs[:]])
@@ -286,86 +280,25 @@ class System(object):
         self.qd.dofs[:] = state[N:]
         self.update_kinematics()
 
-    def get_constraints(self):
+    def apply_prescribed_accelerations(self, time):
+        """Set prescribed accelerations.
+
+        Note that velocity and position are not set here - they must
+        be updated by integration of accelerations, or by additional
+        knowledge.
         """
-        Return constraint jacobian \Phi_q and the vectors b and c
-        """
-        # Constraints relating nodes defined by elements
-        # They don't vary partially with time, so b=0. c contains derivatives
-        # of constraint equations themselves.
-        P_nodal = self.lhs[~self.iReal, :]  # pick out constraint rows
-        c_nodal = self.rhs[~self.iReal]
-        b_nodal = np.zeros_like(c_nodal)
-
-        # Add ground constraints
-        P_ground = np.eye(6, P_nodal.shape[1])
-        c_ground = np.zeros(6)
-        b_ground = np.zeros(6)
-
-        # Add extra user-specified constraints for prescribed accelerations etc
-        # These are assumed to relate always to just one DOF.
-        P_prescribed = np.zeros((len(self.prescribed_dofs), P_nodal.shape[1]))
-        c_prescribed = np.zeros(P_prescribed.shape[0])
-        b_prescribed = np.zeros(P_prescribed.shape[0])
-        for i, (dof, (b, c)) in enumerate(self.prescribed_dofs.items()):
-            if callable(c):
-                c = c(self.time)
-            if callable(b):
-                b = b(self.time)
-            if c is None or b is None:
-                raise Exception("Cannot calculate constraints if a prescribed"
-                                " DOF is None")
-            P_prescribed[i, dof] = 1
-            c_prescribed[i] = c
-            b_prescribed[i] = b
-
-        # Remove zero constraint columns from P
-        return (np.r_[P_nodal, P_ground, P_prescribed][:, self.iReal],
-                np.r_[b_nodal, b_ground, b_prescribed],
-                np.r_[c_nodal, c_ground, c_prescribed])
-
-    def calc_projections(self):
-        """Calculate the projection matrices S and R which map from indep. to
-        all coords.
-
-        qd  = R zd  +  S b
-        qdd = R zdd +  S c
-
-        """
-        f, n = self.B.shape
-        P, b, c = self.get_constraints()
-        SR = LA.inv(np.r_[P, self.B])
-        self.S = SR[:, :n-f]
-        self.R = SR[:, n-f:]
-        self.Sc = dot(self.S, c)
-        self.Sb = dot(self.S, b)
-
-    def set_initial_velocities(self, time=None):
-        """Set the initial prescribed velocities, if defined; for time
-        integration, the prescribed velocities are not otherwised used
-        because they are updated by the integrator.
-        """
-        if time is not None:
-            self.time = time
-        for dof, (b, c) in self.prescribed_dofs.items():
-            if callable(b):
-                b = b(self.time)
-            self.qd[dof] = b
+        for dof, acc in self.prescribed_dofs.items():
+            if callable(acc):
+                acc = acc(time)
+            self.qdd[dof] = acc
 
     def update_kinematics(self, time=None, calculate_matrices=True):
         if time is not None:
             self.time = time
 
-        # Update prescribed strains
-        for dof, (b, c) in self.prescribed_dofs.items():
-            if callable(b):
-                b = b(self.time)
-            if callable(c):
-                c = c(self.time)
-            self.qdd[dof] = c
-            # leave velocity for the integration, don't use b?
-            if b is not None:
-                self.qd[dof] = b
+        # Update prescribed accelerations (velocity and position are
+        # updated by integration)
+        self.apply_prescribed_accelerations(self.time)
 
         # Reset mass and constraint matrices if updating
         if calculate_matrices:
@@ -386,14 +319,17 @@ class System(object):
 
         # Assemble mass matrices, constraint matrices and RHS vectors
         if calculate_matrices:
-            assemble.assemble(self.iter_elements(), self.lhs, self.rhs)
+            self.assemble()
 
     def assemble(self):
         assemble.assemble(self.iter_elements(), self.lhs, self.rhs)
 
-    def prescribe(self, element, acc=0.0, vel=None, part=None):
+    def prescribe(self, element, acc=0.0, part=None):
+
         """Prescribe the given element's strains with the velocity and
         acceleration constraints given.
+
+        TODO: clarify these equations
 
         vel = -b = \phi_t, i.e. partial derivative of constraint wrt time
         acc = -c = \dot{\phi_t} + \dot{phi_q}\dot{q}
@@ -402,12 +338,12 @@ class System(object):
         """
         dofs = list(zip(self.q .indices(element.istrain),
                         self.qd.indices(element.istrain)))
-        if part is not None:
-            dofs = np.asarray(dofs)[part]
-        if len(dofs) == 0:
-            return
+        if isinstance(part, list):
+            dofs = [dofs[p] for p in part]
+        elif part is not None:
+            dofs = [dofs[part]]
         for iq, iqd in dofs:
-            self.prescribed_dofs[iqd] = (vel, acc)
+            self.prescribed_dofs[iqd] = acc
             self.q_dof[iqd] = iq
         self._update_indices()
 
@@ -513,16 +449,6 @@ class System(object):
                                sin(psi)*v[dofs[2]])
         return vb
 
-
-class ReducedSystem(object):
-    def __init__(self, full_system):
-        full_system.calc_projections()
-        full_M = full_system.lhs[np.ix_(full_system.iReal, full_system.iReal)]
-        full_Q = full_system.rhs[full_system.iReal]
-        R = full_system.R
-
-        self.M = dot(R.T, dot(full_M, R))
-        self.Q = dot(R.T, (full_Q - dot(full_M, full_system.Sc)))
 
 ####################################################################
 ####################################################################
