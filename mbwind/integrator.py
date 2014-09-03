@@ -8,23 +8,14 @@ Created on Wed Feb 22 17:24:13 2012
 from __future__ import division
 import time
 import sys
-import operator
-import itertools
 import numpy as np
-from numpy import array, zeros, eye, dot, pi, cos, sin
-import numpy.linalg as LA
-import scipy.linalg
-import scipy.optimize
+from numpy import zeros, dot
 from scipy.integrate import ode
 
-from . import assemble
-from .utils import update_skewmat, skewmat
 
-
-# Number of generalised position and  velocity coordinates
-NQ = 12  # 3 spatial plus 9 rotation matrix entries
-NQD = 6  # 3 spatial plus 3 angular velocity
-
+##################
+###  Outputs   ###
+##################
 
 class NodeOutput(object):
     def __init__(self, state_name, deriv=0, local=False, label=None):
