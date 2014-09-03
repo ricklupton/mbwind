@@ -140,7 +140,7 @@ class Element(object):
     def calc_external_loading(self):
         self._set_gravity_force()
 
-    def update(self, calculate_matrices=True):
+    def update_kinematics(self):
         # Update cached prox angular velocity skew matrix
         update_skewmat(self.wps, self.vp[3:])
 
@@ -155,11 +155,10 @@ class Element(object):
             self.ad[:] = (dot(self.F_vp, self.ap) +
                           dot(self.F_ve, self.astrain) + self.F_v2)
 
+    def update_matrices(self):
         # Update mass and constraint matrices
-        if calculate_matrices:
-            # Calculate
-            self.calc_mass()
-            self.calc_external_loading()
+        self.calc_mass()
+        self.calc_external_loading()
 
     def iter_reactions(self):
         """

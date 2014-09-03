@@ -51,7 +51,7 @@ class NodeOutput(object):
             if self.deriv == 0:
                 raise NotImplementedError("What does that mean?")
             else:
-                assert len(output) == NQD
+                assert len(output) == 6
                 R = system.q[self.state_name][3:].reshape((3, 3))
                 v = dot(R.T, output[:3])
                 w = dot(R.T, output[3:])
@@ -109,7 +109,7 @@ class LoadOutput(object):
         output = system.joint_reactions[self.state_name]
 
         if self.local:
-            assert len(output) == NQD
+            assert len(output) == 6
             R = system.q[self.state_name][3:].reshape((3, 3))
             v = dot(R.T, output[:3])
             w = dot(R.T, output[3:])
@@ -190,7 +190,7 @@ class Integrator(object):
         if len(extra_states) > 0:
             self.y.append(zeros((len(out_tvals), len(extra_states))))
 
-        iDOF_q  = self.system.q.indices_by_type('strain')
+        iDOF_q = self.system.q.indices_by_type('strain')
         iDOF_qd = self.system.qd.indices_by_type('strain')
         assert len(iDOF_q) == len(iDOF_qd)
         nStruct = len(iDOF_q)
@@ -203,7 +203,7 @@ class Integrator(object):
             q_other = yi[:nOther]
             self.system.q[iDOF_q] = yi[nOther:nOther+nStruct]
             self.system.qd[iDOF_qd] = yi[nOther+nStruct:]
-            self.system.update_kinematics(ti, calculate_matrices=False)
+            self.system.update_kinematics(ti)
 
             # Callback may e.g. set element loading
             if callback:
@@ -214,7 +214,7 @@ class Integrator(object):
                 qd_other = []
 
             # solve system
-            self.system.update_kinematics(ti, calculate_matrices=True)
+            self.system.update_matrices()
             self.system.solve_accelerations()
 
             # new state vector is [other_dot, strains_dot, strains_dotdot]
@@ -225,7 +225,6 @@ class Integrator(object):
             ]
 
         # Initial conditions
-        self.system.set_initial_velocities(time=0.0)
         z0 = np.r_[
             extra_states,
             self.system.q[iDOF_q],

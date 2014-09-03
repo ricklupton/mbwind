@@ -161,7 +161,6 @@ class System(object):
         # called with the current time at each step.
         self.prescribed_dofs = {}
         self.q_dof = {}
-        self.hooks = []
 
         #### Set up ####
         # Set up first node
@@ -190,6 +189,10 @@ class System(object):
         for element in self.iter_elements():
             self.elements[element.name] = element
             element.finish_setup()
+
+        # Get everything into correct initial state
+        self.update_kinematics()
+        self.update_matrices()
 
     def print_states(self):
         print('      Element        Type           ID             Prescribed')
@@ -289,7 +292,7 @@ class System(object):
                 acc = acc(time)
             self.qdd[dof] = acc
 
-    def update_kinematics(self, time=None, calculate_matrices=True):
+    def update_kinematics(self, time=None):
         if time is not None:
             self.time = time
 
@@ -297,26 +300,25 @@ class System(object):
         # updated by integration)
         self.apply_prescribed_accelerations(self.time)
 
-        # Reset mass and constraint matrices if updating
-        if calculate_matrices:
-            self.lhs[:] = 0.0
-            self.rhs[:] = 0.0
-
         # Update kinematics
         r0 = self.q[:3]
         R0 = self.q[3:12].reshape((3, 3))
         r0[:] = 0.0
         R0[:, :] = eye(3)
         for element in self.iter_elements():
-            element.update(calculate_matrices)
+            element.update_kinematics()
 
-        # Call loading hooks
-        for hook in self.hooks:
-            hook(self, time)
+    def update_matrices(self):
+        # Reset mass and constraint matrices
+        self.lhs[:] = 0.0
+        self.rhs[:] = 0.0
+
+        # Recalculate element mass, constraints and forces
+        for element in self.iter_elements():
+            element.update_matrices()
 
         # Assemble mass matrices, constraint matrices and RHS vectors
-        if calculate_matrices:
-            self.assemble()
+        self.assemble()
 
     def assemble(self):
         assemble.assemble(self.iter_elements(), self.lhs, self.rhs)
