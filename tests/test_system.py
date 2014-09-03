@@ -1,11 +1,22 @@
 import unittest
 import numpy as np
 from numpy.testing import assert_array_almost_equal as assert_aae
-from mbwind import (System, RigidConnection, RigidBody,
+from mbwind import (System, RigidConnection, RigidBody, Hinge,
                     PrismaticJoint, FreeJoint)
 
 
 class TestSystem(unittest.TestCase):
+    def test_print_functions(self):
+        # Not very good tests, but at least check they run without errors
+        conn = RigidConnection('conn')
+        body = RigidBody('body', mass=1.235)
+        s = System()
+        s.add_leaf(conn)
+        conn.add_leaf(body)
+        s.setup()
+        s.print_states()
+        s.print_info()
+
     def test_adding_elements(self):
         conn = RigidConnection('conn')
         body = RigidBody('body', mass=1.235)
@@ -162,7 +173,8 @@ class TestSystem(unittest.TestCase):
         assert_aae(np.diag(m2.mass_vv[:3, :3]), 3.4)
         assert_aae(np.diag(m3.mass_vv[:3, :3]), 7.5)
 
-        # Initially system matrix is empty
+        # Initially make system matrix empty for testing
+        s.lhs[:, :] = 0
         assert_aae(s.lhs, 0)
 
         # After assembly, the mass matrices are put in the correct places:
@@ -182,8 +194,85 @@ class TestSystem(unittest.TestCase):
         M[6:12, 12:18] -= conn.F_vd
         assert_aae(M, 0)
 
-    def test_update_kinematics(self):
-        assert False
+    def test_update_kinematics_sets_time(self):
+        s = System()
+        s.setup()
+        self.assertEqual(s.time, 0.0)
+        s.update_kinematics(3.2)
+        self.assertEqual(s.time, 3.2)
+
+    def test_update_kinematics_results(self):
+        # Test system: (all rigid connections of length 1)
+        #
+        #                  [hinge]
+        #  (gnd)---c1---(0)
+        #               (1)---c2---(2)
+        #                           |
+        #  y                        c3
+        #  |                        |
+        #  |--> x                  (3)
+        #
+        s = System()
+        c1 = RigidConnection('c1', [1, 0, 0])
+        c2 = RigidConnection('c2', [1, 0, 0])
+        c3 = RigidConnection('c3', [0, -1, 0])
+        hinge = Hinge('hinge', [0, 0, 1])
+        s.add_leaf(c1)
+        c1.add_leaf(hinge)
+        hinge.add_leaf(c2)
+        c2.add_leaf(c3)
+        s.setup()
+
+        # All velocities and accelerations should be zero
+        for el in [c1, c2, c3, hinge]:
+            assert_aae(el.vp, 0)
+            assert_aae(el.vd, 0)
+            assert_aae(el.ap, 0)
+            assert_aae(el.ad, 0)
+
+        # (gnd)
+        assert_aae(c1.rp, 0)
+        assert_aae(c1.Rp, np.eye(3))
+
+        # (0)
+        assert_aae(c1.rd, [1, 0, 0])
+        assert_aae(c1.Rd, np.eye(3))
+
+        # (1)
+        assert_aae(c2.rp, [1, 0, 0])
+        assert_aae(c2.Rp, np.eye(3))
+
+        # (2)
+        assert_aae(c3.rp, [2, 0, 0])
+        assert_aae(c3.Rp, np.eye(3))
+
+        # (3)
+        assert_aae(c3.rd, [2, -1, 0])
+        assert_aae(c3.Rd, np.eye(3))
+
+        ##### now set angular velocity of hinge #####
+        hinge.vstrain[0] = 1.0
+        s.update_kinematics()
+
+        # (gnd)
+        assert_aae(c1.vp, 0)
+        assert_aae(c1.ap, 0)
+
+        # (0)
+        assert_aae(c1.vd, 0)
+        assert_aae(c1.ad, 0)
+
+        # (1)
+        assert_aae(c2.vp, [0, 0, 0, 0, 0, 1.0])
+        assert_aae(c2.ap, 0)
+
+        # (2)
+        assert_aae(c3.vp, [0, 1, 0, 0, 0, 1.0])
+        assert_aae(c3.ap, [-1, 0, 0, 0, 0, 0])   # centripetal acceleration
+
+        # (3)
+        assert_aae(c3.vd, [1, 1, 0, 0, 0, 1.0])
+        assert_aae(c3.ad, [-1, 1, 0, 0, 0, 0])  # centripetal acceleration
 
 
 if __name__ == '__main__':

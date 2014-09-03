@@ -28,7 +28,7 @@ class Gyroscope:
         self.system.setup()
 
         # Prescribed DOF accelerations: constant rotational speed
-        self.system.prescribe(self.axis, vel=self.spin, acc=0.0)
+        self.system.prescribe(self.axis)
 
     def build_body(self):
         Jx = self.radius**2 / 2
@@ -45,6 +45,7 @@ class Gyroscope:
         # initial conditions
         self.system.q[self.pivot.istrain][0] = xpivot  # initial elevation
         #self.system.qd[self.pivot.istrain][0] = vpivot # initial elevation spd
+        self.system.qd[self.axis.istrain][0] = self.spin  # constant spin speed
 
         # simulate
         integ = Integrator(self.system, ('pos', 'vel'))

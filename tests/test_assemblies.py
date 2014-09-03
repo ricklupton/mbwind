@@ -38,7 +38,6 @@ class offset_rigid_ModalElement_Tests:
         joint.add_leaf(conn)
         conn.add_leaf(element)
         system.setup()
-        system.update_kinematics()
 
         # Calculate reduced system to get rigid body matrices
         rsys = ReducedSystem(system)
@@ -77,7 +76,6 @@ class offset_rigid_ModalElement_Tests:
             system.add_leaf(conn)
             conn.add_leaf(element)
         system.setup()
-        system.update_kinematics()
 
         r = offset
         R = offset + length
@@ -110,7 +108,6 @@ class offset_rigid_ModalElement_Tests:
         system = System()
         system.add_leaf(joint)
         system.setup()
-        system.update_kinematics()
 
         # Calculate reduced system to get rigid body matrices
         rsys = ReducedSystem(system)
@@ -151,7 +148,6 @@ class offset_rigid_ModalElement_Tests:
         system = System()
         system.add_leaf(joint)
         system.setup()
-        system.update_kinematics()
 
         # Calculate reduced system to get rigid body matrices
         rsys = ReducedSystem(system)
@@ -217,8 +213,10 @@ class hinged_beam_tests:
 
     def recalc(self):
         self.system.update_kinematics()   # Set up nodal values initially
+        self.system.update_matrices()
         self.system.solve_accelerations() # Calculate accelerations of DOFs
         self.system.update_kinematics()   # Update nodal values based on DOFs
+        self.system.update_matrices()
         self.system.solve_reactions()     # Solve reactions including d'Alembert
 
 

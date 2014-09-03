@@ -164,19 +164,15 @@ class TestSliderReactionLoadsTimeseries(unittest.TestCase):
         # x =  motion_amplitude * np.cos(w*t)
         # v = -motion_amplitude * np.sin(w*t) * w
         # a = -motion_amplitude * np.cos(w*t) * w**2
-        def prescribed_velocity(t):
-            w = 2*np.pi*motion_frequency
-            return -w * motion_amplitude * np.sin(w*t)
-
         def prescribed_acceleration(t):
             w = 2*np.pi*motion_frequency
             return -w**2 * motion_amplitude * np.cos(w*t)
 
-        system.prescribe(slider, acc=prescribed_acceleration,
-                         vel=prescribed_velocity)
+        system.prescribe(slider, prescribed_acceleration)
 
         # Set the correct initial condition
         system.q[slider.istrain][0] = motion_amplitude
+        system.qd[slider.istrain][0] = 0.0
 
         # Custom outputs to calculate correct answer
         def force_body_prox(s):
@@ -213,7 +209,7 @@ class TestSliderReactionLoadsTimeseries(unittest.TestCase):
         self.integ = integ
 
     def test_results(self):
-        t, y = self.integ.integrate(3.8, 0.03)
+        t, y = self.integ.integrate(3.8, 0.02)
 
         # reaction forces vs predictions - base
         results = y[3:6]
