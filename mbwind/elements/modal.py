@@ -5,7 +5,8 @@ Modal elements
 import numpy as np
 from numpy import array, zeros, eye, dot, pi
 from scipy import linalg
-from ..core import Element, CustomOutput
+from ..integrator import CustomOutput
+from ..base_element import Element
 from ..utils import eps_ijk, skewmat
 from ..modes import cumulative_mass_moment
 from . import _modal_calcs

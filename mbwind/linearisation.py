@@ -19,7 +19,7 @@ import scipy.linalg
 from scipy.misc import derivative
 from scipy.integrate import ode, simps
 
-from .core import System
+from .system import System
 
 eps_ijk = zeros((3,3,3))
 eps_ijk[0,1,2] = eps_ijk[1,2,0] = eps_ijk[2,0,1] =  1

@@ -5,7 +5,7 @@ Simple elements
 from functools import reduce
 import numpy as np
 from numpy import zeros, eye, dot, pi, sin, cos
-from ..core import Element
+from ..base_element import Element
 from ..utils import skewmat, rotmat_x, rotmat_y, rotmat_z
 
 # Slices to refer to parts of matrices

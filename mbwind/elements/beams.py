@@ -4,7 +4,7 @@ Flexible beam elements
 from __future__ import division
 import numpy as np
 from numpy import array, zeros, eye, dot, pi
-from ..core import Element
+from ..base_element import Element
 from ..utils import skewmat, rotmat_x, rotmat_y, rotmat_z, qrot3, euler_param_E
 
 # Slices to refer to parts of matrices
