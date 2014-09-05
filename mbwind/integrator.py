@@ -17,25 +17,25 @@ from scipy.integrate import ode
 ###  Outputs   ###
 ##################
 
-class NodeOutput(object):
+class StateOutput(object):
     def __init__(self, state_name, deriv=0, local=False, label=None):
-        assert deriv in (0, 1, 2)
+        if not deriv in (0, 1, 2):
+            raise ValueError('deriv must be 0, 1 or 2')
+        if label is None:
+            label = "state <{}>".format(state_name)
+            if deriv == 1:
+                label = "d/dt " + label
+            if deriv == 2:
+                label = "d2/dt2 " + label
+            if local:
+                label += " [local]"
         self.state_name = state_name
         self.deriv = deriv
         self.local = local
         self.label = label
 
-    def __str__(self):
-        if self.label is not None:
-            return self.label
-        s = "node <{}>".format(self.state_name)
-        if self.deriv == 1:
-            s = "d/dt " + s
-        if self.deriv == 2:
-            s = "d2/dt2 " + s
-        if self.local:
-            s += " [local]"
-        return s
+    def __str__(self):  # pragma: no cover
+        return str(self.label)
 
     def __call__(self, system):
         if self.deriv == 0:
@@ -44,64 +44,38 @@ class NodeOutput(object):
             q = system.qd
         elif self.deriv == 2:
             q = system.qdd
-        assert q.get_type(self.state_name) in ('node', 'ground')
         output = q[self.state_name]
 
         if self.local:
+            if not q.get_type(self.state_name) in ('node', 'ground'):
+                raise RuntimeError(
+                    'Only nodes can be transformed to local coordinates')
+            R = system.q[self.state_name][3:].reshape((3, 3))
+            v = dot(R.T, output[:3])
             if self.deriv == 0:
-                raise NotImplementedError("What does that mean?")
+                assert len(output) == 12
+                assert np.allclose(dot(R.T, output[3:].reshape((3, 3))),
+                                   np.eye(3))
+                output = np.r_[v, np.eye(3).flatten()]
             else:
                 assert len(output) == 6
-                R = system.q[self.state_name][3:].reshape((3, 3))
-                v = dot(R.T, output[:3])
                 w = dot(R.T, output[3:])
                 output = np.r_[v, w]
 
         return output
 
 
-class StrainOutput(object):
-    def __init__(self, state_name, deriv=0, label=None):
-        assert deriv in (0, 1, 2)
-        self.state_name = state_name
-        self.deriv = deriv
-        self.label = label
-
-    def __str__(self):
-        if self.label is not None:
-            return self.label
-        s = "strain <{}>".format(self.state_name)
-        if self.deriv == 1:
-            s = "d/dt " + s
-        if self.deriv == 2:
-            s = "d2/dt2 " + s
-        return s
-
-    def __call__(self, system):
-        if self.deriv == 0:
-            q = system.q
-        elif self.deriv == 1:
-            q = system.qd
-        elif self.deriv == 2:
-            q = system.qdd
-        assert q.get_type(self.state_name) in ('strain', 'constraint')
-        output = q[self.state_name]
-        return output
-
-
 class LoadOutput(object):
     def __init__(self, state_name, local=False, label=None):
+        if label is None:
+            label = "reaction load on <{}>{}".format(
+                state_name, " [local]" if local else "")
         self.state_name = state_name
         self.local = local
         self.label = label
 
-    def __str__(self):
-        if self.label is not None:
-            return self.label
-        s = "reaction load on <{}>".format(self.state_name)
-        if self.local:
-            s += " [local]"
-        return s
+    def __str__(self):  # pragma: no cover
+        return str(self.label)
 
     def __call__(self, system):
         assert (system.joint_reactions.get_type(self.state_name)
@@ -119,16 +93,14 @@ class LoadOutput(object):
 
 
 class CustomOutput(object):
-    transformable = False
-
     def __init__(self, func, label=None):
+        if label is None:
+            label = "custom output {}".format(func)
         self.func = func
         self.label = label
 
-    def __str__(self):
-        if self.label is not None:
-            return self.label
-        return "Custom output <{}>".format(self.func)
+    def __str__(self):  # pragma: no cover
+        return str(self.label)
 
     def __call__(self, system):
         return np.atleast_1d(self.func(system))
@@ -149,13 +121,13 @@ class Integrator(object):
         idof = self.system.qd.names_by_type('strain')
         if 'pos' in outputs:
             for i in idof:
-                self.add_output(StrainOutput(i, deriv=0))
+                self.add_output(StateOutput(i, deriv=0))
         if 'vel' in outputs:
             for i in idof:
-                self.add_output(StrainOutput(i, deriv=1))
+                self.add_output(StateOutput(i, deriv=1))
         if 'acc' in outputs:
             for i in idof:
-                self.add_output(StrainOutput(i, deriv=2))
+                self.add_output(StateOutput(i, deriv=2))
 
     def add_output(self, output):
         self._outputs.append(output)
