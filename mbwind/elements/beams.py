@@ -5,13 +5,22 @@ from __future__ import division
 import numpy as np
 from numpy import array, zeros, eye, dot, pi
 from ..base_element import Element
-from ..utils import skewmat, rotmat_x, rotmat_y, rotmat_z, qrot3, euler_param_E
+from ..utils import skewmat, rotmat_x, rotmat_y, rotmat_z
+from ..modes import qrot3
 
 # Slices to refer to parts of matrices
 VP = slice(0,3)
 WP = slice(3,6)
 VD = slice(6,9)
 WD = slice(9,12)
+
+
+def euler_param_E(q):
+    return array([
+        [-q[1],  q[0], -q[3],  q[2]],
+        [-q[2],  q[3],  q[0], -q[1]],
+        [-q[3], -q[2],  q[1],  q[0]],
+    ])
 
 
 class UniformBeam(Element):
