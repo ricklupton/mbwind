@@ -254,7 +254,6 @@ class System(object):
         self.iReal = np.zeros(len(self.qd), dtype=bool)
         self.iReal[ir] = True
 
-
     def get_state(self):
         return np.concatenate([self.q.dofs[:], self.qd.dofs[:]])
 
@@ -265,7 +264,7 @@ class System(object):
         self.qd.dofs[:] = state[N:]
         self.update_kinematics()
 
-    def apply_prescribed_accelerations(self, time):
+    def apply_prescribed_accelerations(self):
         """Set prescribed accelerations.
 
         Note that velocity and position are not set here - they must
@@ -274,16 +273,13 @@ class System(object):
         """
         for dof, acc in self.prescribed_dofs.items():
             if callable(acc):
-                acc = acc(time)
+                acc = acc(self.time)
             self.qdd[dof] = acc
 
-    def update_kinematics(self, time=None):
-        if time is not None:
-            self.time = time
-
+    def update_kinematics(self):
         # Update prescribed accelerations (velocity and position are
         # updated by integration)
-        self.apply_prescribed_accelerations(self.time)
+        self.apply_prescribed_accelerations()
 
         # Update kinematics
         r0 = self.q[:3]

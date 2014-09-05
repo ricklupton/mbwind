@@ -203,7 +203,8 @@ class Integrator(object):
             q_other = yi[:nOther]
             self.system.q[iDOF_q] = yi[nOther:nOther+nStruct]
             self.system.qd[iDOF_qd] = yi[nOther+nStruct:]
-            self.system.update_kinematics(ti)
+            self.system.time = ti
+            self.system.update_kinematics()
 
             # Callback may e.g. set element loading
             if callback:

@@ -136,6 +136,7 @@ class TestSystem(unittest.TestCase):
         j = FreeJoint('joint')
         s.add_leaf(j)
         s.setup()
+        s.time = 3.54
 
         # Initially all 6 joint motions are free
         self.assertEqual(len(s.q.dofs), 6)
@@ -158,7 +159,7 @@ class TestSystem(unittest.TestCase):
 
         # Check accelerations are applied to qdd
         assert_aae(s.qdd[j.istrain], 0)
-        s.apply_prescribed_accelerations(time=3.54)
+        s.apply_prescribed_accelerations()
         assert_aae(s.qdd[j.istrain], [3.54, 0, 3.54, 2.0, 0, 0])
 
         # Freeing joint results in 6 dofs again
@@ -207,13 +208,6 @@ class TestSystem(unittest.TestCase):
         M[12:18, 6:12] -= conn.F_vd
         M[6:12, 12:18] -= conn.F_vd
         assert_aae(M, 0)
-
-    def test_update_kinematics_sets_time(self):
-        s = System()
-        s.setup()
-        self.assertEqual(s.time, 0.0)
-        s.update_kinematics(3.2)
-        self.assertEqual(s.time, 3.2)
 
     def test_update_kinematics_results(self):
         # Test system: (all rigid connections of length 1)

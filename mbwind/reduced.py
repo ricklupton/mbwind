@@ -39,12 +39,9 @@ def get_constraints(system):
     c_prescribed = np.zeros(P_prescribed.shape[0])
     b_prescribed = np.zeros(P_prescribed.shape[0])
     for i, (dof, acc) in enumerate(system.prescribed_dofs.items()):
-        if callable(acc):
-            acc = acc(system.time)
         P_prescribed[i, dof] = 1
-        c_prescribed[i] = acc
-        # XXX assume corresponding velocity is set correctly
         b_prescribed[i] = system.qd[dof]
+        c_prescribed[i] = system.qdd[dof]
 
     # Remove zero constraint columns from P
     return (np.r_[P_nodal, P_ground, P_prescribed][:, system.iReal],
@@ -73,6 +70,10 @@ def calc_projections(system):
 
 class ReducedSystem(object):
     def __init__(self, full_system):
+        # Make sure prescribed dofs are reflected in system.qdd
+        # XXX assume corresponding velocity is set correctly
+        full_system.apply_prescribed_accelerations()
+
         S, R, Sc, Sb = calc_projections(full_system)
         full_M = full_system.lhs[np.ix_(full_system.iReal, full_system.iReal)]
         full_Q = full_system.rhs[full_system.iReal]
