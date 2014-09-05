@@ -8,14 +8,28 @@ from mbwind import (System, RigidConnection, RigidBody, Hinge,
 class TestSystem(unittest.TestCase):
     def test_print_functions(self):
         # Not very good tests, but at least check they run without errors
-        conn = RigidConnection('conn')
+        joint = FreeJoint('joint')
         body = RigidBody('body', mass=1.235)
         s = System()
-        s.add_leaf(conn)
-        conn.add_leaf(body)
+        s.add_leaf(joint)
+        joint.add_leaf(body)
         s.setup()
         s.print_states()
         s.print_info()
+
+    def test_dofs_subset(self):
+        s = System()
+        j = FreeJoint('joint')
+        s.add_leaf(j)
+        s.setup()
+
+        # 2 nodes, 6 constraints, 6 dofs
+        self.assertEqual(len(s.q), 2 * 12 + 6 + 6)
+        self.assertEqual(len(s.qd), 2 * 6 + 6 + 6)
+        self.assertEqual(len(s.qdd), 2 * 6 + 6 + 6)
+        self.assertEqual(len(s.q.dofs), 6)
+        self.assertEqual(len(s.qd.dofs), 6)
+        self.assertEqual(len(s.qdd.dofs), 6)
 
     def test_adding_elements(self):
         conn = RigidConnection('conn')
@@ -273,6 +287,147 @@ class TestSystem(unittest.TestCase):
         # (3)
         assert_aae(c3.vd, [1, 1, 0, 0, 0, 1.0])
         assert_aae(c3.ad, [-1, 1, 0, 0, 0, 0])  # centripetal acceleration
+
+    def test_solve_accelerations(self):
+        # solve_accelerations() should find:
+        #  (a) response of system to forces (here, gravity)
+        #  (b) include any prescribed accelerations in qdd vector
+        g = 9.81
+        s = System(gravity=g)
+        j = FreeJoint('joint')
+        b = RigidBody('body', mass=23.54, inertia=52.1 * np.eye(3))
+        s.add_leaf(j)
+        j.add_leaf(b)
+        s.setup()
+
+        # Prescribe horizontal acceleration. Vertical acceleration
+        # should result from gravity.
+        s.prescribe(j, 2.3, part=[0])  # x acceleration
+
+        # Initially accelerations are zero
+        assert_aae(j.ap, 0)
+        assert_aae(j.ad, 0)
+        assert_aae(j.astrain, 0)
+
+        # Solve accelerations & check
+        s.solve_accelerations()
+        s.update_kinematics()
+        assert_aae(j.ap, 0)  # ground
+        assert_aae(j.ad, [2.3, 0, -g, 0, 0, 0])
+        assert_aae(j.astrain, j.ad)  # not always true, but works for FreeJoint
+
+    def test_solve_accelerations_coupling(self):
+        # Further to test above, check that coupling between prescribed
+        # accelerations and other dofs is correct. For example, if there
+        # is a rigid body vertically offset from the joint, then a
+        # prescribed horizontal acceleration should cause an angular
+        # acceleration as well as the translational acceleration.
+        s = System()
+        j = FreeJoint('joint')
+        c = RigidConnection('conn', [0, 0, 1.7])
+        b = RigidBody('body', mass=23.54, inertia=74.1 * np.eye(3))
+        s.add_leaf(j)
+        j.add_leaf(c)
+        c.add_leaf(b)
+        s.setup()
+
+        # Prescribe horizontal acceleration, solve other accelerations
+        s.prescribe(j, 2.3, part=[0])  # x acceleration
+        s.update_kinematics()          # update system to show prescribed acc
+        s.solve_accelerations()        # solve free accelerations
+        s.update_kinematics()          # update system to show solution
+
+        # Ground shouldn't move
+        assert_aae(j.ap, 0)
+
+        # Need angular acceleration = (m a_x L) / I0
+        I0 = 74.1 + (23.54 * 1.7**2)
+        expected_angular_acc = -(23.54 * 2.3 * 1.7) / I0
+        assert_aae(j.ad, [2.3, 0, 0, 0, expected_angular_acc, 0])
+        assert_aae(j.astrain, j.ad)  # not always true, but works for FreeJoint
+
+    def test_solve_reactions(self):
+        # Check it calls the Element method in the right order: down
+        # the tree from leaves to base. It must also reset reactions.
+        s = System()
+        c0 = RigidConnection('c0')
+        c1 = RigidConnection('c1')
+        c2 = RigidConnection('c2')
+        b1 = RigidBody('b1', 1)
+        b2 = RigidBody('b2', 1)
+        s.add_leaf(c0)
+        c0.add_leaf(c1)
+        c0.add_leaf(c2)
+        c1.add_leaf(b1)
+        c2.add_leaf(b2)
+        s.setup()
+
+        # Check elements' iter_reactions() are called
+        def mock_iter_reactions(element):
+            calls.append(element)
+        calls = []
+        import types
+        for el in s.elements.values():
+            el.iter_reactions = types.MethodType(mock_iter_reactions, el)
+
+        # Test
+        s.joint_reactions[:] = 3
+        s.solve_reactions()
+        self.assertEqual(calls, [b2, c2, b1, c1, c0])
+        assert_aae(s.joint_reactions, 0)
+
+    def test_find_equilibrium(self):
+        g = 9.81
+        m = 23.1
+        k = 45.2
+        s = System(gravity=g)
+        slider = PrismaticJoint('slider', [0, 0, 1])
+        slider.stiffness = k
+        body = RigidBody('body', mass=m)
+        s.add_leaf(slider)
+        slider.add_leaf(body)
+        s.setup()
+
+        # Initially position should be zero and acceleration nonzero
+        s.solve_accelerations()
+        assert_aae(slider.xstrain, 0)
+        assert_aae(slider.astrain, -g)
+
+        # At equilibrium, position should be nozero and force on body zero
+        s.find_equilibrium()
+        s.update_matrices()      # recalculate stiffness force
+        s.solve_accelerations()
+        assert_aae(slider.xstrain, -m * g / k)
+        assert_aae(slider.astrain, 0)
+
+    def test_dof_index(self):
+        s = System()
+        j1 = FreeJoint('j1')
+        j2 = FreeJoint('j2')
+        s.add_leaf(j1)
+        j1.add_leaf(j2)
+        s.setup()
+
+        # Prescribe some of the strains:
+        #          _____j1____   _____j2____
+        # Strain:  0 1 2 3 4 5   0 1 2 3 4 5
+        # Prescr:    *     *             *
+        # Dofs:    0   1 2   3   4 5 6   7 8
+        s.prescribe(j1, 0, part=[1, 4])
+        s.prescribe(j2, 0, part=[3])
+
+        self.assertEqual(s.dof_index('j1', 0), 0)
+        self.assertEqual(s.dof_index('j1', 2), 1)
+        self.assertEqual(s.dof_index('j1', 5), 3)
+        self.assertEqual(s.dof_index('j2', 5), 8)
+
+        # Strain index out of range should give IndexError
+        with self.assertRaises(IndexError):
+            s.dof_index('j1', 6)
+
+        # Asking for index of prescribed strain should give ValueError
+        with self.assertRaises(ValueError):
+            s.dof_index('j1', 1)
 
 
 if __name__ == '__main__':

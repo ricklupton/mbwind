@@ -1,5 +1,6 @@
+import itertools
 import numpy as np
-from numpy import array, dot, pi
+from numpy import array, dot, pi, cos, sin
 from mbwind.elements import (FreeJoint, RigidConnection, RigidBody, Hinge,
                              ModalElement, DistalModalElementFromScratch)
 from mbwind.elements.modal import ModalElementFromFE
@@ -21,6 +22,34 @@ from mbwind.elements.modal import ModalElementFromFE
 
 from matplotlib import animation
 from matplotlib import pyplot as plt
+
+
+# Helpers for dealing with dof indices
+def free_dof_indices(system, element):
+    """Return DOF numbers for all free strains of ``element``"""
+    def iterfunc():
+        try:
+            for istrain in itertools.count():
+                yield system.dof_index(element, istrain)
+        except (IndexError, ValueError):
+            return  # run out of strains, or strain was prescribed
+    return list(iterfunc())
+
+
+def convert_mbc_dofs_to_blade(system, v, elements, azimuth):
+    """Convert MBC DOFs in ``v`` to blade DOFs, at ``azimuth``"""
+    if len(elements) != 3:
+        raise NotImplementedError("Only 3 blade MBC is implemented")
+    vb = v.copy()
+    dofs_by_elem = [free_dof_indices(system, element) for element in elements]
+    dofs_by_strain = zip(*dofs_by_elem)
+    for dofs in dofs_by_strain:                # loop through strains/modes
+        for j in range(3):                     # loop through blades
+            psi = azimuth + 2*pi*j/3           # azimuth of blade j
+            vb[dofs[j]] = (v[dofs[0]] +        # combine MBC back to blade
+                           cos(psi)*v[dofs[1]] +
+                           sin(psi)*v[dofs[2]])
+    return vb
 
 
 def anim_mode(system, frequency, modeshape, xlim=None, ylim=None, zlim=None,
@@ -45,10 +74,9 @@ def anim_mode(system, frequency, modeshape, xlim=None, ylim=None, zlim=None,
     def nodal_positions(system, z):
         system.q.dofs[:] = z
         system.update_kinematics(calculate_matrices=False)
-        qnodes = system.q.by_type(('ground', 'node'))
+        node_names = system.q.names_by_type(('ground', 'node'))
         # Pick out positions (not rotation matrices)
-        xyz = qnodes[[i for i in range(len(qnodes)) if (i % 12) < 3]] \
-            .reshape((-1, 3))
+        xyz = np.array([system.q[name][:3] for name in node_names])
         # Add in ModalElement final station positions as a workaround
         modal_xyz = [e.station_positions()[-1] for e in system.iter_elements()
                      if isinstance(e, ModalElement)]
@@ -82,7 +110,8 @@ def anim_mode(system, frequency, modeshape, xlim=None, ylim=None, zlim=None,
     else:
         def dofs_at_time(t):
             az = (rotor_speed * t) % (2*pi)
-            z = system.convert_mbc_dofs_to_blade(modeshape, blade_elements, az)
+            z = convert_mbc_dofs_to_blade(system, modeshape,
+                                          blade_elements, az)
             dofs = modeshape_scale * (z * np.exp(1j*frequency*t)).real
             dofs[system.dof_index(rotor_element, 0)] += az
             return dofs

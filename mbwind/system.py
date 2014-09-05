@@ -26,6 +26,8 @@ NQD = 6  # 3 spatial plus 3 angular velocity
 class ArrayProxy(object):
     """Delegate getitem and setitem to a reduced part of the target array"""
     def __init__(self, target, subset=None):
+        if not isinstance(target, np.ndarray):
+            raise ValueError('target must be ndarray')
         if subset is None:
             subset = list(range(len(target)))
         self.subset = subset
@@ -49,7 +51,12 @@ class ArrayProxy(object):
 
 class StateArray(object):
     def __init__(self):
-        self.reset()
+        self.owners = []
+        self.types = []
+        self.named_indices = {}
+        self.wrap_levels = {}
+        self._array = np.array([])
+        self.dofs = ArrayProxy(self._array)
 
     def _slice(self, index):
         if isinstance(index, str):
@@ -63,13 +70,9 @@ class StateArray(object):
         return list(range(s.start, s.stop))
 
     def __getitem__(self, index):
-        if self._array is None:
-            raise RuntimeError("Need to call allocate() first")
         return self._array[self._slice(index)]
 
     def __setitem__(self, index, value):
-        if self._array is None:
-            raise RuntimeError("Need to call allocate() first")
         ix = self._slice(index)
         if not np.isscalar(value) and len(self._array[ix]) != len(value):
             raise ValueError('value length does not match index')
@@ -78,34 +81,23 @@ class StateArray(object):
     def __len__(self):
         return len(self.owners)
 
-    def allocate(self):
-        if self._array is not None:
-            raise RuntimeError("Already allocated")
-        self._array = np.zeros(len(self))
-        self.dofs = ArrayProxy(self._array, [])
-
-    def reset(self):
-        self.owners = []
-        self.types = []
-        self.named_indices = {}
-        self.wrap_levels = {}
-        self.dofs = ArrayProxy([])
-        self._array = None
-
     def wrap_states(self):
         for i, a in self.wrap_levels.items():
             self[i] = self[i] % a
 
     def new_states(self, owner, type_, num, name=None):
-        if self._array is not None:
-            raise RuntimeError("Already allocated, call reset()")
-        self.owners.extend([owner] * num)
-        self.types.extend([type_] * num)
         if name is not None:
             if name in self.named_indices:
-                raise KeyError("{} already exists".format(name))
+                raise ValueError("{} already exists".format(name))
             N = len(self.owners)
-            self.named_indices[name] = slice(N-num, N)
+            self.named_indices[name] = slice(N, N+num)
+        self.owners.extend([owner] * num)
+        self.types.extend([type_] * num)
+
+        # Extend array and dofs proxy, keeping existing subset. This
+        # is ok as we're only adding to the end of the array.
+        self._array = np.r_[self._array, np.zeros(num)]
+        self.dofs = ArrayProxy(self._array, subset=self.dofs.subset)
 
     def indices_by_type(self, types):
         "Return all state indices of the given type"
@@ -121,18 +113,13 @@ class StateArray(object):
                                              key=operator.itemgetter(1))
                 if self.get_type(name) in types]
 
-    def by_type(self, types):
-        "Return all elements of the given type"
-        index = self.indices_by_type(types)
-        return self._array[index]
-
     def get_type(self, index):
         types = self.types[self._slice(index)]
+        if not types:
+            return None
         if not all([t == types[0] for t in types]):
             raise ValueError("index refers to different types")
-        if types:
-            return types[0]
-        return None
+        return types[0]
 
 
 class System(object):
@@ -176,8 +163,6 @@ class System(object):
             elem.setup_chain(self, self.ground_ind)
 
         # Now number of states is known, can size matrices and vectors
-        for states in (self.q, self.qd, self.qdd, self.joint_reactions):
-            states.allocate()
         N = len(self.qd)
         self.rhs = zeros(N)       # System LHS matrix and RHS vector
         self.lhs = zeros((N, N))
@@ -404,9 +389,6 @@ class System(object):
         q0 = scipy.optimize.fsolve(func, self.q.dofs[:])
         self.q.dofs[:] = q0
 
-    ##############################################
-    ### Functions for helping with mode shapes ###
-    ##############################################
     def dof_index(self, element, strain_number):
         """Return the DOF number for strain ``strain_number`` of ``element``"""
         strains = self.elements[element]._istrain
@@ -417,28 +399,3 @@ class System(object):
                              .format(strain_number, len(strains)))
         except ValueError:
             raise ValueError('Strain is prescribed')
-
-    def free_dof_indices(self, element):
-        """Return DOF numbers for all free strains of ``element``"""
-        def iterfunc():
-            try:
-                for istrain in itertools.count():
-                    yield self.dof_index(element, istrain)
-            except (IndexError, ValueError):
-                return  # run out of strains, or strain was prescribed
-        return list(iterfunc())
-
-    def convert_mbc_dofs_to_blade(self, v, elements, azimuth):
-        """Convert MBC DOFs in ``v`` to blade DOFs, at ``azimuth``"""
-        if len(elements) != 3:
-            raise NotImplementedError("Only 3 blade MBC is implemented")
-        vb = v.copy()
-        dofs_by_elem = [self.free_dof_indices(element) for element in elements]
-        dofs_by_strain = zip(*dofs_by_elem)
-        for dofs in dofs_by_strain:                # loop through strains/modes
-            for j in range(3):                     # loop through blades
-                psi = azimuth + 2*pi*j/3           # azimuth of blade j
-                vb[dofs[j]] = (v[dofs[0]] +        # combine MBC back to blade
-                               cos(psi)*v[dofs[1]] +
-                               sin(psi)*v[dofs[2]])
-        return vb
