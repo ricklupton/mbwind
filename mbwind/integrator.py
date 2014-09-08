@@ -136,7 +136,7 @@ class Integrator(object):
         return [output(self.system) for output in self._outputs]
 
     @property
-    def labels(self):
+    def labels(self):  # pragma: no cover
         return [str(output) for output in self._outputs]
 
     def integrate(self, tvals, dt=None, t0=0.0, callback=None,
@@ -209,10 +209,18 @@ class Integrator(object):
         integrator.set_integrator(self.method)
         integrator.set_initial_value(z0, 0.0)
 
-        if nprint is not None:
+        if nprint is not None:  # pragma: no cover
             print('Running simulation:',)
             sys.stdout.flush()
             tstart = time.clock()
+
+            def print_status(it, t):
+                if (it % nprint) == 0:
+                    sys.stdout.write('.' if (t >= t0) else '-')
+                    sys.stdout.flush()
+        else:  # pragma: no cover
+            def print_status(it, t):
+                pass
 
         # Update for first outputs
         _func(0.0, z0)
@@ -221,7 +229,7 @@ class Integrator(object):
             for it, t in enumerate(tvals):
                 if t > 0:
                     integrator.integrate(t)
-                    if not integrator.successful():
+                    if not integrator.successful():  # pragma: no cover
                         print('stopping')
                         break
 
@@ -240,15 +248,10 @@ class Integrator(object):
                         y[it - it0] = out
                     if len(extra_states) > 0:
                         self.y[-1][it - it0] = integrator.y[:nOther]
-                    if nprint is not None and (it % nprint) == 0:
-                        sys.stdout.write('.')
-                        sys.stdout.flush()
-                else:
-                    if nprint is not None and (it % nprint) == 0:
-                        sys.stdout.write('-')
-                        sys.stdout.flush()
 
-        except KeyboardInterrupt:
+                print_status(it, t)
+
+        except KeyboardInterrupt:  # pragma: no cover
             if nprint is not None:
                 print('stopping')
         else:

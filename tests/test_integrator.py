@@ -1,8 +1,9 @@
 import unittest
 import numpy as np
-from numpy.testing import assert_array_equal
-from mbwind import (System, RigidConnection, Hinge, RigidBody, StateOutput,
-                    LoadOutput, CustomOutput)
+from numpy.testing import (assert_array_equal,
+                           assert_array_almost_equal as assert_aae)
+from mbwind import (System, Integrator, RigidConnection, Hinge,
+                    RigidBody, StateOutput, LoadOutput, CustomOutput)
 
 
 class TestStateOutput(unittest.TestCase):
@@ -127,6 +128,60 @@ class TestCustomOutput(unittest.TestCase):
         out = CustomOutput(custom_func)
         self.assertEqual(out(s), 'custom True')
         self.assertTrue(isinstance(out(s), np.ndarray))
+
+
+class TestIntegrator(unittest.TestCase):
+    def test_simple_prescribed_integration(self):
+        s = System()
+        h = Hinge('hinge', [0, 1, 0])
+        s.add_leaf(h)
+        s.setup()
+
+        s.prescribe(h)
+        w = h.vstrain[0] = 0.97  # rad/s
+
+        integ = Integrator(s)
+        t, y = integ.integrate(9.0, 0.1)
+
+        # Check time vector and shape of result
+        assert_array_equal(t, np.arange(0, 9.0, 0.1))
+        self.assertEqual(len(y), 1)
+        self.assertEqual(y[0].shape, (len(t), 1))
+
+        # Result should be y = wt, but wrapped to [0, 2pi)
+        assert_aae(y[0][:, 0], (w * t) % (2 * np.pi))
+
+        # Check asking for velocity and acceleration works
+        h.xstrain[0] = s.time = 0.0  # reset
+        integ = Integrator(s, ('pos', 'vel', 'acc'))
+        t, y = integ.integrate(1.0, 0.1)
+        assert_array_equal(t, np.arange(0, 1.0, 0.1))
+        self.assertEqual(len(y), 3)
+        for yy in y:
+            self.assertEqual(yy.shape, (len(t), 1))
+        assert_aae(y[0][:, 0], w * t)
+        assert_aae(y[1][:, 0], w)
+        assert_aae(y[2][:, 0], 0)
+
+    def test_callback(self):
+        s = System()
+        s.setup()
+
+        # Exponential decay: qd = -A q
+        def callback(system, ti, q_struct, q_other):
+            self.assertIs(system, s)
+            self.assertEqual(len(q_other), 1)
+            return -q_other
+
+        integ = Integrator(s)
+        t, y = integ.integrate(9.0, 0.1, extra_states=np.ones(1),
+                               callback=callback)
+
+        # Check time vector and shape of result
+        assert_array_equal(t, np.arange(0, 9.0, 0.1))
+        self.assertEqual(len(y), 1)
+        self.assertEqual(y[0].shape, (len(t), 1))
+        assert_aae(y[0][:, 0], np.exp(-t))
 
 
 if __name__ == '__main__':

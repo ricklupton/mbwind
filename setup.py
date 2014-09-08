@@ -5,7 +5,7 @@ import numpy as np
 
 setup(
     name="mbwind",
-    version="0.0.1",
+    version="0.2",
     packages=find_packages(),
 
     cmdclass={'build_ext': build_ext},

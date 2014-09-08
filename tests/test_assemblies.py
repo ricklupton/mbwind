@@ -1,19 +1,13 @@
+import unittest
 import numpy as np
-from numpy import (zeros, array, eye, pi, dot, sqrt, c_, diag,
-                   ones_like, arange, linspace)
-from numpy import linalg
-from numpy.testing import assert_array_equal, assert_array_almost_equal
-from nose import SkipTest
-
+from numpy import zeros, eye, pi, dot, sqrt, diag, ones_like, arange, linspace
+from numpy.testing import assert_array_almost_equal as assert_aae
 from mbwind import System, ReducedSystem
 from mbwind.modes import ModalRepresentation
 from mbwind.elements import (ModalElement, ModalElementFromFE,
                              RigidConnection, FreeJoint, Hinge)
 from mbwind.utils import rotations
-
-from beamfe import BeamFE, interleave
-
-assert_aae = assert_array_almost_equal
+from beamfe import BeamFE
 
 
 def _mock_rigid_uniform_modes(density, length):
@@ -22,8 +16,7 @@ def _mock_rigid_uniform_modes(density, length):
     return ModalRepresentation(x, ones_like(x) * density)
 
 
-class offset_rigid_ModalElement_Tests:
-
+class TestModalElement(unittest.TestCase):
     def test_inertia_when_offset_axially(self):
         density = 230.4
         length = 20.0
@@ -51,7 +44,7 @@ class offset_rigid_ModalElement_Tests:
 
         # Y accel -> positive moment about Z
         # Z accel -> negative moment about Y
-        expected_offdiag[2, 1] =  m * (length/2 + offset)
+        expected_offdiag[2, 1] = +m * (length/2 + offset)
         expected_offdiag[1, 2] = -m * (length/2 + offset)
 
         assert_aae(rsys.M[:3, :3], expected_mass)
@@ -59,8 +52,7 @@ class offset_rigid_ModalElement_Tests:
         assert_aae(rsys.M[3:, :3], expected_offdiag)
         assert_aae(rsys.M[:3, 3:], expected_offdiag.T)
 
-
-    def test_three_rigid_elements_forming_a_disc_have_ends_in_right_place(self):
+    def test_three_rigid_elements_as_disc_have_ends_in_right_place(self):
         length = 20.0
         offset = 5.0
 
@@ -85,7 +77,6 @@ class offset_rigid_ModalElement_Tests:
         assert_aae(elements[0].rd, [R,     0,           0])
         assert_aae(elements[1].rd, [-R/2,  R*sqrt(3)/2, 0])
         assert_aae(elements[2].rd, [-R/2, -R*sqrt(3)/2, 0])
-
 
     def test_three_elements_forming_a_disc_about_Z_have_correct_inertia(self):
         density = 230.4
@@ -124,7 +115,6 @@ class offset_rigid_ModalElement_Tests:
         assert_aae(rsys.M[3:, 3:], expected_inertia)
         assert_aae(rsys.M[3:, :3], expected_offdiag)
         assert_aae(rsys.M[:3, 3:], expected_offdiag.T)
-
 
     def test_three_elements_forming_a_disc_about_X_have_correct_inertia(self):
         density = 5
@@ -174,14 +164,14 @@ class offset_rigid_ModalElement_Tests:
 # by the d'Alembert inertial moment. There is however a reaction
 # force remaining.
 
-class hinged_beam_tests:
+class hinged_beam_tests(unittest.TestCase):
     density = 5.0
     length = 20.0
     force = 34.2  # N/m
     hinge_torque = 0.0
     free_beam = False
 
-    def setup(self):
+    def setUp(self):
         # FE model for beam
         x = linspace(0, self.length, 20)
         fe = BeamFE(x, density=self.density, EA=0, EIy=1, EIz=0)
@@ -212,15 +202,15 @@ class hinged_beam_tests:
         self.recalc()
 
     def recalc(self):
-        self.system.update_kinematics()   # Set up nodal values initially
+        self.system.update_kinematics()    # Set up nodal values initially
         self.system.update_matrices()
-        self.system.solve_accelerations() # Calculate accelerations of DOFs
-        self.system.update_kinematics()   # Update nodal values based on DOFs
+        self.system.solve_accelerations()  # Calculate accelerations of DOFs
+        self.system.update_kinematics()    # Update nodal values based on DOFs
         self.system.update_matrices()
-        self.system.solve_reactions()     # Solve reactions including d'Alembert
+        self.system.solve_reactions()      # Solve reactions incl d'Alembert
 
 
-class fixed_hinged_beam_tests(hinged_beam_tests):
+class Test_fixed_hinged_beam(hinged_beam_tests):
     free_beam = False
 
     def test_reaction_on_fixed_beam(self):
@@ -259,11 +249,10 @@ class fixed_hinged_beam_tests(hinged_beam_tests):
                    self.system.joint_reactions['node-0'])
 
 
-class free_hinged_beam_tests(hinged_beam_tests):
+class Test_free_hinged_beam(hinged_beam_tests):
     free_beam = True
 
     def test_reaction_on_hinged_beam(self):
-
         """Reaction force should balance applied force"""
         # Applied force and moment (+ve in +Z and +Y)
         Fa = -self.force * self.length
@@ -281,7 +270,7 @@ class free_hinged_beam_tests(hinged_beam_tests):
         # Check equilibrium. No applied forces on hinge, so both nodes
         # should be the same.
         assert_aae(self.system.joint_reactions['node-0'],
-                   [0, 0, -(Fa + Fi), 0, 0, 0])
+                   [0, 0, -(Fa + Fi), 0, -(Ma + Mi), 0])
         assert_aae(self.system.joint_reactions['ground'],
                    self.system.joint_reactions['node-0'])
 
@@ -290,7 +279,7 @@ class free_hinged_beam_tests(hinged_beam_tests):
         assert_aae(self.beam.ap, [0, 0, 0, 0, ang_acc, 0])
 
 
-class active_hinge_beam_tests(hinged_beam_tests):
+class Test_active_hinge_beam(hinged_beam_tests):
     free_beam = True
     force = 0.0
     hinge_torque = 3210.3

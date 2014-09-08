@@ -1,13 +1,13 @@
-from numpy import zeros, array, eye, pi, dot, sqrt, c_, diag, cos, sin
-from numpy import linalg
+import unittest
+from numpy import zeros, array, eye, pi, dot, c_, diag, cos, sin
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
 from mbwind.utils import rotmat_x, rotmat_y, rotmat_z, update_skewmat
 from mbwind.elements import Hinge, FreeJoint, RigidBody
 
 
-class Hinge_element:
-    def distal_node_is_rotated_by_90deg_about_correct_axis(self):
+class TestHinge(unittest.TestCase):
+    def test_distal_node_is_rotated_by_90deg_about_correct_axis(self):
         h = Hinge('hinge', [0, 0, 1])
         h.rp = array([3.5, 9.21, 8.6])
         h.Rp = eye(3)
@@ -25,7 +25,7 @@ class Hinge_element:
 
         # TODO should test when Rp != I
 
-    def additional_post_transform_of_90deg_is_applied(self):
+    def test_additional_post_transform_of_90deg_is_applied(self):
         h = Hinge('hinge', [0, 0, 1], post_transform=rotmat_x(pi / 2))
         h.rp = array([3.5, 9.21, 8.6])
         h.Rp = eye(3)
@@ -42,7 +42,7 @@ class Hinge_element:
         # rotate about z then x
         assert_array_almost_equal(h.Rd, c_[[0, 1, 0], [0, 0, 1], [1, 0, 0]])
 
-    def distal_node_velocity_due_to_hinge_rotation_is_about_correct_axis(self):
+    def test_distal_node_velocity_due_to_hinge_rotation_has_correct_axis(self):
         h = Hinge('hinge', [0, 0, 1])
         h.vstrain[0] = 4.5  # rad/s
         h.calc_kinematics()
@@ -55,8 +55,8 @@ class Hinge_element:
         # TODO should test when Rp != I
 
 
-class FreeJoint_element:
-    def distal_node_is_transformed_by_joint_freedoms(self):
+class TestFreeJoint(unittest.TestCase):
+    def test_distal_node_is_transformed_by_joint_freedoms(self):
         j = FreeJoint('joint')
         j.rp = array([3.5, 9.21, 8.6])
         j.Rp = eye(3)
@@ -85,7 +85,7 @@ class FreeJoint_element:
         #  2) 90deg pitch  ->  -z, -x, y
         assert_array_almost_equal(j.Rd, c_[[0, 0, -1], [-1, 0, 0], [0, 1, 0]])
 
-    def velocity_transforms_depend_on_joint_orientation(self):
+    def test_velocity_transforms_depend_on_joint_orientation(self):
         j = FreeJoint('joint')
         j.rp = array([0, 0, 8.6])
 
@@ -111,9 +111,8 @@ class FreeJoint_element:
         # TODO test quadratic velocity vector
 
 
-class RigidBody_element:
-
-    def calculates_mass_and_inertia_in_global_coordinates(self):
+class TestRigidBody(unittest.TestCase):
+    def test_calculates_mass_and_inertia_in_global_coordinates(self):
         # simple rigid body at origin: this just checks the mass and
         # inertia carry directly through to element mass matrix
         II = diag([4.2, 6.7, 11.7])
@@ -136,7 +135,7 @@ class RigidBody_element:
         assert_array_almost_equal(b.mass_vv[3:, 3:], diag([6.7, 4.2, 11.7]))
         assert_array_equal(b.quad_forces, 0)
 
-    def accounts_for_offset_centre_of_mass_in_mass_matrix(self):
+    def test_accounts_for_offset_centre_of_mass_in_mass_matrix(self):
         # check mass matrix calculation when centre of mass is offset
         # from proximal node.
         b = RigidBody('body', mass=5.6, Xc=[1.2, 3.4, 5.4])
@@ -147,7 +146,7 @@ class RigidBody_element:
         F = -dot(b.mass_vv, [0, 0, 1, 0, 0, 0])
         assert_array_equal(F, b.mass * array([0, 0, -1, -3.4, 1.2, 0]))
 
-    def accounts_for_offset_centre_of_mass_in_applied_force(self):
+    def test_accounts_for_offset_centre_of_mass_in_applied_force(self):
         # check applied force due to gravity is correct
         b = RigidBody('body', mass=5.6, Xc=[1.2, 3.4, 5.4])
         b.calc_mass()
@@ -155,7 +154,7 @@ class RigidBody_element:
         assert_array_equal(b.applied_forces,
                            b.mass * 9.81 * array([0, 0, -1, -3.4, 1.2, 0]))
 
-    def has_gyroscopic_forces_when_spinning(self):
+    def test_has_gyroscopic_forces_when_spinning(self):
         # When the body is spinning, a torque should cause a
         # perpendicular acceleration
 
@@ -180,4 +179,3 @@ class RigidBody_element:
         # about the y axis
         expected_Q2 = spin * precession * (C - A)
         assert_array_almost_equal(b.quad_forces, [0, 0, 0, 0, expected_Q2, 0])
-

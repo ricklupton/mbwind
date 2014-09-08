@@ -1,17 +1,17 @@
-from nose.tools import *
-from numpy import zeros, array, eye, pi, dot, sqrt, c_, diag, linspace
+import unittest
+from numpy import zeros, linspace
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 from mbwind import System, Integrator, ModalElementFromFE
 from beamfe import BeamFE
 
 
-class BeamDeflection_Tests:
+class TestModalElementFromFE_solutions(unittest.TestCase):
     EI = 28.2e6
     m = 23.1
     L = 40.0
     damping_coeff = 0.2
 
-    def setup(self):
+    def setUp(self):
         x = linspace(0, self.L, 15)
         fe = BeamFE(x, density=self.m, EA=0, EIy=self.EI, EIz=0)
         fe.set_boundary_conditions('C', 'F')
@@ -32,8 +32,8 @@ class BeamDeflection_Tests:
         # 1 node        -> 6 states
         # 0 constraints -> 0 states
         # 1 dof         -> 1 state
-        eq_(len(self.system.qd), 7)
-        eq_(len(self.system.qd.dofs), 1)
+        self.assertEqual(len(self.system.qd), 7)
+        self.assertEqual(len(self.system.qd.dofs), 1)
 
     def test_solution_without_force(self):
         # Static equilibrium should not move with no forces

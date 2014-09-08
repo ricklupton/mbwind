@@ -1,20 +1,17 @@
-from nose.tools import *
+import unittest
 import numpy as np
-from numpy import zeros, array, eye, pi, dot, sqrt, c_, diag, cos, sin
-from numpy import linalg
-from numpy.testing import (assert_array_equal, assert_array_almost_equal,
-                           assert_allclose)
+from numpy.testing import (assert_array_equal,
+                           assert_array_almost_equal as assert_aae)
 
-from mbwind.utils import rotmat_x, rotmat_y, rotmat_z, update_skewmat
 from mbwind import RigidBody, PrismaticJoint, System, Integrator
 
 
-class MassOnSpring_Tests:
+class TestMassOnSpring(unittest.TestCase):
     K = 53.2
     M = 23.1
     damping_coeff = 0.2
 
-    def setup(self):
+    def setUp(self):
         joint = PrismaticJoint('joint', [0, 0, 1])
         joint.stiffness = self.K
         joint.damping = 2 * self.damping_coeff * (self.K * self.M) ** 0.5
@@ -33,8 +30,8 @@ class MassOnSpring_Tests:
         # 2 nodes       -> 12 states
         # 6 constraints -> 6 states
         # 1 dof         -> 1 state
-        eq_(len(self.system.qd), 19)
-        eq_(len(self.system.qd.dofs), 1)
+        self.assertEqual(len(self.system.qd), 19)
+        self.assertEqual(len(self.system.qd.dofs), 1)
 
     def test_solution_without_force(self):
         # Static equilibrium should not move with no forces
@@ -75,10 +72,10 @@ class MassOnSpring_Tests:
         t, solution = integrate(self.system, callback)
 
         decay = np.exp(-zeta * wn * (t - t0))
-        expected_defl = 1 - decay * cos(wd * (t - t0) - psi) / cos(psi)
+        expected_defl = 1 - decay * np.cos(wd * (t - t0) - psi) / np.cos(psi)
         X = force_amp / self.K
         expected_defl[t < t0] = 0
-        assert_allclose(solution[:, 0], X * expected_defl, atol=1e-8)
+        assert_aae(solution[:, 0], X * expected_defl)
 
 
 def integrate(system, callback=None):

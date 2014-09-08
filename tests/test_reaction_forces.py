@@ -12,7 +12,7 @@ from beamfe import BeamFE
 assert_aae = assert_array_almost_equal
 
 
-class blade_reaction_force_tests:
+class TestReactionForcesOnModalElementFromFE(unittest.TestCase):
     """
     System
     ------
@@ -28,7 +28,7 @@ class blade_reaction_force_tests:
     offset = 3.2   # m
     force = -34.2  # N / m
 
-    def setup(self):
+    def setUp(self):
         # FE model for beam - no modes, i.e. rigid
         x = linspace(0, self.length, 20)
         density = (2 * self.mass / self.length) * (1 - x / self.length)

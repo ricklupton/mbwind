@@ -1,12 +1,13 @@
+import unittest
+from numpy import ones, zeros, array, arange, eye, pi, dot, sqrt
+from numpy.testing import (assert_array_equal,
+                           assert_array_almost_equal as assert_aae)
+
 from mbwind.utils import (skewmat, update_skewmat, rotmat_x, rotmat_y,
                           rotmat_z, rotations, discont_trapz)
-from numpy import ones, zeros, array, arange, eye, pi, dot, sqrt, transpose
-from numpy.testing import assert_array_equal, assert_array_almost_equal
-
-assert_aae = assert_array_almost_equal
 
 
-class Utils_tests:
+class TestUtils(unittest.TestCase):
     def test_skew(self):
         assert_array_equal(skewmat(zeros(3)), zeros((3, 3)))
         assert_array_equal(skewmat([1, 2, 3]), array([

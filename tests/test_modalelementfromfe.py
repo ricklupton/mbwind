@@ -1,17 +1,13 @@
-from numpy import zeros, array, eye, pi, dot, sqrt, c_, diag, ones_like, linspace
+import unittest
+from numpy import array, dot, linspace
 import numpy as np
-from numpy.testing import assert_array_equal, assert_array_almost_equal
+from numpy.testing import assert_array_almost_equal as assert_aae
 
-from mbwind.modes import ModalRepresentation
 from mbwind.elements.modal import ModalElementFromFE
-from mbwind.utils import rotmat_x, rotmat_y, rotmat_z
-import sys; sys.path.insert(0, '../beamfe')
 from beamfe import BeamFE, interleave
 
-assert_aae = assert_array_almost_equal
 
-
-class ModalElementFromFE_Tests:
+class TestModalElementFromFE(unittest.TestCase):
     def test_first_mode_frequency(self):
         # From Reddy1993, p. 160
         x = linspace(0, 1, 16)
@@ -25,7 +21,7 @@ class ModalElementFromFE_Tests:
         element = ModalElementFromFE('elem', modal)
         Mmodal = element.mass_ee
         Kmodal = np.diag(element.stiffness)
-        w = np.sqrt(np.diag(Kmodal / Mmodal))
+        w = np.sqrt(np.diag(Kmodal) / np.diag(Mmodal))
         assert_aae(w[0], 3.5160, decimal=4)
 
     def test_static_deflection(self):

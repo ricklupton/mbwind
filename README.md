@@ -1,1 +1,1 @@
-Python code modelled on GH Bladed to model simple flexible floating wind turbines
+Multibody dynamics code written in Python.

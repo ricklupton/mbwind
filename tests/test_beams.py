@@ -1,18 +1,17 @@
-from numpy import zeros, array, eye, pi, dot, sqrt, c_, diag, cos, sin
-from numpy import linalg
-from numpy.testing import assert_array_equal, assert_array_almost_equal
-from unittest import TestCase
-from nose import SkipTest
+import unittest
+from numpy import dot, diag
+from numpy.testing import assert_array_almost_equal
 
-from mbwind.utils import rotmat_x, rotmat_y, rotmat_z, update_skewmat
+from mbwind.utils import update_skewmat
 from mbwind.elements.beams import UniformBeam
 
 
-class UniformBeamTestCase(TestCase):
+class TestUniformBeam(unittest.TestCase):
     def test_gyroscopic_acceleration(self):
         """When the body is spinning, a torque should cause a perpendicular
         acceleration"""
 
+        from nose import SkipTest
         raise SkipTest
 
         # Set up rigid body spinning about x axis, and precessing about z axis
