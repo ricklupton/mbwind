@@ -1,8 +1,11 @@
 import unittest
+import random
+import numpy
 from numpy import zeros, array, eye, pi, dot, c_, diag, cos, sin
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
 from mbwind.utils import rotmat_x, rotmat_y, rotmat_z, update_skewmat
+from mbwind import System
 from mbwind.elements import Hinge, FreeJoint, RigidBody
 
 
@@ -108,7 +111,36 @@ class TestFreeJoint(unittest.TestCase):
         F_ve[3:, 4] = [-1, 0, 0]
         assert_array_almost_equal(j.F_ve, F_ve)
 
-        # TODO test quadratic velocity vector
+    def test_velocity_and_acceleration_are_consistent(self):
+        NTESTS = 100
+        DT = 1e-3
+        RANGE = 1
+        EXPECTED_DECIMAL = -int(numpy.log10(RANGE*DT))
+        rdm = random.Random(123456789)
+
+        def set_random_values(arr):
+            arr[:] = [rdm.uniform(-RANGE, RANGE) for j in range(len(arr))]
+        j = FreeJoint('joint')
+        for i in range(NTESTS):
+            print(i)
+            # Calculate angular velocity and angular acceleration for
+            # random conditions
+            set_random_values(j.xstrain)
+            set_random_values(j.vstrain)
+            print(j.xstrain)
+            print(j.vstrain)
+            j.update_kinematics()  # NB need update_kinematics() to
+                                   # update vd & ad, not
+                                   # calc_kinematics()
+            vd1 = j.vd.copy()
+            ad1 = j.ad.copy()
+
+            # Peturb by small timestep & recalculate
+            j.xstrain[:] += j.vstrain[:] * DT
+            j.update_kinematics()
+            vd2 = j.vd.copy()
+
+            assert_array_almost_equal(ad1, (vd2 - vd1) / DT, EXPECTED_DECIMAL)
 
 
 class TestRigidBody(unittest.TestCase):
@@ -149,6 +181,10 @@ class TestRigidBody(unittest.TestCase):
     def test_accounts_for_offset_centre_of_mass_in_applied_force(self):
         # check applied force due to gravity is correct
         b = RigidBody('body', mass=5.6, Xc=[1.2, 3.4, 5.4])
+        s = System(gravity=9.81)  # need a System to define gravity
+        s.add_leaf(b)
+        s.setup()
+
         b.calc_mass()
         b.calc_external_loading()
         assert_array_equal(b.applied_forces,

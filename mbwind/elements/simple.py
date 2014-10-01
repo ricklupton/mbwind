@@ -148,7 +148,7 @@ class FreeJoint(Element):
         # axis for yaw rotation is constant in global axes
         self.F_v2[3:6] = [
             -b1*b2*cos(a3)*sin(a2) - b1*b3*sin(a3)*cos(a2) - b2*b3*cos(a3),
-            -b1*b2*sin(a3)*sin(a2) - b1*b3*cos(a3)*cos(a2) - b2*b3*sin(a3),
+            -b1*b2*sin(a3)*sin(a2) + b1*b3*cos(a3)*cos(a2) - b2*b3*sin(a3),
             -b1*b2*cos(a2),
         ]
 
