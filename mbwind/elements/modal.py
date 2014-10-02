@@ -8,7 +8,6 @@ from scipy import linalg
 from ..integrator import CustomOutput
 from ..base_element import Element
 from ..utils import eps_ijk, skewmat
-from ..modes import cumulative_mass_moment
 from . import _modal_calcs
 
 # Slices to refer to parts of matrices

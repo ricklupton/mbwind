@@ -3,16 +3,30 @@ Flexible beam elements
 """
 from __future__ import division
 import numpy as np
-from numpy import array, zeros, eye, dot, pi
+from numpy import array, zeros, eye, dot, pi, sqrt
 from ..base_element import Element
 from ..utils import skewmat, rotmat_x, rotmat_y, rotmat_z
-from ..modes import qrot3
 
 # Slices to refer to parts of matrices
 VP = slice(0,3)
 WP = slice(3,6)
 VD = slice(6,9)
 WD = slice(9,12)
+
+
+def qrot3(q):
+    """Return the rotation matrix associated with the 3 quaternions q.
+
+    The 0th quaternion is calculated from the 3 which are supplied.
+    """
+    q1, q2, q3 = q
+    q0 = sqrt(1.0 - q1**2 - q2**2 - q3**2)
+    assert not np.isnan(q0)
+    return array([
+        [1 - 2*(q2**2 + q3**2), 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2)],
+        [2*(q1*q2 + q0*q3),     1 - 2*(q1**2 + q3**2), 2*(q2*q3 - q0*q1)],
+        [2*(q1*q3 - q0*q2),     2*(q2*q3 + q0*q1),     1 - 2*(q1**2 + q2**2)],
+    ])
 
 
 def euler_param_E(q):

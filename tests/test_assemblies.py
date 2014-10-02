@@ -3,17 +3,20 @@ import numpy as np
 from numpy import zeros, eye, pi, dot, sqrt, diag, ones_like, arange, linspace
 from numpy.testing import assert_array_almost_equal as assert_aae
 from mbwind import System, ReducedSystem
-from mbwind.modes import ModalRepresentation
 from mbwind.elements import (ModalElement, ModalElementFromFE,
                              RigidConnection, FreeJoint, Hinge)
 from mbwind.utils import rotations
 from beamfe import BeamFE
 
 
-def _mock_rigid_uniform_modes(density, length):
+def _mock_rigid_uniform_beam(density, length, name='beam'):
     """Return empty modal representation of 20m long rigid beam"""
-    x = arange(0, length + 0.01)
-    return ModalRepresentation(x, ones_like(x) * density)
+    x = linspace(0, length, 20)
+    fe = BeamFE(x, density=density, EA=0, EIy=1, EIz=0)
+    fe.set_boundary_conditions('C', 'F')
+    modal = fe.modal_matrices(0)
+    beam = ModalElementFromFE(name, modal)
+    return beam
 
 
 class TestModalElement(unittest.TestCase):
@@ -21,8 +24,7 @@ class TestModalElement(unittest.TestCase):
         density = 230.4
         length = 20.0
         offset = 5.0
-        modes = _mock_rigid_uniform_modes(density, length)
-        element = ModalElement('element', modes)
+        element = _mock_rigid_uniform_beam(density, length)
         conn = RigidConnection('offset', offset=[offset, 0, 0])
         joint = FreeJoint('joint')
 
@@ -83,8 +85,6 @@ class TestModalElement(unittest.TestCase):
         length = 20.0
         offset = 5.0
         m = density * length  # mass of one beam
-
-        modes = _mock_rigid_uniform_modes(density, length)
         joint = FreeJoint('joint')
 
         # Make 3 elements spaced by 120 deg about z axis
@@ -92,7 +92,8 @@ class TestModalElement(unittest.TestCase):
             rotmat = rotations(('z', i * 2*pi/3))
             offset_vector = dot(rotmat, [offset, 0, 0])
             conn = RigidConnection('offset%d' % i, offset_vector, rotmat)
-            element = ModalElement('element%d' % i, modes)
+            element = _mock_rigid_uniform_beam(density, length,
+                                               'element%d' % i)
             joint.add_leaf(conn)
             conn.add_leaf(element)
 
@@ -122,7 +123,6 @@ class TestModalElement(unittest.TestCase):
         offset = 1.25
         m = density * length  # mass of one beam
 
-        modes = _mock_rigid_uniform_modes(density, length)
         joint = FreeJoint('joint')
 
         # Make 3 elements spaced by 120 deg about z axis
@@ -131,7 +131,8 @@ class TestModalElement(unittest.TestCase):
             rotmat = rotations(('x', i * 2*pi/3), ('y', -pi/2))
             offset_vector = dot(rotmat, [offset, 0, 0])  # offset // local x
             conn = RigidConnection('offset%d' % i, offset_vector, rotmat)
-            element = ModalElement('element%d' % i, modes)
+            element = _mock_rigid_uniform_beam(density, length,
+                                               'element%d' % i)
             joint.add_leaf(conn)
             conn.add_leaf(element)
 
