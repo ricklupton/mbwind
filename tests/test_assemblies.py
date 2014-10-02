@@ -186,7 +186,7 @@ class hinged_beam_tests(unittest.TestCase):
 
         # Hinge with axis along Y axis
         self.hinge = Hinge('hinge', [0, 1, 0])
-        self.hinge.loading = self.hinge_torque
+        self.hinge.internal_torque = self.hinge_torque
 
         # Build system
         self.system = System()

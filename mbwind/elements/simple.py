@@ -31,7 +31,7 @@ class Hinge(Element):
         if post_transform is None:
             post_transform = np.eye(3)
         self.post_transform = post_transform
-        self.loading = None
+        self.internal_torque = None
 
     def _set_wrapping(self):
         self.system.q.wrap_levels[self.system.q.indices(self.istrain)[0]] = 2*pi
@@ -58,13 +58,13 @@ class Hinge(Element):
 
     def calc_external_loading(self):
         self.applied_stress[0] = (self.stiffness * self.xstrain[0] +
-                                  self.damping   * self.vstrain[0])
-        if self.loading is not None:
-            if callable(self.loading):
+                                  self.damping * self.vstrain[0])
+        if self.internal_torque is not None:
+            if callable(self.internal_torque):
                 time = self.system.time if self.system else 0
-                loading = self.loading(self, time)
+                loading = self.internal_torque(self, time)
             else:
-                loading = np.asarray(self.loading)
+                loading = np.asarray(self.internal_torque)
             self.applied_stress[0] += -loading  # NB minus sign
 
 
@@ -75,28 +75,41 @@ class PrismaticJoint(Element):
 
     def __init__(self, name, axis, post_transform=None):
         Element.__init__(self, name)
-        self.axis = axis # proximal node coords
+        self.axis = axis  # proximal node coords
         self.stiffness = 0.0
         self.damping = 0.0
         if post_transform is None:
             post_transform = np.eye(3)
         self.post_transform = post_transform
+        self.internal_force = None
 
     def calc_distal_pos(self):
-        n = dot(self.Rp, self.axis) # axis in global frame
+        n = dot(self.Rp, self.axis)  # axis in global frame
         self.rd[:] = self.rp + self.xstrain[0]*n
-        self.Rd[:,:] = dot(self.Rp, self.post_transform)
+        self.Rd[:, :] = dot(self.Rp, self.post_transform)
 
     def calc_kinematics(self):
         """
         Update kinematic transforms: F_vp, F_ve and F_v2
         [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
         """
-        n = dot(self.Rp, self.axis) # global axis vector
-        self.F_ve[:3,:] = n[:,np.newaxis]
+        n = dot(self.Rp, self.axis)  # global axis vector
+        self.F_vp[0:3, 3:6] = -self.xstrain[0] * skewmat(n)
+        self.F_ve[0:3, :] = n[:, np.newaxis]
+        self.F_v2[0:3] = (
+            2 * self.vstrain[0] * dot(self.wps, n) +
+            self.xstrain[0] * dot(self.wps, dot(self.wps, n)))
 
     def calc_external_loading(self):
-        self.applied_stress[0] = self.stiffness*self.xstrain[0] + self.damping*self.vstrain[0]
+        self.applied_stress[0] = (self.stiffness * self.xstrain[0] +
+                                  self.damping * self.vstrain[0])
+        if self.internal_force is not None:
+            if callable(self.internal_force):
+                time = self.system.time if self.system else 0
+                loading = self.internal_force(self, time)
+            else:
+                loading = np.asarray(self.internal_force)
+            self.applied_stress[0] += -loading  # NB minus sign
 
 
 class FreeJoint(Element):
@@ -119,19 +132,19 @@ class FreeJoint(Element):
         self.stiffness = stiffness
         self.damping = damping
         self.post_transform = post_transform
-        self.constant_force = zeros(6)
+        self.internal_forces = None
 
         # Constant parts of transformation matrices
         self.F_ve = eye(6)
 
     def calc_distal_pos(self):
-        Rd = reduce(dot, (rotmat_z(self.xstrain[5]),
+        Rj = reduce(dot, (rotmat_z(self.xstrain[5]),
                           rotmat_y(self.xstrain[4]),
                           rotmat_x(self.xstrain[3])))
         if self.post_transform is not None:
-            Rd = dot(Rd, self.post_transform)
-        self.rd[:] = self.rp + self.xstrain[0:3]
-        self.Rd[:, :] = Rd
+            Rj = dot(Rj, self.post_transform)
+        self.rd[:] = self.rp + dot(self.Rp, self.xstrain[0:3])
+        self.Rd[:, :] = dot(self.Rp, Rj)
 
     def calc_kinematics(self):
         """
@@ -143,20 +156,46 @@ class FreeJoint(Element):
         # global coordinates
         a1, a2, a3 = self.xstrain[3:6]
         b1, b2, b3 = self.vstrain[3:6]
-        self.F_ve[3:6, 3] = [cos(a2)*cos(a3), cos(a2)*sin(a3), -sin(a2)]
-        self.F_ve[3:6, 4] = [-sin(a3), cos(a3), 0]
-        # axis for yaw rotation is constant in global axes
-        self.F_v2[3:6] = [
+        G = np.array([
+            [cos(a3)*cos(a2), -sin(a3), 0],
+            [sin(a3)*cos(a2), cos(a3), 0],
+            [-sin(a2), 0, 1]
+        ])
+        Gdot_epsdot = np.array([
             -b1*b2*cos(a3)*sin(a2) - b1*b3*sin(a3)*cos(a2) - b2*b3*cos(a3),
             -b1*b2*sin(a3)*sin(a2) + b1*b3*cos(a3)*cos(a2) - b2*b3*sin(a3),
             -b1*b2*cos(a2),
-        ]
+        ])
+
+        # Proximal nodal terms
+        self.F_vp[0:3, 3:6] = -skewmat(dot(self.Rp, self.xstrain[0:3]))
+
+        # Strain terms
+        self.F_ve[0:3, 0:3] = self.Rp
+        self.F_ve[3:6, 3:6] = dot(self.Rp, G)
+
+        # Quadratic accelerations:
+        # 2 𝛚̃_p 𝐑_p 𝛆̇_X + 𝛚̃_p 𝛚̃_p 𝐑_p 𝛆_X
+        self.F_v2[0:3] = dot(self.wps, (
+            2 * dot(self.Rp, self.vstrain[0:3]) +
+            dot(self.wps, dot(self.Rp, self.xstrain[0:3]))))
+
+        # 𝛚̃_p 𝐑_p 𝐆 𝛆̇_𝜃 + 𝐑_p 𝐆̇ 𝛆̇_𝜃
+        self.F_v2[3:6] = (
+            dot(self.wps, dot(self.Rp, dot(G, self.vstrain[3:6]))) +
+            dot(self.Rp, Gdot_epsdot))
 
     def calc_external_loading(self):
         # NB applied stress is negative (designed as stiffness)
         self.applied_stress[:] = (dot(self.stiffness, self.xstrain) +
-                                  dot(self.damping, self.vstrain) +
-                                  -self.constant_force)
+                                  dot(self.damping, self.vstrain))
+        if self.internal_forces is not None:
+            if callable(self.internal_forces):
+                time = self.system.time if self.system else 0
+                loading = self.internal_forces(self, time)
+            else:
+                loading = np.asarray(self.internal_forces)
+            self.applied_stress += -loading  # NB minus sign
 
 
 class RigidConnection(Element):
@@ -235,8 +274,9 @@ class RigidBody(Element):
     def calc_external_loading(self):
         self._set_gravity_force()
         if self.nodal_load is not None:
+            time = self.system.time if self.system else 0
             if callable(self.nodal_load):
-                global_force = self.nodal_load(self.system.time)
+                global_force = self.nodal_load(self, time)
             else:
                 global_force = self.nodal_load
             self.applied_forces[VP] += global_force
