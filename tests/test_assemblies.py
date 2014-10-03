@@ -3,8 +3,8 @@ import numpy as np
 from numpy import zeros, eye, pi, dot, sqrt, diag, ones_like, arange, linspace
 from numpy.testing import assert_array_almost_equal as assert_aae
 from mbwind import System, ReducedSystem
-from mbwind.elements import (ModalElement, ModalElementFromFE,
-                             RigidConnection, FreeJoint, Hinge)
+from mbwind.elements import (ModalElementFromFE, RigidConnection,
+                             FreeJoint, Hinge)
 from mbwind.utils import rotations
 from beamfe import BeamFE
 

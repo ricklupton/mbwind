@@ -5,7 +5,7 @@ from mbwind import System, Integrator, ModalElementFromFE
 from beamfe import BeamFE
 
 
-class TestModalElementFromFE_solutions(unittest.TestCase):
+class TestModalElementFromFE_static_solutions(unittest.TestCase):
     EI = 28.2e6
     m = 23.1
     L = 40.0

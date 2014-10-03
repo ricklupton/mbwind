@@ -1,4 +1,3 @@
 from .simple import *
-from .modal import (DistalModalElementFromScratch, ModalElement,
-                    ModalElementFromFE)
+from .modal import ModalElementFromFE, DistalModalElementFromFE
 from .beams import UniformBeam, TaperedBeam

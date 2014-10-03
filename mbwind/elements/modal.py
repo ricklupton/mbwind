@@ -3,7 +3,7 @@ Modal elements
 """
 
 import numpy as np
-from numpy import array, zeros, eye, dot, pi
+from numpy import array, zeros, eye, dot, pi, newaxis
 from scipy import linalg
 from ..integrator import CustomOutput
 from ..base_element import Element
@@ -15,238 +15,6 @@ VP = slice(0, 3)
 WP = slice(3, 6)
 VD = slice(6, 9)
 WD = slice(9, 12)
-
-OPT_GEOMETRIC_STIFFNESS = False
-
-
-class ModalElement(Element):
-    _ndistal = 0
-    _nstrain = 6
-    _nconstraints = 0
-
-    def __init__(self, name, modes, loading=None, distal=False,
-                 damping_freqs=None, extra_modal_mass=None):
-        '''
-        General element represented by mode shapes. Assume no distal nodes.
-
-         - modal_rep : ModalRepresentation instance describing the
-                       modal representation
-         - loading : Loading object describing external loading
-         - distal : whether the element needs a distal node
-                    (expands size of system by a node)
-         - extra_modal_mass : extra mass which has been included in the
-             calculation of the modal frequencies, but is not part of the
-             element. For example, Bladed adds nacelle and rotor mass to the
-             reported tower modal frequencies; to get the correct tower
-             stiffness, this has to be taken off again.
-
-         - damping_freqs : reference frequencies used for damping coefficients.
-             If None, use modal frequencies. Needed for tower modes, when this
-             element wants the isolated modes, but the damping needs the
-             combined frequencies in order to match Bladed.
-
-        '''
-        self._nstrain = len(modes.freqs)
-        if distal:
-            self._ndistal = 1
-            self._nconstraints = 6
-
-        if damping_freqs is None:
-            damping_freqs = modes.freqs
-
-        Element.__init__(self, name)
-        self.modes = modes
-        self.loading = loading
-
-        # Set constant parts of mass matrix
-        self.mass_vv[VP,VP] = self.modes.mass * eye(3)
-        self.mass_ee[ :, :] = self.modes.strain_strain()
-
-        # Stiffness matrix
-        stiffness_mass = np.diag(self.mass_ee).copy()
-        if extra_modal_mass is not None:
-            stiffness_mass[:3] += extra_modal_mass
-        self.stiffness = stiffness_mass * self.modes.freqs**2
-        self.damping = 2 * self.modes.damping * self.stiffness / damping_freqs
-        self.damping[np.isnan(self.damping)] = 0.0
-
-        # Geometric stiffness matrix
-        # Use int rdm as axial force, multiply by omega**2 later
-        # cenfug_force = cumulative_mass_moment(self.modes.X0, self.modes.density)
-        # self.kG = self.modes.geometric_stiffness(cenfug_force[:, 0])
-        self.kGe, self.kGw = self.modes.centrifugal_stiffness()
-
-    def station_positions(self):
-        prox_pos = self.modes.X(self.xstrain)
-        global_pos = self.rp[None,:] + np.einsum('ij,hj', self.Rp, prox_pos)
-        return global_pos
-
-    def station_rotations(self):
-        prox_rot = self.modes.R(self.xstrain)
-        global_rot = np.einsum('ij,hjk', self.Rp, prox_rot)
-        return global_rot
-
-    def station_velocities(self):
-        prox_pos = self.modes.X(self.xstrain)
-        prox_vel = self.modes.Xdot(self.vstrain)
-        global_vel = self.vp[None,VP] + np.einsum('ij,hj', self.Rp, prox_vel) \
-            + np.einsum('ijk,j,kl,hl', eps_ijk, self.vp[WP], self.Rp, prox_pos)
-        return global_vel
-
-    def calc_distal_pos(self):
-        self.rd[:]   = self.station_positions()[-1]
-        self.Rd[:,:] = self.station_rotations()[-1]
-
-    def calc_kinematics(self):
-        """
-        Update kinematic transforms: F_vp, F_ve and F_v2
-        [vd wd] = Fvp * [vp wp]  +  Fve * [vstrain]  +  Fv2
-        """
-        if self._ndistal == 0:
-            return
-
-        # Distal relative position in global coordinates
-        xl = dot(self.Rp, self.modes.X(self.xstrain)[-1])
-
-        # distal vel
-        self.F_vp[VP,WP] = -skewmat(xl)
-
-        # Distal vel due to strain
-        self.F_ve[VP,:] = dot(self.Rp, self.modes.shapes[-1])
-        # Distal ang vel due to strain
-        self.F_ve[WP,:] = dot(self.Rp, self.modes.rotations[-1])
-
-        # Quadratic velocity terms
-        tip_lin_vel = dot(self.modes.shapes[-1],    self.xstrain)
-        tip_ang_vel = dot(self.modes.rotations[-1], self.vstrain)
-        self.F_v2[VP] = dot(self.wps, dot(self.wps,xl) + 2*dot(self.Rp,tip_lin_vel))
-        self.F_v2[WP] = dot(self.wps, dot(self.Rp, tip_ang_vel))
-
-    def calc_mass(self):
-#        # angular velocity skew matrix
-#        wp = self.vp[WP]
-#        #wps = skewmat(wp)
-#        local_wp = dot(self.Rp.T, wp)
-#
-#        # Inertia tensor made up of undefomed inertia J0, and contributions
-#        # from shapes
-#        inertia = self.modes.inertia_tensor(self.xstrain)
-#        #inertia = _modal_calcs.inertia_tensor(self.modes, self.xstrain)
-#        inertia_global = dot(self.Rp, dot(inertia, self.Rp.T))
-#
-#        # Linear-rotation term
-#        rw_global = dot(self.Rp, self.modes.I0 + dot(self.modes.S, self.xstrain))
-#        rw_global_skew = skewmat(rw_global)
-#
-#        # Rotation-strain term
-#        wf_global = dot(self.Rp, self.modes.rotation_strain(self.xstrain))
-#        #wf_global = dot(self.Rp, _modal_calcs.rotation_strain(self.modes, self.xstrain))
-#
-#        # 1st shape int in global coords
-#        S_global = dot(self.Rp, self.modes.S)
-#
-#        ## MASS MATRIX ##
-#        #    mass_vv[VP,VP] constant
-#        self.mass_vv[VP,WP] = -rw_global_skew
-#        self.mass_vv[WP,VP] =  rw_global_skew
-#        self.mass_vv[WP,WP] =  inertia_global
-#        self.mass_ve[VP, :] =  S_global
-#        self.mass_ve[WP, :] =  wf_global
-#        # mass_ee constant
-
-        #test_vv = np.zeros_like(self.mass_vv)
-        #test_ve = np.zeros_like(self.mass_ve)
-        #test_gv = np.zeros_like(self.quad_forces)
-        #test_ge = np.zeros_like(self.quad_stress)
-        #_modal_calcs.calc_mass(self.modes, self.Rp, self.vp[WP], self.xstrain,
-        #                       self.vstrain, test_vv, test_ve, test_gv, test_ge)
-        _modal_calcs.calc_mass(self.modes, self.Rp, self.vp[WP], self.xstrain,
-                               self.vstrain, self.mass_vv, self.mass_ve,
-                               self.quad_forces, self.quad_stress)
-
-        ## QUADRATIC FORCES ## (remaining terms)
-
-#        # Centrifugal forces
-#        centrifugal = dot(dot(self.wps,self.wps), rw_global)
-#
-#        # Force dependent on strain velocity
-#        strainvel = 2*dot(self.wps, dot(self.Rp, dot(self.modes.S, self.vstrain)))
-#
-#        # Terms for moments dependent on strain velocity
-#        ang_strainvel_local = self.modes.inertia_vel(self.xstrain, self.vstrain)
-#        #ang_strainvel_local = _modal_calcs.inertia_vel(self.modes, self.xstrain, self.vstrain)
-#        ang_strainvel_global = dot(self.Rp, dot(ang_strainvel_local, self.Rp.T))
-#
-#        #if self.name == 'blade1':
-#        #    print dot(self.Rp.T, centrifugal)
-#        self.quad_forces[VP] = centrifugal + strainvel
-#        self.quad_forces[WP] = dot(
-#            (dot(self.wps, inertia_global) + 2*ang_strainvel_global), wp)
-#        self.quad_stress[ :] = self.modes.quad_stress(self.xstrain, self.vstrain, local_wp)
-#        #self.quad_stress[ :] = _modal_calcs.quad_stress(
-#        #                      self.modes, self.xstrain, self.vstrain, local_wp)
-#
-#        assert np.allclose(test_vv, self.mass_vv)
-#        assert np.allclose(test_ve, self.mass_ve)
-#        assert np.allclose(test_gv, self.quad_forces)
-#        assert np.allclose(test_ge, self.quad_stress)
-#
-
-    def apply_distributed_loading(self, load):
-        # XXX this may not work well with +=: when is it reset?
-        Qr, Qw, Qs = self.modes.distributed_loading(load, self.xstrain)
-        self.applied_forces[VP] += dot(self.Rp, Qr)
-        self.applied_forces[WP] += dot(self.Rp, Qw)
-        # XXX sign? applied stresses are negative
-        self.applied_stress[:]  += -Qs
-
-    def calc_external_loading(self):
-        # Gravity acceleration
-        acc = np.tile(self.gravity_acceleration(), 1 + self._ndistal)
-        self.applied_forces[:] = dot(self.mass_vv, acc)
-        self.applied_stress[:] = -dot(self.mass_ve.T, acc)
-        # XXX NB applied_stresses are negative (so they are as expected for
-        #     elastic stresses, but opposite for applied stresses)
-
-        #print self.applied_stress
-        #self._set_gravity_force()
-
-        # Constitutive loading (note stiffness and damping are diagonals so * ok)
-        self.applied_stress[:] += (
-            self.stiffness * self.xstrain +
-            self.damping   * self.vstrain
-        )
-
-        # Geometric stiffness
-        if True or OPT_GEOMETRIC_STIFFNESS:
-            # Calculate magnitude of angular velocity perpendicular to beam
-            local_wp_sq = np.sum(dot(self.Rp.T, self.vp[WP])[1:]**2)
-            self.applied_forces[3:] += -local_wp_sq * dot(self.kGw, self.xstrain)
-            self.applied_stress[:] += local_wp_sq * dot(self.kGe, self.xstrain)
-
-        # External loading
-        if self.loading is not None:
-            time = self.system.time if self.system else 0
-            P_prox = self.loading(self, time)
-            self.apply_distributed_loading(P_prox)
-
-    # Declare some standard custom outputs
-    def output_deflections(self, stations=(-1,)):
-        def f(system):
-            X = self.modes.X(self.xstrain)
-            X[:,0] -= self.modes.x
-            return X[stations]
-        return CustomOutput(f, label="{} deflections".format(self.name))
-
-    def output_rotations(self, stations=(-1,)):
-        def f(system):
-            return self.modes.small_rots(self.xstrain)[stations]
-        return CustomOutput(f, label="{} rotations".format(self.name))
-
-    def output_positions(self, stations=(-1,)):
-        def f(system):
-            return self.station_positions()[stations]
-        return CustomOutput(f, label="{} positions".format(self.name))
 
 
 def dot3(x, A, y):
@@ -269,12 +37,15 @@ def inertia_matrix(S2, qn):
 
 class ModalElementFromFE(Element):
     _ndistal = 0
-    _nstrain = 6
+    _nstrain = 1
     _nconstraints = 0
 
     def __init__(self, name, modal_fe):
-        '''
-        General element represented by finite element model.
+        '''General element represented by finite element model.
+
+        Geometric/centrifugal stiffening is already included in FE
+        model.
+
         '''
         self._nstrain = len(modal_fe.w)
         Element.__init__(self, name)
@@ -284,24 +55,18 @@ class ModalElementFromFE(Element):
         self.loading = None
 
         # Set constant parts of mass matrix
-        self.mass_vv[VP,VP] = self.fe.mass * eye(3)
-        self.mass_ee[ :, :] = self.modal.M
+        self.mass_vv[VP, VP] = self.fe.mass * eye(3)
+        self.mass_ee[:, :] = self.modal.M
 
         # Stiffness matrix
         self.stiffness = np.diag(self.modal.K)
         self.damping = 2 * self.modal.damping * self.stiffness / self.modal.w
         self.damping[np.isnan(self.damping)] = 0.0
 
-        # Geometric stiffness matrix
-        # Use int rdm as axial force, multiply by omega**2 later
-        # cenfug_force = cumulative_mass_moment(self.modes.X0, self.modes.density)
-        # self.kG = self.modes.geometric_stiffness(cenfug_force[:, 0])
-        #self.kGe, self.kGw = self.modes.centrifugal_stiffness()
-
     def station_positions(self):
         q = self.fe.q0 + dot(self.modal.shapes, self.xstrain)
         X = q.reshape((-1, 6))[:, :3]
-        global_pos = self.rp[None,:] + np.einsum('ij,hj', self.Rp, X)
+        global_pos = self.rp[newaxis, :] + np.einsum('ij,hj', self.Rp, X)
         return global_pos
 
     def elastic_deflections(self):
@@ -311,10 +76,6 @@ class ModalElementFromFE(Element):
     def elastic_velocities(self):
         V = dot(self.modal.shapes, self.vstrain)
         return np.c_[V[0::6], V[1::6], V[2::6]]
-
-    def calc_distal_pos(self):
-        self.rd[:]   = self.station_positions()[-1]
-        self.Rd[:,:] = self.station_rotations()[-1]
 
     def calc_mass(self):
         qn = self.fe.q0 + dot(self.modal.shapes, self.xstrain)
@@ -328,9 +89,16 @@ class ModalElementFromFE(Element):
         I_Wf = np.vstack((dot(qn.T, S2[1, 2] - S2[1, 2].T),
                           dot(qn.T, S2[2, 0] - S2[2, 0].T),
                           dot(qn.T, S2[0, 1] - S2[0, 1].T)))
-        I_Wf2 = np.vstack((dot(qn.T, Om[0] * (S2[1, 1] + S2[2, 2]) - Om[1]*S2[1, 0] - Om[2]*S2[2, 0]),
-                           dot(qn.T, Om[1] * (S2[2, 2] + S2[0, 0]) - Om[2]*S2[2, 1] - Om[1]*S2[0, 1]),
-                           dot(qn.T, Om[2] * (S2[0, 0] + S2[1, 1]) - Om[0]*S2[0, 2] - Om[1]*S2[1, 2])))
+        I_Wf2 = np.vstack((
+            dot(qn.T, (Om[0] * (S2[1, 1] + S2[2, 2]) -
+                       Om[1] * S2[1, 0] -
+                       Om[2] * S2[2, 0])),
+            dot(qn.T, (Om[1] * (S2[2, 2] + S2[0, 0]) -
+                       Om[2] * S2[2, 1] -
+                       Om[1] * S2[0, 1])),               # XXX should be Om[0]?
+            dot(qn.T, (Om[2] * (S2[0, 0] + S2[1, 1]) -
+                       Om[0] * S2[0, 2] -
+                       Om[1] * S2[1, 2]))))
         I_Wf = dot(I_Wf, self.modal.shapes)
         I_Wf2 = dot(I_Wf2, self.modal.shapes)
         BSB_hat = array([
@@ -367,21 +135,6 @@ class ModalElementFromFE(Element):
         self.quad_forces[WP] = dot(A, (Qcf_w + Qco_w))
         self.quad_stress[:] = Qcf_f + Qco_f
 
-        # For interest, see what the biggest forces are
-        self.force_comparison = np.vstack((
-            np.c_[dot(self.mass_vv, self.ap),
-                  dot(self.mass_ve, self.astrain),
-                  np.c_[[Qcf_R], [Qcf_w]].T,
-                  np.c_[[Qco_R], [Qco_w]].T],
-            np.c_[dot(self.mass_ve.T, self.ap),
-                  dot(self.mass_ee, self.astrain),
-                  np.c_[[Qcf_f]].T,
-                  np.c_[[Qco_f]].T],
-        )) * 100
-        # self.force_comparison[0:3] /= np.max(np.abs(self.force_comparison[0:3]))
-        # self.force_comparison[3:6] /= np.max(np.abs(self.force_comparison[3:6]))
-        # self.force_comparison[6:] /= np.max(np.abs(self.force_comparison[6:]))
-
     def calc_forces_from_distributed_loading(self, load):
         F = np.zeros(self.fe.M.shape[1], dtype=load.dtype)
         for i in range(3):
@@ -395,15 +148,10 @@ class ModalElementFromFE(Element):
             dot(q.T, (self.fe.F2[0, 1] - self.fe.F2[1, 0])),
         ))
 
-        # Qmat = np.vstack((
-        #     dot(self.Rp, self.fe.F1),
-        #     dot(self.Rp, I),
-        # ))
         Qmat = np.vstack((self.fe.F1, I))
         applied_forces = dot(Qmat, F)
 
         # Calculate equivalent nodal forces in FE model
-        #Q = self.fe.distribute_load(F)
         Q = dot(self.fe.F, F)
         applied_stress = dot(self.modal.shapes.T, Q)
 
@@ -412,8 +160,8 @@ class ModalElementFromFE(Element):
     def apply_distributed_loading(self, load):
         # XXX this may not work well with +=: when is it reset?
         forces, stress = self.calc_forces_from_distributed_loading(load)
-        self.applied_forces[:3] += dot(self.Rp, forces[:3])
-        self.applied_forces[3:] += dot(self.Rp, forces[3:])
+        self.applied_forces[0:3] += dot(self.Rp, forces[:3])
+        self.applied_forces[3:6] += dot(self.Rp, forces[3:])
         self.applied_stress[:] += -stress  # NB sign is -ve
 
     def calc_external_loading(self):
@@ -424,13 +172,11 @@ class ModalElementFromFE(Element):
         # XXX NB applied_stresses are negative (so they are as expected for
         #     elastic stresses, but opposite for applied stresses)
 
-        #print self.applied_stress
-        #self._set_gravity_force()
-
-        # Constitutive loading (note stiffness and damping are diagonals so * ok)
+        # Constitutive loading (note stiffness and damping are
+        # diagonals so * ok)
         self.applied_stress[:] += (
             self.stiffness * self.xstrain +
-            self.damping   * self.vstrain
+            self.damping * self.vstrain
         )
 
         # External loading
@@ -448,6 +194,43 @@ class ModalElementFromFE(Element):
             X = self.elastic_deflections()
             return X[stations]
         return CustomOutput(f, label="{} deflections".format(self.name))
+
+
+class DistalModalElementFromFE(ModalElementFromFE):
+    _ndistal = 1
+    _nstrain = 6
+    _nconstraints = 6
+
+    def calc_distal_pos(self):
+        qn = self.fe.q0 + dot(self.modal.shapes, self.xstrain)
+        self.rd[:] = self.rp + dot(self.Rp, qn[-6:-3])
+        Rx = np.eye(3) + skewmat(qn[-3:])
+        self.Rd[:, :] = dot(self.Rp, Rx)
+
+    def calc_kinematics(self):
+        """
+        Update kinematic transforms: F_vp, F_ve and F_v2
+        [vd wd] = Fvv * [vp wp]  +  Fve * [vstrain]  +  Fv2
+        """
+        𝛷d = self.modal.shapes[-6:]
+        Xd = self.fe.q0[-6:] + dot(𝛷d, self.xstrain)
+        Vd = dot(𝛷d, self.vstrain)
+
+        # Proximal nodal terms
+        self.F_vp[0:3, 3:6] = -skewmat(dot(self.Rp, Xd[0:3]))
+
+        # Strain terms
+        self.F_ve[0:3, :] = dot(self.Rp, 𝛷d[0:3])
+        self.F_ve[3:6, :] = dot(self.Rp, 𝛷d[3:6])
+
+        # Quadratic accelerations:
+        # 2 𝛚̃_p 𝐑_p Ẋ_d + 𝛚̃_p 𝛚̃_p 𝐑_p X_d
+        self.F_v2[0:3] = dot(self.wps, (2 * dot(self.Rp, Vd[0:3]) +
+                                        dot(self.wps, dot(self.Rp, Xd[0:3]))))
+
+        # 𝛚̃_p 𝐑_p 𝛉̇_d
+        self.F_v2[3:6] = dot(self.wps, dot(self.Rp, Vd[3:6]))
+
 
 
 class DistalModalElementFromScratch(Element):
