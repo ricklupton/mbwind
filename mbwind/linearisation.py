@@ -19,13 +19,12 @@ import scipy.linalg
 from scipy.misc import derivative
 from scipy.integrate import ode, simps
 
+from .reduced import ReducedSystem
 from .system import System
 
-eps_ijk = zeros((3,3,3))
-eps_ijk[0,1,2] = eps_ijk[1,2,0] = eps_ijk[2,0,1] =  1
-eps_ijk[2,1,0] = eps_ijk[1,0,2] = eps_ijk[0,2,1] = -1
-
-
+eps_ijk = zeros((3, 3, 3))
+eps_ijk[0, 1, 2] = eps_ijk[1, 2, 0] = eps_ijk[2, 0, 1] = +1
+eps_ijk[2, 1, 0] = eps_ijk[1, 0, 2] = eps_ijk[0, 2, 1] = -1
 
 
 def system_residue(system, z, zd, zdd):
@@ -39,13 +38,9 @@ def system_residue(system, z, zd, zdd):
     system.q.dofs[:] = z
     system.qd.dofs[:] = zd
     system.update_kinematics()
-    system.calc_projections()
-
-    RtM = dot(system.R.T, system.lhs[np.ix_(system.iReal, system.iReal)])
-    Mr = dot(RtM, system.R)
-    Qr = dot(system.R.T, system.rhs[system.iReal])
-
-    return dot(Mr, zdd) - Qr + dot(RtM, system.Sc)
+    system.update_matrices()
+    rsys = ReducedSystem(system)
+    return dot(rsys.M, zdd) - rsys.Q
 
 
 def _create_strain_array(system, initial_values_dict):
@@ -97,7 +92,7 @@ class LinearisedSystem(object):
             else:
                 return zx
 
-        f = system.B.shape[0]  # number of DOFs
+        f = len(system.qd.dofs)  # number of DOFs
         z0 = _prepare_initial_values(z0, system.q.dofs[:])
         zd0 = _prepare_initial_values(zd0, system.qd.dofs[:])
         zdd0 = _prepare_initial_values(zdd0, zeros(len(system.q.dofs)))
