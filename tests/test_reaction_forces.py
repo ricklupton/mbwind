@@ -216,3 +216,51 @@ class TestSliderReactionLoadsTimeseries(unittest.TestCase):
         predictions = y[6:9]
         for i in range(3):
             assert_aae(results[i], predictions[i])
+
+
+class TestReactionForcesForCentrifugalForce(unittest.TestCase):
+    """
+    System
+    ------
+    A rigid body with offset mass, attached to a spinning hinge.
+
+    Tests
+    -----
+    Check centrifugal force reaction on hinge is in correct direction.
+    """
+    mass = 5.0     # kg
+    offset = 3.2   # m
+
+    def setUp(self):
+        # Rigid body with offset centre of mass
+        self.body = RigidBody('body', self.mass, Xc=[self.offset, 0, 0])
+
+        # Hinge with axis along Z axis
+        self.hinge = Hinge('hinge', [0, 0, 1])
+
+        # Build system
+        self.system = System()
+        self.system.add_leaf(self.hinge)
+        self.hinge.add_leaf(self.body)
+        self.system.setup()
+        self.system.update_kinematics()    # Set up nodal values initially
+        self.system.update_matrices()
+
+    def test_reactions(self):
+        # Set angular acceleration
+        w = 5.21  # rad/s
+        self.hinge.vstrain[0] = w
+        self.system.update_kinematics()    # Update nodal values based on DOFs
+        self.system.update_matrices()
+        self.system.solve_reactions()      # Solve reactions incl d'Alembert
+
+        # Some parameters
+        L = self.offset
+        m = self.mass
+
+        # Check reactions at beam root
+        Pg = self.system.joint_reactions['ground']
+        P0 = self.system.joint_reactions['node-0']
+        Fx_expected = -m * L * w**2
+        assert_aae(P0, [Fx_expected, 0, 0, 0, 0, 0])
+        assert_aae(Pg, P0)

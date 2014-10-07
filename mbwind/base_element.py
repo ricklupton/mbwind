@@ -169,7 +169,7 @@ class Element(object):
         a_nodal = np.r_[self.ap, self.ad]
         elem = (-dot(self.mass_vv, a_nodal) +
                 -dot(self.mass_ve, self.astrain) +
-                self.quad_forces +
+                -self.quad_forces +
                 self.applied_forces)
 
         # calculate forces acting ON proximal nodes:
