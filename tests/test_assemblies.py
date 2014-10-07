@@ -14,8 +14,7 @@ def _mock_rigid_uniform_beam(density, length, name='beam'):
     x = linspace(0, length, 20)
     fe = BeamFE(x, density=density, EA=0, EIy=1, EIz=0)
     fe.set_boundary_conditions('C', 'F')
-    modal = fe.modal_matrices(0)
-    beam = ModalElementFromFE(name, modal)
+    beam = ModalElementFromFE(name, fe, 0)
     return beam
 
 
@@ -177,8 +176,7 @@ class hinged_beam_tests(unittest.TestCase):
         x = linspace(0, self.length, 20)
         fe = BeamFE(x, density=self.density, EA=0, EIy=1, EIz=0)
         fe.set_boundary_conditions('C', 'F')
-        modal = fe.modal_matrices(0)
-        self.beam = ModalElementFromFE('beam', modal)
+        self.beam = ModalElementFromFE('beam', fe, 0)
 
         # Set loading - in negative Z direction
         load = np.zeros((len(x), 3))

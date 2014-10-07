@@ -1,11 +1,11 @@
 import unittest
 from numpy import zeros, linspace
 from numpy.testing import assert_array_equal, assert_array_almost_equal
-from mbwind import System, Integrator, ModalElementFromFE
+from mbwind import System, Integrator, DistalModalElementFromFE
 from beamfe import BeamFE
 
 
-class TestModalElementFromFE_static_solutions(unittest.TestCase):
+class TestDistalModalElementFromFE_static_solutions(unittest.TestCase):
     EI = 28.2e6
     m = 23.1
     L = 40.0
@@ -14,10 +14,10 @@ class TestModalElementFromFE_static_solutions(unittest.TestCase):
     def setUp(self):
         x = linspace(0, self.L, 15)
         fe = BeamFE(x, density=self.m, EA=0, EIy=self.EI, EIz=0)
-        fe.set_boundary_conditions('C', 'F')
+        fe.set_boundary_conditions('C', 'C')
         fe.set_dofs([False, False, True, False, True, False])
-        beam = ModalElementFromFE('beam', fe, num_modes=1,
-                                  damping=self.damping_coeff)
+        beam = DistalModalElementFromFE('beam', fe, num_modes=1,
+                                        damping=self.damping_coeff)
 
         system = System()
         system.add_leaf(beam)
@@ -27,11 +27,11 @@ class TestModalElementFromFE_static_solutions(unittest.TestCase):
         self.beam, self.system = beam, system
 
     def test_number_of_states(self):
-        # 1 node        -> 6 states
-        # 0 constraints -> 0 states
-        # 1 dof         -> 1 state
-        self.assertEqual(len(self.system.qd), 7)
-        self.assertEqual(len(self.system.qd.dofs), 1)
+        # 2 nodes       -> 12 states
+        # 6 constraints -> 6  states
+        # 3 dofs        -> 3  states  (2 attachment modes, 1 normal mode)
+        self.assertEqual(len(self.system.qd), 21)
+        self.assertEqual(len(self.system.qd.dofs), 3)
 
     def test_solution_without_force(self):
         # Static equilibrium should not move with no forces
@@ -55,7 +55,7 @@ class TestModalElementFromFE_static_solutions(unittest.TestCase):
 
         # Now integrating in time should not change solution
         solution = integrate(self.system)
-        assert_array_equal(solution[0], solution[-1])
+        assert_array_almost_equal(solution[0], solution[-1])
 
     def test_solution_with_force_applied_in_callback(self):
         Fz = 20.3
@@ -77,7 +77,7 @@ class TestModalElementFromFE_static_solutions(unittest.TestCase):
             print(self.beam.applied_stress)
             return []
         solution = integrate(self.system, callback)
-        assert_array_equal(solution[0], solution[-1])
+        assert_array_almost_equal(solution[0], solution[-1])
 
 
 def integrate(system, callback=None):

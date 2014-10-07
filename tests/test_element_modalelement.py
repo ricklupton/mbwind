@@ -19,11 +19,10 @@ class TestModalElementFromFE_mode_frequency(unittest.TestCase):
         fe = BeamFE(x, density=1, EA=0, EIy=1, EIz=0)
         fe.set_boundary_conditions('C', 'F')
         fe.set_dofs([False, False, True, False, True, False])
-        modal = fe.modal_matrices()
-        element = ModalElementFromFE('elem', modal)
+        element = ModalElementFromFE('elem', fe)
 
         Mmodal = element.mass_ee
-        Kmodal = np.diag(element.stiffness)
+        Kmodal = element.K
         w = np.sqrt(np.diag(Kmodal) / np.diag(Mmodal))
         assert_aae(w[0], 3.5160, decimal=4)
 
@@ -38,27 +37,25 @@ class TestModalElementFromFE_distributed_loading(unittest.TestCase):
         fe = BeamFE(x, density=10, EA=0, EIy=EI, EIz=0)
         fe.set_boundary_conditions('C', 'F')
         fe.set_dofs([False, False, True, False, True, False])
-        modal = fe.modal_matrices()
-        element = ModalElementFromFE('elem', modal)
+        element = ModalElementFromFE('elem', fe)
 
         # Distributed load, linearly interpolated
         load = np.zeros((3, 3))
         load[-1, 2] = -100        # Load in z direction at tip
         element.apply_distributed_loading(load)
-        defl = -element.applied_stress / element.stiffness
+        defl = -element.applied_stress / np.diag(element.K)
 
         # Check against directly calculating static deflection from FE
         Q = fe.distribute_load(interleave(load, 6))
         defl_fe, reactions_fe = fe.static_deflection(Q)
-        assert_aae(dot(element.modal.shapes, defl), defl_fe, decimal=2)
+        assert_aae(dot(element.shapes, defl), defl_fe, decimal=2)
 
     def test_rigid_element_reference_loading(self):
         # Make an element with no modes (rigid)
         fe = BeamFE(np.linspace(0, 1, 11), density=1, EA=0, EIy=1, EIz=0)
         fe.set_boundary_conditions('C', 'F')
         fe.set_dofs([False, False, True, False, True, False])
-        modal = fe.modal_matrices(0)
-        element = ModalElementFromFE('elem', modal)
+        element = ModalElementFromFE('elem', fe, 0)
 
         # Distributed load, linearly interpolated
         load = np.zeros((11, 3))

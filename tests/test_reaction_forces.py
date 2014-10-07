@@ -34,8 +34,7 @@ class TestReactionForcesOnModalElementFromFE(unittest.TestCase):
         density = (2 * self.mass / self.length) * (1 - x / self.length)
         fe = BeamFE(x, density=density, EA=0, EIy=1, EIz=0)
         fe.set_boundary_conditions('C', 'F')
-        modal = fe.modal_matrices(0)
-        self.beam = ModalElementFromFE('beam', modal)
+        self.beam = ModalElementFromFE('beam', fe, 0)
 
         # Set loading - in Z direction
         load = np.zeros((len(x), 3))
