@@ -111,7 +111,7 @@ class ModalElementFromFE(Element):
                        Om[2] * S2[2, 0])),
             dot(qn.T, (Om[1] * (S2[2, 2] + S2[0, 0]) -
                        Om[2] * S2[2, 1] -
-                       Om[1] * S2[0, 1])),               # XXX should be Om[0]?
+                       Om[0] * S2[0, 1])),               # XXX was Om[1]?
             dot(qn.T, (Om[2] * (S2[0, 0] + S2[1, 1]) -
                        Om[0] * S2[0, 2] -
                        Om[1] * S2[1, 2]))))
@@ -138,14 +138,14 @@ class ModalElementFromFE(Element):
         #self.mass_ee[:, :] already done
 
         # Velocity-dependent forces: CentriFugal and COriolis
-        Qcf_R = dot3(skewmat(Om), Ys, Om)
-        Qco_R = -2 * dot(skewmat(Om), dot(self.S1, self.vstrain))
+        Qcf_R = -dot3(skewmat(Om), Ys, Om)
+        Qco_R = 2 * dot(skewmat(Om), dot(self.S1, self.vstrain))
 
-        Qcf_w = -dot3(skewmat(Om), J, Om)
-        Qco_w = -2 * dot(I_Wf2, self.vstrain)
+        Qcf_w = dot3(skewmat(Om), J, Om)
+        Qco_w = 2 * dot(I_Wf2, self.vstrain)
 
-        Qcf_f = dot(I_Wf2.T, Om)
-        Qco_f = 2 * np.einsum('i, ipq, q -> p', Om, BSB_hat, self.vstrain)
+        Qcf_f = -dot(I_Wf2.T, Om)
+        Qco_f = -2 * np.einsum('i, ipq, q -> p', Om, BSB_hat, self.vstrain)
 
         self.quad_forces[VP] = dot(A, (Qcf_R + Qco_R))
         self.quad_forces[WP] = dot(A, (Qcf_w + Qco_w))
