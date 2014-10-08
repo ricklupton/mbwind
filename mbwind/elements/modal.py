@@ -40,11 +40,15 @@ class ModalElementFromFE(Element):
     _nstrain = 1
     _nconstraints = 0
 
-    def __init__(self, name, fe, num_modes=None, damping=0.0):
+    def __init__(self, name, fe, num_modes=None, damping=0.0,
+                 reference_spin_speed=None):
         '''General element represented by finite element model.
 
         Geometric/centrifugal stiffening is already included in FE
-        model.
+        model. If the angular velocity at which the stiffening was
+        calculated is provided as `reference_spin_speed`, the
+        stiffening will be corrected to the current instantaneous
+        angular velocity.
 
         '''
         # Get mode shapes
@@ -56,10 +60,12 @@ class ModalElementFromFE(Element):
         self.fe = fe
         self.shapes = shapes
         self.mode_w = w
+        self.reference_spin_speed = reference_spin_speed
 
         # Calculate projected matrices
-        self.M = dot(shapes.T, dot(fe.M, shapes))
-        self.K = dot(shapes.T, dot(fe.K + fe.Ks, shapes))
+        self.M = dot3(shapes.T, fe.M, shapes)
+        self.K = dot3(shapes.T, fe.K, shapes)
+        self.Ks = dot3(shapes.T, fe.Ks, shapes)
         self.S1 = dot(fe.S1, shapes)
         self.F1 = fe.F1
         self.S2 = np.einsum('ap, ijab, bq -> ijpq', shapes, fe.S2, shapes)
@@ -69,7 +75,7 @@ class ModalElementFromFE(Element):
         self.mass_vv[VP, VP] = self.fe.mass * eye(3)
         self.mass_ee[:, :] = self.M
 
-        # Stiffness matrix
+        # Damping matrix
         self.C = np.diag(2 * damping * np.diag(self.K) / self.mode_w)
         self.C[np.isnan(self.C)] = 0.0
 
@@ -182,9 +188,18 @@ class ModalElementFromFE(Element):
         # XXX NB applied_stresses are negative (so they are as expected for
         #     elastic stresses, but opposite for applied stresses)
 
+        # Centrifugal stiffening: Calculate magnitude of angular
+        # velocity perpendicular to beam
+        if self.reference_spin_speed is not None and \
+           self.reference_spin_speed > 0:
+            local_wp_sq = np.sum(dot(self.Rp.T, self.vp[WP])[1:]**2)
+            Ks = self.Ks * (local_wp_sq / self.reference_spin_speed**2)
+        else:
+            Ks = self.Ks
+
         # Constitutive loading
-        self.applied_stress[:] += (dot(self.K, self.xstrain) +
-                                   dot(self.C, self.vstrain))
+        self.applied_stress[:] += (
+            dot(self.K + Ks, self.xstrain) + dot(self.C, self.vstrain))
 
         # External loading
         if self.loading is not None:
@@ -202,13 +217,20 @@ class ModalElementFromFE(Element):
             return X[stations]
         return CustomOutput(f, label="{} deflections".format(self.name))
 
+    def output_positions(self, stations=(-1,)):
+        def f(system):
+            X = self.station_positions()
+            return X[stations]
+        return CustomOutput(f, label="{} positions".format(self.name))
+
 
 class DistalModalElementFromFE(ModalElementFromFE):
     _ndistal = 1
     _nstrain = None  # set in __init__
     _nconstraints = 6
 
-    def __init__(self, name, fe, num_modes=None, damping=0.0):
+    def __init__(self, name, fe, num_modes=None, damping=0.0,
+                 reference_spin_speed=None):
         '''General element represented by finite element model.
 
         Geometric/centrifugal stiffening is already included in FE
@@ -233,10 +255,12 @@ class DistalModalElementFromFE(ModalElementFromFE):
         Element.__init__(self, name)
         self.loading = None
         self.fe = fe
+        self.reference_spin_speed = reference_spin_speed
 
         # Calculate projected matrices
         self.M = dot(shapes.T, dot(fe.M, shapes))
-        self.K = dot(shapes.T, dot(fe.K + fe.Ks, shapes))
+        self.K = dot3(shapes.T, fe.K, shapes)
+        self.Ks = dot3(shapes.T, fe.Ks, shapes)
         self.S1 = dot(fe.S1, shapes)
         self.F1 = fe.F1
         self.S2 = np.einsum('ap, ijab, bq -> ijpq', shapes, fe.S2, shapes)
