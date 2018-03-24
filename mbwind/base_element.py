@@ -198,6 +198,7 @@ class Element(object):
         # Gravity acceleration
         acc = np.tile(self.gravity_acceleration(), 1 + self._ndistal)
         self.applied_forces[:] = dot(self.mass_vv, acc)
+        # XXX: should produce a stress too?
 
     def calc_kinematics(self):
         """

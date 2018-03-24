@@ -21,3 +21,19 @@ def blade_fe(blade, root_length=0.0, spin=0.0):
                 axial_force=N * spin**2)
     fe.set_boundary_conditions('C', 'F')
     return fe
+
+
+def sample_tower_data():
+    # Load blade data
+    with open('Bladed_models/simple_tower.yaml', 'r') as f:
+        tower = yaml.safe_load(f)
+    return tower
+
+
+def tower_fe(tower):
+    x = tower['radii']
+    fe = BeamFE(x, tower['density'], tower['EA'],
+                tower['EIyy'], tower['EIzz'])
+    fe.set_dofs([False, True, True, False, True, True])
+    fe.set_boundary_conditions('C', 'C')
+    return fe

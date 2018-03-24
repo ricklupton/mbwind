@@ -208,8 +208,11 @@ class LinearisedSystem(object):
         Perform a multi-blade coordinate (MBC) transform.
         -- following the NREL MBC reference
         """
-        azimuth = self.z0[azimuth_omega]
-        omega = self.zd0[azimuth_omega]
+        if isinstance(azimuth_omega, tuple):
+            azimuth, omega = azimuth_omega
+        else:
+            azimuth = self.z0[azimuth_omega]
+            omega = self.zd0[azimuth_omega]
         Nb = len(iblades) # number of blades
         if Nb != 3:
             raise NotImplementedError("Only 3 blades implemented")

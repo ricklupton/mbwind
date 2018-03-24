@@ -3,6 +3,7 @@ import numpy as np
 from numpy import array, eye, pi, c_, cos, sin, dot
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
+from mbwind import System, RigidBody
 from mbwind.elements import FreeJoint
 from .common import (random_rotation_matrix, set_random_state,
                      constraint_consistency_check)
@@ -115,3 +116,36 @@ class TestFreeJoint(unittest.TestCase):
         j.calc_external_loading()
         assert_array_equal(j.applied_forces, 0)
         assert_array_equal(j.applied_stress, -1)
+
+    def test_distal_forces(self):
+        j = FreeJoint('joint')
+
+        # Constant loading
+        j.distal_forces = np.array([2, 3.1, 2.1, 4.3, 2.5, 1.0])
+        j.calc_external_loading()
+        assert_array_equal(j.applied_forces[:6], 0)
+        assert_array_equal(j.applied_forces[6:], j.distal_forces)
+        assert_array_equal(j.applied_stress, 0)
+
+        # Loading function
+        j.distal_forces = lambda element, t: np.ones(6)
+        j.calc_external_loading()
+        assert_array_equal(j.applied_forces[:6], 0)
+        assert_array_equal(j.applied_forces[6:], 1)
+        assert_array_equal(j.applied_stress, 0)
+
+    def test_distal_forces_cause_acceleration(self):
+        j = FreeJoint('joint')
+        b = RigidBody('body', mass=3, inertia=np.diag([7, 7, 7]))
+        s = System()
+        s.add_leaf(j)
+        j.add_leaf(b)
+        s.setup()
+
+        # Constant loading
+        j.distal_forces = np.array([2, 0, 0, 0, 0, 0])
+        s.update_kinematics()
+        s.update_matrices()
+        s.solve_accelerations()
+        s.update_kinematics()
+        assert_array_equal(j.ad, [2. / 3, 0, 0, 0, 0, 0])

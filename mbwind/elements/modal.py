@@ -52,7 +52,10 @@ class ModalElementFromFE(Element):
 
         '''
         # Get mode shapes
-        w, shapes = fe.normal_modes(num_modes)
+        if reference_spin_speed is None:
+            reference_spin_speed = 1.0
+        axial_force_scale = reference_spin_speed**2
+        w, shapes = fe.normal_modes(num_modes, axial_force_scale)
         self._nstrain = len(w)
 
         Element.__init__(self, name)
@@ -190,12 +193,10 @@ class ModalElementFromFE(Element):
 
         # Centrifugal stiffening: Calculate magnitude of angular
         # velocity perpendicular to beam
-        if self.reference_spin_speed is not None and \
-           self.reference_spin_speed > 0:
-            local_wp_sq = np.sum(dot(self.Rp.T, self.vp[WP])[1:]**2)
-            Ks = self.Ks * (local_wp_sq / self.reference_spin_speed**2)
-        else:
-            Ks = self.Ks
+        local_wp_sq = np.sum(dot(self.Rp.T, self.vp[WP])[1:]**2)
+        Ks = self.Ks * local_wp_sq
+        if self.reference_spin_speed > 0:
+            Ks /= self.reference_spin_speed**2
 
         # Constitutive loading
         self.applied_stress[:] += (
@@ -237,6 +238,8 @@ class DistalModalElementFromFE(ModalElementFromFE):
         model.
 
         '''
+        if reference_spin_speed is None:
+            reference_spin_speed = 1.0
         B = fe.Bdof & fe.Bbound
         left_boundary_dofs = sum(B[:6])
         right_boundary_dofs = sum(B[-6:])
@@ -244,8 +247,9 @@ class DistalModalElementFromFE(ModalElementFromFE):
             "Expected clamped-clamped beam"
 
         # Get mode shapes
-        w, Phi = fe.normal_modes(num_modes)
-        Xi = fe.attachment_modes()
+        axial_force_scale = reference_spin_speed**2
+        w, Phi = fe.normal_modes(num_modes, axial_force_scale)
+        Xi = fe.attachment_modes(axial_force_scale)
 
         # Discard proximal node's attachment modes
         Xi = Xi[:, left_boundary_dofs:]

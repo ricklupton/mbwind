@@ -133,6 +133,7 @@ class FreeJoint(Element):
         self.damping = damping
         self.post_transform = post_transform
         self.internal_forces = None
+        self.distal_forces = None
 
         # Constant parts of transformation matrices
         self.F_ve = eye(6)
@@ -196,6 +197,13 @@ class FreeJoint(Element):
             else:
                 loading = np.asarray(self.internal_forces)
             self.applied_stress += -loading  # NB minus sign
+        if self.distal_forces is not None:
+            if callable(self.distal_forces):
+                time = self.system.time if self.system else 0
+                loading = self.distal_forces(self, time)
+            else:
+                loading = np.asarray(self.distal_forces)
+            self.applied_forces[6:] = loading
 
 
 class RigidConnection(Element):

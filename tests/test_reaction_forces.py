@@ -1,11 +1,11 @@
 import unittest
 import numpy as np
-from numpy import linspace
+from numpy import linspace, sqrt, pi, dot
 from numpy.testing import assert_array_almost_equal
 
 from mbwind import (System, LoadOutput, CustomOutput, PrismaticJoint,
                     ModalElementFromFE, RigidBody, Integrator,
-                    RigidConnection, Hinge)
+                    RigidConnection, Hinge, rotations)
 
 from beamfe import BeamFE
 
@@ -263,3 +263,88 @@ class TestReactionForcesForCentrifugalForce(unittest.TestCase):
         Fx_expected = -m * L * w**2
         assert_aae(P0, [Fx_expected, 0, 0, 0, 0, 0])
         assert_aae(Pg, P0)
+
+
+class TestReactionForcesWithRotatedBeam(unittest.TestCase):
+    """Intended to check the transformation from blade loading to rotor
+    loading in a wind turbine rotor: the loads are applied to the beam
+    in the local rotated coordinate system, check they work through to
+    the ground reactions correctly.
+    """
+    force = 24.1
+    length = 4.3
+    root_length = 0.0
+
+    def setUp(self):
+        # FE model for beam - no modes, i.e. rigid
+        self.x = x = linspace(0, self.length, 20)
+        fe = BeamFE(x, density=2, EA=0, EIy=0, EIz=0)
+
+        # Build the elements
+        self.shaft = Hinge('shaft', [1, 0, 0])
+
+        self.roots = []
+        self.blades = []
+        self.pitch_bearings = []
+        for ib in range(1):
+            R = rotations(('x', ib*2*pi/3), ('y', -pi/2))
+            root_offset = dot(R, [self.root_length, 0, 0])
+            root = RigidConnection('root%d' % (ib+1), root_offset, R)
+            bearing = Hinge('pitch%d' % (ib+1), [1, 0, 0])
+            blade = ModalElementFromFE('blade%d' % (ib+1), fe, 0)
+
+            self.shaft.add_leaf(root)
+            root.add_leaf(bearing)
+            bearing.add_leaf(blade)
+
+            self.roots.append(root)
+            self.blades.append(blade)
+            self.pitch_bearings.append(bearing)
+
+        # Build system
+        self.system = System()
+        self.system.add_leaf(self.shaft)
+        self.system.setup()
+        self.system.update_kinematics()    # Set up nodal values initially
+        self.system.update_matrices()
+
+    def test_reactions(self):
+        # Some parameters
+        L = self.length
+        F = self.length * self.force
+
+        # Set loading - in local z direction
+        load = np.zeros((len(self.x), 3))
+        load[:, 2] = self.force
+        self.blades[0].loading = load
+        self.system.update_kinematics()
+        self.system.update_matrices()
+        self.system.solve_reactions()
+
+        # Check reactions at ground (0, 0, 0)
+        P = -self.system.joint_reactions['ground']
+        F_expected = [-F, 0, 0]
+        M_expected = [0, -F*(L+self.root_length)/2, 0]
+        assert_aae(P, np.r_[F_expected, M_expected])
+
+        # Reactions on other side of hinge
+        P2 = -self.system.joint_reactions['node-0']
+        assert_aae(P, P2)
+
+        # Now set pitch angle to 45deg
+        # NB: hinge rotation is opposite to wind turbine pitch convention
+        self.pitch_bearings[0].xstrain[0] = -pi / 4
+        self.system.update_kinematics()
+        self.system.update_matrices()
+        self.system.solve_reactions()
+
+        # Check reactions at ground (0, 0, 0)
+        P = -self.system.joint_reactions['ground']
+        F_expected = [-F/sqrt(2), F/sqrt(2), 0]
+        M_expected = [-F/sqrt(2)*L/2, -F/sqrt(2)*L/2, 0]
+        assert_aae(P, np.r_[F_expected, M_expected])
+
+        # Reactions on other side of hinge
+        P2 = -self.system.joint_reactions['node-0']
+        assert_aae(P, P2)
+

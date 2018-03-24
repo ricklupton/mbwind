@@ -2,8 +2,7 @@ import itertools
 import numpy as np
 from numpy import array, dot, pi, cos, sin
 from mbwind.elements import (FreeJoint, RigidConnection, RigidBody, Hinge,
-                             ModalElement, DistalModalElementFromScratch)
-from mbwind.elements.modal import ModalElementFromFE
+                             ModalElementFromFE, DistalModalElementFromFE)
 
 # class PrismaticJointView(object):
 #     def shape(self, joint):
@@ -73,13 +72,13 @@ def anim_mode(system, frequency, modeshape, xlim=None, ylim=None, zlim=None,
     # Calculate axis limits automatically
     def nodal_positions(system, z):
         system.q.dofs[:] = z
-        system.update_kinematics(calculate_matrices=False)
+        system.update_kinematics()
         node_names = system.q.names_by_type(('ground', 'node'))
         # Pick out positions (not rotation matrices)
         xyz = np.array([system.q[name][:3] for name in node_names])
         # Add in ModalElement final station positions as a workaround
         modal_xyz = [e.station_positions()[-1] for e in system.iter_elements()
-                     if isinstance(e, ModalElement)]
+                     if isinstance(e, ModalElementFromFE)]
         return np.r_[xyz, modal_xyz]
 
     # Calculate nodal positions at start and middle of oscillation
@@ -113,7 +112,7 @@ def anim_mode(system, frequency, modeshape, xlim=None, ylim=None, zlim=None,
             z = convert_mbc_dofs_to_blade(system, modeshape,
                                           blade_elements, az)
             dofs = modeshape_scale * (z * np.exp(1j*frequency*t)).real
-            dofs[system.dof_index(rotor_element, 0)] += az
+            # dofs[system.dof_index(rotor_element, 0)] += az
             return dofs
 
     # Create axes: XZ, YZ, XY
@@ -148,7 +147,10 @@ def anim_mode(system, frequency, modeshape, xlim=None, ylim=None, zlim=None,
     def animate(i):
         # Update system
         system.q.dofs[:] = dofs_at_time(t[i])
-        system.update_kinematics(calculate_matrices=False)
+        if rotor_speed is not None:
+            az = (rotor_speed * t[i]) % (2*pi)
+            system.elements[rotor_element].xstrain[0] = az
+        system.update_kinematics()
 
         # Update artists
         artists = []
@@ -174,7 +176,7 @@ def anim_mode(system, frequency, modeshape, xlim=None, ylim=None, zlim=None,
 
     # Put back system how it started
     system.q.dofs[:] = initial_q
-    system.update_kinematics(calculate_matrices=False)
+    system.update_kinematics()
 
     return anim
 
@@ -313,8 +315,8 @@ class RigidBodyView(ElementView):
         self.line.set_data(line[:, self.x], line[:, self.y])
 
 
-class ModalBeamView(ElementView):
-    element = DistalModalElementFromScratch
+class DistalModalElementView(ElementView):
+    element = DistalModalElementFromFE
 
     def create_artists(self):
         self.shape, = self.axes.plot([], [], c='g', marker='o', lw=2, ms=1)
@@ -327,12 +329,11 @@ class ModalBeamView(ElementView):
 
     def update(self):
         e = self.element
-        X0, defl = self.element.local_deflections()
-        shape = e.rp + array([dot(e.Rp, (X0[i]+defl[i]))
-                              for i in range(X0.shape[0])])
+        shape = self.element.station_positions()
+        undeflected_end = dot(e.Rp, e.fe.q0[-6:-3])
         local_axis = np.r_[
             [e.rp],
-            [e.rp + dot(e.Rp, X0[-1])],
+            [e.rp + undeflected_end],
             [shape[-1]]
         ]
 
@@ -341,7 +342,7 @@ class ModalBeamView(ElementView):
 
 
 class ModalElementView(ElementView):
-    element = ModalElement
+    element = ModalElementFromFE
 
     def create_artists(self):
         self.shape, = self.axes.plot([], [], c='g', marker='o', lw=2, ms=1)
@@ -357,7 +358,7 @@ class ModalElementView(ElementView):
         shape = self.element.station_positions()
         local_axis = np.r_[
             [e.rp],
-            [e.rp + dot(e.Rp, e.modes.X0[-1])],
+            [e.rp + dot(e.Rp, e.fe.q0[-6:][0:3])],
             [shape[-1]]
         ]
         self.shape.set_data(shape[:, self.x], shape[:, self.y])
